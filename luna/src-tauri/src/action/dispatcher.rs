@@ -69,15 +69,25 @@ impl ActionDispatcher {
                     )));
                 }
                 PermissionState::PendingApproval => {
-                    // For system/user actions, allow through. For agents, this
-                    // would trigger an approval dialog (handled at the command level).
-                    // In Sprint 2 we allow PendingApproval through with a warning so
-                    // the system stays functional. Approval dialogs are frontend-triggered.
-                    warn!(
-                        agent_id = %agent_id,
-                        action_type = %action.action_type,
-                        "Action requires approval (auto-allowed in Sprint 2)"
-                    );
+                    // User and system actions pass through; agent actions need approval.
+                    match &action.source {
+                        crate::action::types::ActionSource::User
+                        | crate::action::types::ActionSource::System => {
+                            // Allow user/system actions through
+                        }
+                        crate::action::types::ActionSource::Agent(_) => {
+                            warn!(
+                                agent_id = %agent_id,
+                                action_type = %action.action_type,
+                                "Action requires user approval"
+                            );
+                            self.audit.log(&agent_id, &action.action_type, "pending_approval").ok();
+                            return Err(LunaError::Dispatch(format!(
+                                "Permission pending: agent '{}' needs approval for '{}'",
+                                agent_id, action.action_type
+                            )));
+                        }
+                    }
                 }
                 PermissionState::Allowed => {}
             }

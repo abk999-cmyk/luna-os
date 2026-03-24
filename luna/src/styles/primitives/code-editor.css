@@ -1,0 +1,106 @@
+/* === Code Editor === */
+.luna-code-editor {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--surface-elevated);
+  position: relative;
+}
+.luna-code-editor__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-xs) var(--space-md);
+  background: var(--surface-secondary);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.luna-code-editor__language {
+  font-size: 0.75em;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.luna-code-editor__run {
+  background: var(--color-teal-500);
+  color: white;
+  border: none;
+  padding: var(--space-xs) var(--space-md);
+  border-radius: var(--radius-sm);
+  font-size: 0.8em;
+  cursor: pointer;
+  font-weight: 500;
+}
+.luna-code-editor__run:hover {
+  background: var(--color-teal-600);
+}
+.luna-code-editor__textarea {
+  width: 100%;
+  border: none;
+  outline: none;
+  resize: vertical;
+  font-family: 'Cascadia Code', 'Fira Code', 'SF Mono', 'Monaco', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  padding: var(--space-md);
+  padding-left: 48px;
+  background: transparent;
+  color: var(--text-primary);
+  tab-size: 2;
+}
+.luna-code-editor__line-numbers {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 40px;
+  padding-top: 36px; /* header height */
+  text-align: right;
+  pointer-events: none;
+}
+.luna-code-editor__line-number {
+  font-family: 'Cascadia Code', 'Fira Code', 'SF Mono', monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-tertiary);
+  padding-right: var(--space-sm);
+  height: calc(13px * 1.6);
+}
+
+/* === Terminal === */
+.luna-terminal {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: #1a1410;
+}
+.luna-terminal__header {
+  padding: var(--space-xs) var(--space-md);
+  background: #231c14;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+.luna-terminal__title {
+  font-size: 0.75em;
+  color: rgba(255, 255, 255, 0.6);
+  font-weight: 600;
+}
+.luna-terminal__output {
+  padding: var(--space-md);
+  overflow-y: auto;
+  max-height: 300px;
+}
+.luna-terminal__line {
+  font-family: 'Cascadia Code', 'Fira Code', 'SF Mono', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #e4dcc9;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.luna-terminal__prompt {
+  color: var(--color-teal-400);
+  margin-right: var(--space-sm);
+}

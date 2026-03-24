@@ -1,5 +1,6 @@
 import { useWindowStore } from '../stores/windowStore';
 import { Window } from './Window';
+import { WindowConnector } from './WindowConnector';
 import { TextInputBar } from './TextInputBar';
 
 export function Desktop() {
@@ -30,6 +31,7 @@ export function Desktop() {
       }}
       onClick={handleDesktopClick}
     >
+      <WindowConnector />
       {sortedWindows.map((win) => (
         <Window key={win.id} window={win} />
       ))}

@@ -19,15 +19,25 @@ interface WindowStore {
   focusWindow: (id: string) => Promise<void>;
   unfocusAll: () => void;
 
+  // Add a window locally (no IPC — used when backend already created the window)
+  addWindowLocal: (window: WindowState) => void;
+
   // Content management (kept in frontend for Sprint 1)
   windowContent: Map<string, string>;
   setWindowContent: (id: string, content: string) => void;
+
+  // Window groups (magnetic layout)
+  windowGroups: Map<string, Set<string>>;
+  getWindowGroup: (windowId: string) => Set<string> | null;
+  joinWindows: (windowA: string, windowB: string) => void;
+  detachWindow: (windowId: string) => void;
 }
 
 export const useWindowStore = create<WindowStore>((set, get) => ({
   windows: [],
   focusedWindowId: null,
   windowContent: new Map(),
+  windowGroups: new Map(),
 
   loadWindows: async () => {
     const windows = await windowIpc.getWindows();
@@ -126,9 +136,77 @@ export const useWindowStore = create<WindowStore>((set, get) => ({
     }));
   },
 
+  addWindowLocal: (window: WindowState) => {
+    set((state) => ({
+      windows: [...state.windows, window],
+      focusedWindowId: window.id,
+    }));
+  },
+
   setWindowContent: (id: string, content: string) => {
     const newContent = new Map(get().windowContent);
     newContent.set(id, content);
     set({ windowContent: newContent });
+  },
+
+  getWindowGroup: (windowId: string): Set<string> | null => {
+    const groups = get().windowGroups;
+    for (const [, members] of groups) {
+      if (members.has(windowId)) return members;
+    }
+    return null;
+  },
+
+  joinWindows: (windowA: string, windowB: string) => {
+    const groups = new Map(get().windowGroups);
+    let groupA: string | null = null;
+    let groupB: string | null = null;
+
+    for (const [gid, members] of groups) {
+      if (members.has(windowA)) groupA = gid;
+      if (members.has(windowB)) groupB = gid;
+    }
+
+    if (groupA && groupB && groupA === groupB) return; // Already in same group
+
+    if (groupA && groupB) {
+      // Merge groupB into groupA
+      const membersB = groups.get(groupB)!;
+      const membersA = new Set(groups.get(groupA)!);
+      for (const m of membersB) membersA.add(m);
+      groups.set(groupA, membersA);
+      groups.delete(groupB);
+    } else if (groupA) {
+      const members = new Set(groups.get(groupA)!);
+      members.add(windowB);
+      groups.set(groupA, members);
+    } else if (groupB) {
+      const members = new Set(groups.get(groupB)!);
+      members.add(windowA);
+      groups.set(groupB, members);
+    } else {
+      // New group
+      const groupId = `group-${Date.now()}`;
+      groups.set(groupId, new Set([windowA, windowB]));
+    }
+
+    set({ windowGroups: groups });
+  },
+
+  detachWindow: (windowId: string) => {
+    const groups = new Map(get().windowGroups);
+    for (const [gid, members] of groups) {
+      if (members.has(windowId)) {
+        const newMembers = new Set(members);
+        newMembers.delete(windowId);
+        if (newMembers.size <= 1) {
+          groups.delete(gid); // Dissolve group with 0-1 members
+        } else {
+          groups.set(gid, newMembers);
+        }
+        break;
+      }
+    }
+    set({ windowGroups: groups });
   },
 }));

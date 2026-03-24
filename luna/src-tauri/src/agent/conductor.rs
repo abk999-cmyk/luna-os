@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use tracing::info;
+use tracing::{info, warn};
 
 use super::llm_client::{LlmClient, LlmMessage};
 use super::response_parser;
@@ -11,6 +11,7 @@ pub struct ConductorAgent {
     pub id: String,
     llm_client: LlmClient,
     conversation_history: Vec<LlmMessage>,
+    session_id: Option<String>,
 }
 
 impl ConductorAgent {
@@ -19,6 +20,15 @@ impl ConductorAgent {
             id: "conductor".to_string(),
             llm_client,
             conversation_history: Vec::new(),
+            session_id: None,
+        }
+    }
+
+    /// Reset conversation history for a new session.
+    pub fn reset_session(&mut self, session_id: &str) {
+        if self.session_id.as_deref() != Some(session_id) {
+            self.conversation_history.clear();
+            self.session_id = Some(session_id.to_string());
         }
     }
 
@@ -54,6 +64,21 @@ impl ConductorAgent {
                 - Active workspace: workspace_default\n\
                 - Recent memory:\n{recent_memory}\n\n\
                 {space}\n\n\
+                ## Dynamic Apps (Interactive UI)\n\
+                Use app.create to build interactive applications. The payload IS the app descriptor.\n\
+                Available component types: DataTable, List, Card, Panel, Container, Grid, Divider, Spacer,\n\
+                TextInput, NumberInput, Select, Checkbox, Toggle, Slider, Stat, Timeline, Tabs, Modal, Toast,\n\
+                Chat, Chart, Gauge, Breadcrumbs, CodeEditor, Terminal.\n\
+                Components use $.field.path for data binding against the \"data\" object.\n\
+                Example app.create: {{\"action_type\": \"app.create\", \"payload\": {{\n\
+                  \"id\": \"todo-app\", \"title\": \"My Tasks\", \"layout\": \"vertical\",\n\
+                  \"components\": [\n\
+                    {{\"id\": \"input\", \"type\": \"TextInput\", \"props\": {{\"placeholder\": \"New task...\"}}, \"events\": {{\"onSubmit\": \"add_task\"}}}},\n\
+                    {{\"id\": \"list\", \"type\": \"List\", \"props\": {{\"items\": \"$.tasks\"}}}}\n\
+                  ],\n\
+                  \"data\": {{\"tasks\": []}}\n\
+                }}}}\n\
+                Use app.update to change data or components. Use app.destroy to close an app.\n\n\
                 ## Response Format\n\
                 Respond ONLY with a JSON array of actions. No markdown outside the JSON.\n\
                 Always include agent.response if you want to communicate text to the user.\n\
@@ -88,11 +113,13 @@ impl ConductorAgent {
 
         // Track token usage
         if let Some(mem) = memory {
-            let _ = mem.agent_state.record_tokens(
+            if let Err(e) = mem.agent_state.record_tokens(
                 &self.id,
                 response.input_tokens,
                 response.output_tokens,
-            );
+            ) {
+                warn!(error = %e, "Failed to record token usage");
+            }
         }
 
         // Add assistant response to history
@@ -139,14 +166,16 @@ impl ConductorAgent {
 
         // Record episodic event
         if let Some(mem) = memory {
-            let _ = mem.episodic.record(
+            if let Err(e) = mem.episodic.record(
                 session_id,
                 &self.id,
                 "user.input_handled",
                 &serde_json::json!({"text": &text}),
                 &serde_json::json!({"action_count": actions.len()}),
                 &["conductor".to_string(), "user_input".to_string()],
-            );
+            ) {
+                warn!(error = %e, "Failed to record episodic event");
+            }
         }
 
         Ok(actions)

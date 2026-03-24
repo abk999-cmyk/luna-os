@@ -2,8 +2,12 @@ import { useEffect, useState } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { Desktop } from './components/Desktop';
 import { PermissionDialog } from './components/PermissionDialog';
+import { ToastContainer, addToast } from './components/primitives/Toast';
 import { useWindowStore } from './stores/windowStore';
 import { useAgentStore } from './stores/agentStore';
+import { useAppStore } from './stores/appStore';
+import { registerBuiltinComponents } from './renderer/ComponentRegistry';
+import { initSyncManager } from './sync/SyncManager';
 import { getAgentStatus } from './ipc/agent';
 
 import './styles/theme.css';
@@ -13,6 +17,10 @@ import './styles/animations.css';
 import './styles/windows.css';
 import './styles/input-bar.css';
 import './styles/sprint2.css';
+import './styles/magnetic.css';
+
+// Initialize component registry for dynamic rendering
+registerBuiltinComponents();
 
 interface PermissionRequest {
   action_id: string;
@@ -32,6 +40,9 @@ function App() {
   const [pendingPermission, setPendingPermission] = useState<PermissionRequest | null>(null);
 
   useEffect(() => {
+    // Initialize sync manager
+    initSyncManager();
+
     // Load saved windows from backend
     loadWindows();
 
@@ -79,14 +90,57 @@ function App() {
       }
     );
 
-    // ── System notifications (Sprint 2) ──────────────────────────────────────
+    // ── System notifications → Toast ──────────────────────────────────────────
     const unlistenNotify = listen<{ message?: string; level?: string }>(
       'system-notification',
       (event) => {
-        // For now just log — Phase 3 will add a proper toast/notification UI
-        console.log('[Luna]', event.payload.level || 'info', ':', event.payload.message);
+        const msg = event.payload.message || 'Notification';
+        const level = (event.payload.level || 'info') as 'info' | 'success' | 'warning' | 'error';
+        addToast(msg, level);
       }
     );
+
+    // ── Dynamic app created ──────────────────────────────────────────────────
+    const unlistenAppCreated = listen<{
+      app_id: string;
+      window_id: string;
+      spec: any;
+      data?: Record<string, any>;
+    }>('app-created', (event) => {
+      const { app_id, window_id, spec } = event.payload;
+      useAppStore.getState().registerApp(app_id, spec, window_id);
+      // Add the window locally (backend already created the WindowState)
+      useWindowStore.getState().addWindowLocal({
+        id: window_id,
+        title: spec.title || 'App',
+        bounds: {
+          x: 100, y: 100,
+          width: spec.width || 600,
+          height: spec.height || 400,
+        },
+        z_order: 999,
+        visibility: 'visible',
+        focused: true,
+        content_type: 'dynamic_app',
+        created_at: new Date().toISOString(),
+      });
+    });
+
+    // ── Dynamic app data update ──────────────────────────────────────────────
+    const unlistenAppUpdate = listen<{
+      app_id: string;
+      data?: Record<string, any>;
+      spec?: any;
+    }>('app-updated', (event) => {
+      const { app_id, data, spec } = event.payload;
+      if (data) useAppStore.getState().updateAppData(app_id, data);
+      if (spec) useAppStore.getState().updateAppSpec(app_id, spec);
+    });
+
+    // ── Dynamic app destroyed ────────────────────────────────────────────────
+    const unlistenAppDestroyed = listen<{ app_id: string }>('app-destroyed', (event) => {
+      useAppStore.getState().destroyApp(event.payload.app_id);
+    });
 
     // ── Permission requests (Sprint 2) ────────────────────────────────────────
     const unlistenPermission = listen<PermissionRequest>(
@@ -102,12 +156,16 @@ function App() {
       unlistenContentUpdate.then((fn) => fn());
       unlistenNotify.then((fn) => fn());
       unlistenPermission.then((fn) => fn());
+      unlistenAppCreated.then((fn) => fn());
+      unlistenAppUpdate.then((fn) => fn());
+      unlistenAppDestroyed.then((fn) => fn());
     };
   }, []);
 
   return (
     <>
       <Desktop />
+      <ToastContainer />
       {pendingPermission && (
         <PermissionDialog
           request={pendingPermission}

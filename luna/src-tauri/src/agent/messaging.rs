@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use tokio::sync::{mpsc, RwLock};
 use serde::{Deserialize, Serialize};
-use tracing::warn;
 use uuid::Uuid;
 
 use crate::error::LunaError;
@@ -51,6 +50,11 @@ pub enum AgentMessage {
         from_agent: String,
         reason: String,
     },
+    /// Frontend → Agent: a UI event from a dynamic app component
+    Event {
+        app_id: String,
+        payload: serde_json::Value,
+    },
 }
 
 impl AgentMessage {
@@ -62,6 +66,13 @@ impl AgentMessage {
             context,
         };
         (task_id, msg)
+    }
+
+    pub fn new_event(app_id: &str, payload: serde_json::Value) -> Self {
+        AgentMessage::Event {
+            app_id: app_id.to_string(),
+            payload,
+        }
     }
 }
 
@@ -93,7 +104,9 @@ impl MessageBus {
                 LunaError::Agent(format!("Agent '{}' channel is closed", to))
             })?;
         } else {
-            warn!(agent = to, "Attempted to send message to unregistered agent");
+            return Err(LunaError::Agent(format!(
+                "Agent '{}' is not registered on the message bus", to
+            )));
         }
         Ok(())
     }

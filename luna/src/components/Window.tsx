@@ -1,7 +1,10 @@
 import { useCallback, useRef, useEffect } from 'react';
 import type { WindowState } from '../types/window';
 import { useWindowStore } from '../stores/windowStore';
+import { useAppStore } from '../stores/appStore';
+import { useMagneticDrag } from '../hooks/useMagneticDrag';
 import { ResponseDisplay } from './ResponseDisplay';
+import { DynamicRenderer } from '../renderer/DynamicRenderer';
 
 interface WindowProps {
   window: WindowState;
@@ -12,31 +15,24 @@ export function Window({ window: win }: WindowProps) {
     removeWindow,
     minimizeWindow,
     focusWindow,
-    updateWindowPosition,
     updateWindowSize,
-    syncWindowPosition,
     syncWindowSize,
     windowContent,
   } = useWindowStore();
 
-  const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
   const resizeRef = useRef<{ startX: number; startY: number; origW: number; origH: number } | null>(null);
   const windowRef = useRef<HTMLDivElement>(null);
+  const { startDrag, moveDrag, endDrag, isDragging } = useMagneticDrag();
 
-  // Drag handling
+  // Drag handling (magnetic)
   const onDragStart = useCallback(
     (e: React.MouseEvent) => {
       if ((e.target as HTMLElement).closest('.window__controls')) return;
       e.preventDefault();
       focusWindow(win.id);
-      dragRef.current = {
-        startX: e.clientX,
-        startY: e.clientY,
-        origX: win.bounds.x,
-        origY: win.bounds.y,
-      };
+      startDrag(win.id, e.clientX, e.clientY, win.bounds.x, win.bounds.y);
     },
-    [win.id, win.bounds.x, win.bounds.y, focusWindow]
+    [win.id, win.bounds.x, win.bounds.y, focusWindow, startDrag]
   );
 
   // Resize handling
@@ -57,13 +53,7 @@ export function Window({ window: win }: WindowProps) {
 
   useEffect(() => {
     const onMouseMove = (e: MouseEvent) => {
-      if (dragRef.current) {
-        const dx = e.clientX - dragRef.current.startX;
-        const dy = e.clientY - dragRef.current.startY;
-        const newX = Math.max(0, dragRef.current.origX + dx);
-        const newY = Math.max(0, dragRef.current.origY + dy);
-        updateWindowPosition(win.id, newX, newY);
-      }
+      moveDrag(e.clientX, e.clientY);
       if (resizeRef.current) {
         const dx = e.clientX - resizeRef.current.startX;
         const dy = e.clientY - resizeRef.current.startY;
@@ -74,12 +64,7 @@ export function Window({ window: win }: WindowProps) {
     };
 
     const onMouseUp = () => {
-      if (dragRef.current) {
-        // Sync final position to backend
-        const w = useWindowStore.getState().windows.find((w) => w.id === win.id);
-        if (w) syncWindowPosition(win.id, w.bounds.x, w.bounds.y);
-        dragRef.current = null;
-      }
+      endDrag();
       if (resizeRef.current) {
         const w = useWindowStore.getState().windows.find((w) => w.id === win.id);
         if (w) syncWindowSize(win.id, w.bounds.width, w.bounds.height);
@@ -93,22 +78,27 @@ export function Window({ window: win }: WindowProps) {
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
     };
-  }, [win.id, updateWindowPosition, updateWindowSize, syncWindowPosition, syncWindowSize]);
+  }, [win.id, updateWindowSize, syncWindowSize, moveDrag, endDrag]);
 
   const handleFocus = useCallback(() => {
     focusWindow(win.id);
   }, [win.id, focusWindow]);
 
+  const windowGroup = useWindowStore((s) => s.getWindowGroup(win.id));
+  const groupSize = windowGroup ? windowGroup.size : 0;
+
   const className = [
     'window',
     win.focused && 'window--focused',
     win.visibility === 'minimized' && 'window--minimized',
-    (dragRef.current !== null) && 'window--dragging',
+    isDragging() && 'window--dragging',
+    groupSize > 0 && 'window--grouped',
   ]
     .filter(Boolean)
     .join(' ');
 
   const content = windowContent.get(win.id) || '';
+  const appInfo = useAppStore((s) => s.getAppByWindowId(win.id));
 
   return (
     <div
@@ -123,6 +113,9 @@ export function Window({ window: win }: WindowProps) {
       }}
       onMouseDown={handleFocus}
     >
+      {groupSize > 1 && (
+        <div className="window__group-badge">{groupSize}</div>
+      )}
       {/* Title Bar */}
       <div className="window__chrome" onMouseDown={onDragStart}>
         <div className="window__controls">
@@ -144,7 +137,13 @@ export function Window({ window: win }: WindowProps) {
 
       {/* Body */}
       <div className="window__body">
-        {win.content_type === 'response' && content ? (
+        {win.content_type === 'dynamic_app' && appInfo ? (
+          <DynamicRenderer
+            spec={appInfo.spec}
+            dataContext={appInfo.data}
+            appId={appInfo.appId}
+          />
+        ) : win.content_type === 'response' && content ? (
           <ResponseDisplay text={content} />
         ) : (
           <div style={{ color: 'var(--text-tertiary)', fontFamily: 'var(--font-system)', fontSize: 'var(--text-sm)' }}>

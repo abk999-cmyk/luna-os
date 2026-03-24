@@ -2,17 +2,23 @@ use std::sync::{Arc, Mutex};
 use tokio::sync::RwLock;
 
 use crate::action::dispatcher::ActionDispatcher;
+use crate::action::handler_registry::ActionHandlerRegistry;
 use crate::agent::conductor::ConductorAgent;
 use crate::agent::messaging::MessageBus;
 use crate::agent::registry::AgentRegistry;
 use crate::agent::scratchpad::Scratchpad;
+use crate::app::lifecycle::AppManager;
 use crate::memory::MemorySystem;
+use crate::sync::batcher::UpdateBatcher;
+use crate::sync::topic::TopicManager;
 use crate::persistence::db::Database;
 use crate::security::{AuditLog, PermissionMatrix};
 use crate::window::manager::WindowManager;
 
+#[derive(Clone)]
 pub struct AppState {
     pub dispatcher: Arc<ActionDispatcher>,
+    pub handler_registry: Arc<ActionHandlerRegistry>,
     pub window_manager: Arc<RwLock<WindowManager>>,
     pub conductor: Arc<RwLock<Option<ConductorAgent>>>,
     pub db: Arc<Mutex<Option<Database>>>,
@@ -24,12 +30,18 @@ pub struct AppState {
     pub agent_registry: Arc<AgentRegistry>,
     pub message_bus: Arc<MessageBus>,
     pub scratchpad: Arc<Scratchpad>,
+    // Sprint 3: dynamic app system
+    pub app_manager: Arc<AppManager>,
+    // Sprint 3: state sync
+    pub topic_manager: Arc<TopicManager>,
+    pub update_batcher: Arc<UpdateBatcher>,
 }
 
 impl AppState {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         dispatcher: Arc<ActionDispatcher>,
+        handler_registry: Arc<ActionHandlerRegistry>,
         window_manager: Arc<RwLock<WindowManager>>,
         conductor: Arc<RwLock<Option<ConductorAgent>>>,
         db: Arc<Mutex<Option<Database>>>,
@@ -40,9 +52,13 @@ impl AppState {
         agent_registry: Arc<AgentRegistry>,
         message_bus: Arc<MessageBus>,
         scratchpad: Arc<Scratchpad>,
+        app_manager: Arc<AppManager>,
+        topic_manager: Arc<TopicManager>,
+        update_batcher: Arc<UpdateBatcher>,
     ) -> Self {
         Self {
             dispatcher,
+            handler_registry,
             window_manager,
             conductor,
             db,
@@ -53,6 +69,9 @@ impl AppState {
             agent_registry,
             message_bus,
             scratchpad,
+            app_manager,
+            topic_manager,
+            update_batcher,
         }
     }
 

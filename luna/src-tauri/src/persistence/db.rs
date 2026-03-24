@@ -115,6 +115,33 @@ impl Database {
                 decision TEXT NOT NULL,
                 timestamp INTEGER NOT NULL
             );
+
+            -- Sprint 3: Dynamic apps
+            CREATE TABLE IF NOT EXISTS dynamic_apps (
+                app_id TEXT PRIMARY KEY,
+                window_id TEXT NOT NULL,
+                controlling_agent_id TEXT NOT NULL,
+                descriptor_json TEXT NOT NULL,
+                data_context_json TEXT NOT NULL DEFAULT '{}',
+                created_at INTEGER NOT NULL,
+                destroyed_at INTEGER
+            );
+
+            -- Sprint 3: Ephemeral actions (registered by dynamic apps)
+            CREATE TABLE IF NOT EXISTS ephemeral_actions (
+                action_type TEXT PRIMARY KEY,
+                app_id TEXT NOT NULL,
+                definition_json TEXT NOT NULL,
+                usage_count INTEGER NOT NULL DEFAULT 0,
+                created_at INTEGER NOT NULL
+            );
+
+            -- Sprint 3: Window groups (magnetic layout)
+            CREATE TABLE IF NOT EXISTS window_groups (
+                group_id TEXT PRIMARY KEY,
+                window_ids TEXT NOT NULL,
+                created_at INTEGER NOT NULL
+            );
             "
         )?;
         Ok(())

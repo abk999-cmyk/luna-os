@@ -91,7 +91,7 @@ impl Scratchpad {
     pub async fn evict_stale(&self) {
         let cutoff = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .map(|d| d.as_millis() as u64 - 3_600_000)
+            .map(|d| (d.as_millis() as u64).saturating_sub(3_600_000))
             .unwrap_or(0);
 
         let mut map = self.entries.write().await;

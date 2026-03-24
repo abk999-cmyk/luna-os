@@ -1,0 +1,30 @@
+/* Magnetic window snap & group styles */
+
+.window--snapping {
+  box-shadow:
+    0 0 0 2px var(--accent-warm),
+    0 0 12px rgba(196, 160, 105, 0.3) !important;
+  transition: box-shadow 0.15s ease-out;
+}
+
+.window__group-badge {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent-warm);
+  color: var(--surface-base);
+  font-size: 10px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  box-shadow: var(--shadow-sm);
+}
+
+.window-connectors line {
+  transition: opacity 0.2s ease-out;
+}

@@ -1,0 +1,110 @@
+/* === Modal === */
+.luna-modal__overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-overlay);
+  animation: luna-fade-in var(--duration-fast) var(--ease-smooth);
+}
+
+@keyframes luna-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.luna-modal {
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
+  min-width: 360px;
+  max-width: 520px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  animation: luna-modal-enter var(--duration-normal) var(--ease-bounce);
+}
+
+@keyframes luna-modal-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.luna-modal--large {
+  min-width: 520px;
+  max-width: 720px;
+}
+
+.luna-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-lg);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.luna-modal__title {
+  font-weight: 600;
+  font-size: 1.1em;
+  color: var(--text-primary);
+}
+
+.luna-modal__close {
+  background: none;
+  border: none;
+  font-size: 1.4em;
+  cursor: pointer;
+  color: var(--text-tertiary);
+  padding: 0 var(--space-xs);
+  border-radius: var(--radius-sm);
+  line-height: 1;
+}
+.luna-modal__close:hover {
+  color: var(--text-primary);
+  background: var(--surface-secondary);
+}
+
+.luna-modal__body {
+  padding: var(--space-lg);
+  overflow-y: auto;
+  color: var(--text-primary);
+}
+
+.luna-modal__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+  padding: var(--space-md) var(--space-lg);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.luna-modal__action {
+  padding: var(--space-sm) var(--space-lg);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--surface-elevated);
+  color: var(--text-primary);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 500;
+}
+.luna-modal__action:hover {
+  background: var(--surface-secondary);
+}
+.luna-modal__action--primary {
+  background: var(--color-amber-500);
+  border-color: var(--color-amber-500);
+  color: white;
+}
+.luna-modal__action--primary:hover {
+  background: var(--color-amber-600);
+}

@@ -1,0 +1,77 @@
+/* === Chart === */
+.luna-chart {
+  position: relative;
+}
+.luna-chart--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-tertiary);
+  min-height: 100px;
+}
+.luna-chart__title {
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: var(--space-sm);
+  font-size: 0.9em;
+}
+.luna-chart__svg {
+  width: 100%;
+  height: 100%;
+}
+.luna-chart__bar {
+  fill: var(--color-amber-500);
+  cursor: pointer;
+  transition: fill var(--duration-fast) var(--ease-smooth);
+}
+.luna-chart__bar:hover {
+  fill: var(--color-amber-600);
+}
+.luna-chart__label {
+  font-size: 10px;
+  fill: var(--text-secondary);
+}
+.luna-chart__line {
+  stroke: var(--color-amber-500);
+  stroke-width: 2;
+}
+.luna-chart__dot {
+  fill: var(--color-amber-500);
+  stroke: var(--surface-elevated);
+  stroke-width: 2;
+  cursor: pointer;
+}
+.luna-chart__dot:hover {
+  fill: var(--color-amber-700);
+  r: 6;
+}
+.luna-chart__slice {
+  cursor: pointer;
+  stroke: var(--surface-elevated);
+  stroke-width: 2;
+  transition: opacity var(--duration-fast) var(--ease-smooth);
+}
+.luna-chart__slice:hover {
+  opacity: 0.85;
+}
+
+/* === Gauge === */
+.luna-gauge {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.luna-gauge__track {
+  stroke: var(--border-subtle);
+}
+.luna-gauge__fill {
+  stroke: var(--color-amber-500);
+  transition: stroke-dashoffset var(--duration-slow) var(--ease-smooth);
+}
+.luna-gauge__value {
+  position: absolute;
+  font-size: 1.2em;
+  font-weight: 700;
+  color: var(--text-primary);
+}

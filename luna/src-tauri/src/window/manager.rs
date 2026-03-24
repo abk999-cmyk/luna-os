@@ -25,7 +25,8 @@ impl WindowManager {
             b
         });
 
-        let window = WindowState::new(title, offset_bounds, self.z_counter);
+        let mut window = WindowState::new(title, offset_bounds, self.z_counter);
+        window.bounds.clamp();
 
         // Unfocus all other windows
         for w in self.windows.values_mut() {

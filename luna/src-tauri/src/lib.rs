@@ -1,5 +1,6 @@
 pub mod action;
 pub mod agent;
+pub mod app;
 pub mod commands;
 pub mod config;
 pub mod error;
@@ -8,6 +9,7 @@ pub mod memory;
 pub mod persistence;
 pub mod security;
 pub mod state;
+pub mod sync;
 pub mod window;
 
 use std::sync::{Arc, Mutex};
@@ -15,9 +17,8 @@ use std::time::Duration;
 use tokio::sync::RwLock;
 use tracing::info;
 use uuid::Uuid;
-use tauri::Emitter;
-
 use action::dispatcher::ActionDispatcher;
+use action::handler_registry::ActionHandlerRegistry;
 use action::history::ActionHistory;
 use action::queue::ActionQueue;
 use action::registry::ActionTypeRegistry;
@@ -31,7 +32,10 @@ use config::LunaConfig;
 use memory::MemorySystem;
 use persistence::db::Database;
 use security::{AuditLog, PermissionMatrix};
+use app::lifecycle::AppManager;
 use state::AppState;
+use sync::batcher::UpdateBatcher;
+use sync::topic::TopicManager;
 use window::manager::WindowManager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -115,6 +119,9 @@ pub fn run() {
     let agent_registry = Arc::new(AgentRegistry::new());
     let message_bus = Arc::new(MessageBus::new());
     let scratchpad = Arc::new(Scratchpad::new());
+    let app_manager = Arc::new(AppManager::new());
+    let topic_manager = Arc::new(TopicManager::new());
+    let update_batcher = Arc::new(UpdateBatcher::new());
 
     // ── Session ───────────────────────────────────────────────────────────────
     let session_id = Uuid::new_v4().to_string();
@@ -196,9 +203,14 @@ pub fn run() {
         });
     }
 
+    // ── Action handler registry ─────────────────────────────────────────────
+    let handler_registry = Arc::new(ActionHandlerRegistry::new());
+    action::handler_registry::register_core_handlers(&handler_registry);
+
     // ── Create app state ──────────────────────────────────────────────────────
     let app_state = AppState::new(
         dispatcher.clone(),
+        handler_registry.clone(),
         window_manager.clone(),
         conductor.clone(),
         db.clone(),
@@ -209,13 +221,18 @@ pub fn run() {
         agent_registry.clone(),
         message_bus.clone(),
         scratchpad.clone(),
+        app_manager.clone(),
+        topic_manager.clone(),
+        update_batcher.clone(),
     );
 
     info!(session_id = %session_id, "Luna session started");
 
-    // Capture components needed by the queue processor
-    let queue_message_bus = message_bus.clone();
-    let queue_memory = memory.clone();
+    let flush_batcher = update_batcher.clone();
+
+    // Clone for the queue processor (all fields are Arc so this is cheap).
+    let queue_state = Arc::new(app_state.clone());
+    let queue_handler_registry = handler_registry.clone();
 
     // ── Build and run Tauri app ───────────────────────────────────────────────
     tauri::Builder::default()
@@ -224,11 +241,12 @@ pub fn run() {
         .setup(move |app| {
             let handle = app.handle().clone();
             let mut recv = receiver;
-            let proc_message_bus = queue_message_bus.clone();
-            let proc_memory = queue_memory.clone();
+            let proc_handler_registry = queue_handler_registry;
+            let proc_state = queue_state;
 
             // ── Action queue processor ────────────────────────────────────────
-            // Central event loop: routes dispatched actions to handlers/events.
+            // Central event loop: dispatches actions through the handler registry.
+            let queue_handle = handle.clone();
             tauri::async_runtime::spawn(async move {
                 while let Some(action) = recv.recv().await {
                     tracing::trace!(
@@ -237,74 +255,44 @@ pub fn run() {
                         "Processing action from queue"
                     );
 
-                    match action.action_type.as_str() {
-                        "agent.response" => {
-                            let _ = handle.emit("agent-response", &action.payload);
-                        }
-                        "window.create" => {
-                            let _ = handle.emit("agent-window-create", &action.payload);
-                        }
-                        "window.update_content" => {
-                            let _ = handle.emit("window-content-update", &action.payload);
-                        }
-                        "window.close" => {
-                            let _ = handle.emit("agent-window-close", &action.payload);
-                        }
-                        "window.focus" => {
-                            let _ = handle.emit("agent-window-focus", &action.payload);
-                        }
-                        "system.notify" => {
-                            let _ = handle.emit("system-notification", &action.payload);
-                        }
-                        "agent.think" => {
-                            if let Some(thought) = action.payload.get("thought").and_then(|v| v.as_str()) {
-                                tracing::debug!(thought = %thought, "Conductor thinking");
-                            }
-                        }
-                        "agent.delegate" => {
-                            let task = action.payload.get("task")
-                                .and_then(|v| v.as_str())
-                                .unwrap_or("unknown task")
-                                .to_string();
-                            let workspace_id = action.payload.get("workspace_id")
-                                .and_then(|v| v.as_str())
-                                .unwrap_or("workspace_default")
-                                .to_string();
-                            let orchestrator_id = format!("orchestrator_{}", workspace_id);
-                            let context = action.payload.get("context")
-                                .cloned()
-                                .unwrap_or(serde_json::json!({}));
-
-                            let (task_id, msg) = agent::messaging::AgentMessage::new_delegate(&task, context);
-                            info!(task_id = %task_id, task = %task, "Delegating to orchestrator");
-
-                            if let Err(e) = proc_message_bus.send(&orchestrator_id, msg).await {
-                                tracing::warn!(error = %e, "Failed to delegate to orchestrator");
-                            }
-                        }
-                        "memory.store" => {
-                            if let (Some(key), Some(val)) = (
-                                action.payload.get("key").and_then(|v| v.as_str()),
-                                action.payload.get("value").and_then(|v| v.as_str()),
-                            ) {
-                                let tags: Vec<String> = action.payload.get("tags")
-                                    .and_then(|v| v.as_array())
-                                    .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
-                                    .unwrap_or_default();
-                                let _ = proc_memory.semantic.store(key, val, &tags);
-                                tracing::debug!(key = %key, "Stored value in semantic memory");
-                            }
-                        }
-                        _ => {
-                            tracing::trace!(
-                                action_type = %action.action_type,
-                                "Action type has no registered handler (no-op)"
-                            );
-                        }
+                    if let Err(e) = proc_handler_registry.dispatch(&action, &queue_handle, &proc_state).await {
+                        tracing::warn!(
+                            action_type = %action.action_type,
+                            error = %e,
+                            "Handler error processing action"
+                        );
                     }
                 }
                 tracing::warn!("Action queue channel closed — processor stopping");
             });
+
+            // ── State sync batcher flush loop ────────────────────────────────
+            {
+                use tauri::Emitter;
+                let sync_batcher = flush_batcher;
+                let sync_handle = handle.clone();
+                tauri::async_runtime::spawn(async move {
+                    let mut interval = tokio::time::interval(Duration::from_millis(16));
+                    loop {
+                        interval.tick().await;
+                        if sync_batcher.should_flush().await {
+                            let batch = sync_batcher.flush().await;
+                            if !batch.is_empty() {
+                                let updates: Vec<serde_json::Value> = batch
+                                    .iter()
+                                    .map(|u| {
+                                        serde_json::json!({
+                                            "topic": u.topic,
+                                            "payload": u.payload,
+                                        })
+                                    })
+                                    .collect();
+                                let _ = sync_handle.emit("luna-sync", &updates);
+                            }
+                        }
+                    }
+                });
+            }
 
             Ok(())
         })
@@ -325,6 +313,7 @@ pub fn run() {
             window::commands::restore_window,
             window::commands::focus_window,
             window::commands::get_windows,
+            app::commands::dispatch_app_event,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

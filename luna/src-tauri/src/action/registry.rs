@@ -36,6 +36,12 @@ pub struct ActionTypeDefinition {
     pub tier: ActionTier,
     pub description: String,
     pub fields: Vec<FieldDef>,
+    /// If this is an ephemeral action, which app registered it.
+    #[serde(default)]
+    pub app_id: Option<String>,
+    /// Number of times this action has been dispatched (for promotion tracking).
+    #[serde(default)]
+    pub usage_count: u64,
 }
 
 impl ActionTypeDefinition {
@@ -205,6 +211,36 @@ impl ActionTypeRegistry {
         registry.add_core("system.session_start", "Session started", vec![]);
         registry.add_core("system.session_end", "Session ended", vec![]);
 
+        // Dynamic app actions (Sprint 3)
+        registry.add_core("app.create", "Create a dynamic app with an interactive UI", vec![
+            FieldDef { name: "id".into(), required: true, field_type: FieldType::String, description: "Unique app identifier".into() },
+            FieldDef { name: "title".into(), required: true, field_type: FieldType::String, description: "App window title".into() },
+            FieldDef { name: "components".into(), required: true, field_type: FieldType::Array, description: "Array of component specs".into() },
+            FieldDef { name: "layout".into(), required: false, field_type: FieldType::Any, description: "Layout direction: vertical|horizontal|grid".into() },
+            FieldDef { name: "data".into(), required: false, field_type: FieldType::Object, description: "Initial data context for data binding".into() },
+            FieldDef { name: "actions".into(), required: false, field_type: FieldType::Array, description: "Ephemeral action definitions".into() },
+            FieldDef { name: "width".into(), required: false, field_type: FieldType::Number, description: "Window width in pixels".into() },
+            FieldDef { name: "height".into(), required: false, field_type: FieldType::Number, description: "Window height in pixels".into() },
+            FieldDef { name: "styles".into(), required: false, field_type: FieldType::Object, description: "Custom CSS styles".into() },
+        ]);
+
+        registry.add_core("app.update", "Update a running app's data or spec", vec![
+            FieldDef { name: "app_id".into(), required: true, field_type: FieldType::String, description: "ID of the app to update".into() },
+            FieldDef { name: "data".into(), required: false, field_type: FieldType::Object, description: "New/updated data context (merged)".into() },
+            FieldDef { name: "components".into(), required: false, field_type: FieldType::Array, description: "New component spec (full replacement)".into() },
+        ]);
+
+        registry.add_core("app.destroy", "Destroy a running dynamic app", vec![
+            FieldDef { name: "app_id".into(), required: true, field_type: FieldType::String, description: "ID of the app to destroy".into() },
+        ]);
+
+        registry.add_core("app.event", "Internal: component event routed from frontend", vec![
+            FieldDef { name: "app_id".into(), required: true, field_type: FieldType::String, description: "App ID".into() },
+            FieldDef { name: "handler_name".into(), required: true, field_type: FieldType::String, description: "Handler name from component events map".into() },
+            FieldDef { name: "component_id".into(), required: true, field_type: FieldType::String, description: "Component that emitted the event".into() },
+            FieldDef { name: "event_data".into(), required: false, field_type: FieldType::Any, description: "Event payload".into() },
+        ]);
+
         registry
     }
 
@@ -216,6 +252,8 @@ impl ActionTypeRegistry {
                 tier: ActionTier::Core,
                 description: description.to_string(),
                 fields,
+                app_id: None,
+                usage_count: 0,
             },
         );
     }
@@ -242,6 +280,39 @@ impl ActionTypeRegistry {
         Ok(())
     }
 
+    /// Register an ephemeral action type owned by a dynamic app.
+    pub fn register_ephemeral(
+        &mut self,
+        app_id: &str,
+        action_type: &str,
+        description: &str,
+        fields: Vec<FieldDef>,
+    ) {
+        self.types.insert(
+            action_type.to_string(),
+            ActionTypeDefinition {
+                action_type: action_type.to_string(),
+                tier: ActionTier::LlmCreated,
+                description: description.to_string(),
+                fields,
+                app_id: Some(app_id.to_string()),
+                usage_count: 0,
+            },
+        );
+    }
+
+    /// Remove all ephemeral actions registered by a specific app.
+    pub fn deregister_app_actions(&mut self, app_id: &str) {
+        self.types.retain(|_, def| def.app_id.as_deref() != Some(app_id));
+    }
+
+    /// Increment usage counter for an action type (for future promotion tracking).
+    pub fn increment_usage(&mut self, action_type: &str) {
+        if let Some(def) = self.types.get_mut(action_type) {
+            def.usage_count += 1;
+        }
+    }
+
     pub fn get(&self, action_type: &str) -> Option<&ActionTypeDefinition> {
         self.types.get(action_type)
     }
@@ -258,6 +329,7 @@ impl ActionTypeRegistry {
         let mut window_actions: Vec<&ActionTypeDefinition> = Vec::new();
         let mut agent_actions: Vec<&ActionTypeDefinition> = Vec::new();
         let mut memory_actions: Vec<&ActionTypeDefinition> = Vec::new();
+        let mut app_actions: Vec<&ActionTypeDefinition> = Vec::new();
         let mut other_actions: Vec<&ActionTypeDefinition> = Vec::new();
 
         for def in self.types.values() {
@@ -267,6 +339,8 @@ impl ActionTypeRegistry {
                 agent_actions.push(def);
             } else if def.action_type.starts_with("memory.") {
                 memory_actions.push(def);
+            } else if def.action_type.starts_with("app.") {
+                app_actions.push(def);
             } else if !def.action_type.starts_with("user.") && !def.action_type.starts_with("system.") {
                 other_actions.push(def);
             }
@@ -276,6 +350,7 @@ impl ActionTypeRegistry {
             ("### Window Actions", window_actions),
             ("### Agent Actions", agent_actions),
             ("### Memory Actions", memory_actions),
+            ("### App Actions (Dynamic UI)", app_actions),
         ];
 
         for (header, mut defs) in categories {

@@ -1,0 +1,116 @@
+/* === DataTable === */
+.luna-datatable {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.luna-datatable__search {
+  padding: 0 0 var(--space-sm);
+}
+.luna-datatable__search-input {
+  width: 100%;
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--surface-elevated);
+  color: var(--text-primary);
+  font: inherit;
+}
+.luna-datatable__search-input:focus {
+  outline: none;
+  border-color: var(--border-focus);
+  box-shadow: var(--shadow-focus);
+}
+
+.luna-datatable__wrapper {
+  overflow-x: auto;
+}
+
+.luna-datatable__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9em;
+}
+
+.luna-datatable__th {
+  text-align: left;
+  padding: var(--space-sm) var(--space-md);
+  font-weight: 600;
+  color: var(--text-secondary);
+  border-bottom: 2px solid var(--border-default);
+  white-space: nowrap;
+  user-select: none;
+}
+.luna-datatable__th--sortable {
+  cursor: pointer;
+}
+.luna-datatable__th--sortable:hover {
+  color: var(--text-primary);
+}
+.luna-datatable__sort-icon {
+  font-size: 0.75em;
+  opacity: 0.7;
+}
+
+.luna-datatable__tr {
+  border-bottom: 1px solid var(--border-subtle);
+  transition: background var(--duration-instant) var(--ease-smooth);
+}
+.luna-datatable__tr--selectable {
+  cursor: pointer;
+}
+.luna-datatable__tr--selectable:hover {
+  background: var(--surface-secondary);
+}
+.luna-datatable__tr--selected {
+  background: var(--color-amber-50);
+}
+
+.luna-datatable__td {
+  padding: var(--space-sm) var(--space-md);
+  color: var(--text-primary);
+}
+
+.luna-datatable__empty {
+  padding: var(--space-xl);
+  text-align: center;
+  color: var(--text-tertiary);
+}
+
+/* Density variants */
+.luna-datatable--compact .luna-datatable__th,
+.luna-datatable--compact .luna-datatable__td {
+  padding: var(--space-xs) var(--space-sm);
+  font-size: 0.85em;
+}
+.luna-datatable--spacious .luna-datatable__th,
+.luna-datatable--spacious .luna-datatable__td {
+  padding: var(--space-md) var(--space-lg);
+}
+
+/* Pagination */
+.luna-datatable__pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-md);
+  padding: var(--space-sm) 0;
+  font-size: 0.85em;
+  color: var(--text-secondary);
+}
+.luna-datatable__pagination button {
+  background: none;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  padding: var(--space-xs) var(--space-md);
+  cursor: pointer;
+  color: var(--text-primary);
+}
+.luna-datatable__pagination button:hover:not(:disabled) {
+  background: var(--surface-secondary);
+}
+.luna-datatable__pagination button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}

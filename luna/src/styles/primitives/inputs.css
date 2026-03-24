@@ -1,0 +1,188 @@
+/* === Text/Number Input === */
+.luna-input {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+.luna-input--disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+.luna-input__label {
+  font-size: 0.85em;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+.luna-input__field {
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--surface-elevated);
+  color: var(--text-primary);
+  font: inherit;
+  transition: border-color var(--duration-fast) var(--ease-smooth),
+              box-shadow var(--duration-fast) var(--ease-smooth);
+}
+.luna-input__field:focus {
+  outline: none;
+  border-color: var(--border-focus);
+  box-shadow: var(--shadow-focus);
+}
+.luna-input__field--textarea {
+  resize: vertical;
+  min-height: 60px;
+}
+.luna-input__field--select {
+  cursor: pointer;
+}
+.luna-input--error .luna-input__field {
+  border-color: var(--color-error);
+}
+.luna-input--error .luna-input__field:focus {
+  box-shadow: 0 0 0 3px rgba(212, 97, 91, 0.25);
+}
+.luna-input__helper {
+  font-size: 0.8em;
+  color: var(--text-tertiary);
+}
+.luna-input__error {
+  font-size: 0.8em;
+  color: var(--color-error);
+}
+
+/* === Checkbox === */
+.luna-checkbox {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  cursor: pointer;
+  user-select: none;
+}
+.luna-checkbox--disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.luna-checkbox__input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.luna-checkbox__box {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--duration-fast) var(--ease-smooth);
+  flex-shrink: 0;
+}
+.luna-checkbox__input:checked + .luna-checkbox__box {
+  background: var(--color-amber-500);
+  border-color: var(--color-amber-500);
+}
+.luna-checkbox__input:checked + .luna-checkbox__box::after {
+  content: '';
+  width: 5px;
+  height: 9px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+  margin-bottom: 2px;
+}
+.luna-checkbox__input:focus-visible + .luna-checkbox__box {
+  box-shadow: var(--shadow-focus);
+}
+.luna-checkbox__label {
+  color: var(--text-primary);
+}
+
+/* === Toggle === */
+.luna-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  cursor: pointer;
+}
+.luna-toggle--disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.luna-toggle__track {
+  width: 40px;
+  height: 22px;
+  border-radius: var(--radius-full);
+  background: var(--border-default);
+  border: none;
+  cursor: pointer;
+  position: relative;
+  transition: background var(--duration-fast) var(--ease-smooth);
+  padding: 0;
+}
+.luna-toggle--on .luna-toggle__track {
+  background: var(--color-amber-500);
+}
+.luna-toggle__thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: white;
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--duration-fast) var(--ease-snap);
+}
+.luna-toggle--on .luna-toggle__thumb {
+  transform: translateX(18px);
+}
+.luna-toggle__label {
+  color: var(--text-primary);
+}
+
+/* === Slider === */
+.luna-slider {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+.luna-slider--disabled {
+  opacity: 0.5;
+}
+.luna-slider__label {
+  font-size: 0.85em;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+.luna-slider__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+.luna-slider__input {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border-default);
+  outline: none;
+}
+.luna-slider__input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--color-amber-500);
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+}
+.luna-slider__value {
+  min-width: 2.5em;
+  text-align: right;
+  font-size: 0.9em;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
