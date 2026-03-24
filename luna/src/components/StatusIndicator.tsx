@@ -1,4 +1,4 @@
-import { useAgentStore, type AgentStatus } from '../stores/agentStore';
+import { useAgentStore } from '../stores/agentStore';
 
 export function StatusIndicator() {
   const status = useAgentStore((s) => s.status);

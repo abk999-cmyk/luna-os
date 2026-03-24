@@ -14,6 +14,9 @@ pub struct Action {
     pub priority: Priority,
     pub retry_count: u32,
     pub status: ActionStatus,
+    /// Optional target agent for inter-agent messaging
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub target_agent_id: Option<String>,
 }
 
 impl Action {
@@ -27,7 +30,13 @@ impl Action {
             priority: Priority::Normal,
             retry_count: 0,
             status: ActionStatus::Pending,
+            target_agent_id: None,
         }
+    }
+
+    pub fn for_agent(mut self, agent_id: &str) -> Self {
+        self.target_agent_id = Some(agent_id.to_string());
+        self
     }
 
     pub fn system(action_type: &str) -> Self {
@@ -35,6 +44,14 @@ impl Action {
             action_type.to_string(),
             serde_json::Value::Null,
             ActionSource::System,
+        )
+    }
+
+    pub fn agent(action_type: &str, payload: serde_json::Value, agent_id: &str) -> Self {
+        Self::new(
+            action_type.to_string(),
+            payload,
+            ActionSource::Agent(agent_id.to_string()),
         )
     }
 }
