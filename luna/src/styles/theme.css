@@ -1,0 +1,157 @@
+:root {
+  /* === Warm Sand/Clay — Foundation === */
+  --color-sand-50: #faf7f2;
+  --color-sand-100: #f5f0e8;
+  --color-sand-200: #ede5d9;
+  --color-sand-300: #e4dcc9;
+  --color-sand-400: #d9cdb5;
+  --color-sand-500: #cdbf9d;
+  --color-sand-600: #bfa87f;
+  --color-sand-700: #a8905f;
+  --color-sand-800: #8a7245;
+  --color-sand-900: #6b5735;
+
+  /* === Amber/Gold — Active, Attention, Interaction === */
+  --color-amber-50: #fffbf0;
+  --color-amber-100: #fff3d6;
+  --color-amber-200: #ffe8ad;
+  --color-amber-300: #ffd97d;
+  --color-amber-400: #ffb84d;
+  --color-amber-500: #fa9f34;
+  --color-amber-600: #d67c1f;
+  --color-amber-700: #b55f15;
+  --color-amber-800: #8d450e;
+  --color-amber-900: #6b3408;
+
+  /* === Muted Teal — System State, Indicators === */
+  --color-teal-50: #f2f9f8;
+  --color-teal-100: #d5f0ed;
+  --color-teal-200: #b8e7e0;
+  --color-teal-300: #8dd7ce;
+  --color-teal-400: #5ec4b8;
+  --color-teal-500: #3da89f;
+  --color-teal-600: #2d8a82;
+  --color-teal-700: #25706a;
+  --color-teal-800: #1d5855;
+  --color-teal-900: #154442;
+
+  /* === Warm Grays — Hierarchy, Backgrounds === */
+  --color-gray-50: #faf9f7;
+  --color-gray-100: #f3f1ee;
+  --color-gray-200: #e8e4df;
+  --color-gray-300: #dcd6ce;
+  --color-gray-400: #c9bfb3;
+  --color-gray-500: #b3a897;
+  --color-gray-600: #9b8f7f;
+  --color-gray-700: #7e7268;
+  --color-gray-800: #5d5350;
+  --color-gray-900: #3d3632;
+
+  /* === Status Colors === */
+  --color-success: #4fad6f;
+  --color-warning: #d4a82e;
+  --color-error: #d4615b;
+  --color-info: #5d8ba8;
+
+  /* === Semantic Neutrals === */
+  --color-black: #1a1a1a;
+  --color-white: #ffffff;
+
+  /* === Surface System === */
+  --surface-primary: var(--color-sand-100);
+  --surface-secondary: var(--color-sand-50);
+  --surface-tertiary: var(--color-gray-100);
+  --surface-elevated: var(--color-white);
+  --canvas-bg: var(--color-sand-100);
+
+  /* === Border System === */
+  --border-subtle: var(--color-sand-300);
+  --border-default: var(--color-sand-400);
+  --border-strong: var(--color-sand-600);
+  --border-active: var(--color-amber-500);
+  --border-focus: var(--color-amber-400);
+
+  /* === Text System === */
+  --text-primary: var(--color-gray-900);
+  --text-secondary: var(--color-gray-700);
+  --text-tertiary: var(--color-gray-500);
+  --text-inverse: var(--color-white);
+  --text-accent: var(--color-amber-700);
+  --text-link: var(--color-teal-700);
+
+  /* === State Colors === */
+  --state-idle: var(--color-gray-400);
+  --state-working: var(--color-amber-500);
+  --state-success: var(--color-success);
+  --state-error: var(--color-error);
+
+  /* === Shadows === */
+  --shadow-sm: 0 1px 2px rgba(107, 87, 53, 0.06);
+  --shadow-md: 0 2px 8px rgba(107, 87, 53, 0.1);
+  --shadow-lg: 0 4px 16px rgba(107, 87, 53, 0.12);
+  --shadow-xl: 0 8px 32px rgba(107, 87, 53, 0.16);
+  --shadow-focus: 0 0 0 3px rgba(250, 159, 52, 0.25);
+  --shadow-window: 0 4px 24px rgba(107, 87, 53, 0.14);
+  --shadow-window-focused: 0 8px 32px rgba(107, 87, 53, 0.2);
+
+  /* === Spacing === */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+  --space-2xl: 32px;
+  --space-3xl: 48px;
+
+  /* === Border Radius === */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
+
+  /* === Animation === */
+  --duration-instant: 50ms;
+  --duration-fast: 150ms;
+  --duration-normal: 250ms;
+  --duration-slow: 400ms;
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-snap: cubic-bezier(0, 0.7, 0.3, 1);
+
+  /* === Z-Index === */
+  --z-desktop: 0;
+  --z-window: 100;
+  --z-window-focused: 200;
+  --z-panel: 500;
+  --z-input-bar: 900;
+  --z-overlay: 1000;
+  --z-toast: 1100;
+}
+
+/* === Dark Mode === */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --surface-primary: #1a1410;
+    --surface-secondary: #231c14;
+    --surface-tertiary: #2a2218;
+    --surface-elevated: #332a1e;
+    --canvas-bg: #1a1410;
+
+    --border-subtle: #3d3228;
+    --border-default: #4d4030;
+    --border-strong: #6b5735;
+    --border-active: var(--color-amber-500);
+
+    --text-primary: var(--color-sand-100);
+    --text-secondary: var(--color-sand-300);
+    --text-tertiary: var(--color-sand-500);
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+    --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.35);
+    --shadow-xl: 0 8px 32px rgba(0, 0, 0, 0.4);
+    --shadow-window: 0 4px 24px rgba(0, 0, 0, 0.35);
+    --shadow-window-focused: 0 8px 32px rgba(0, 0, 0, 0.45);
+  }
+}

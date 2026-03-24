@@ -1,0 +1,75 @@
+.input-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 56px;
+  background: var(--surface-elevated);
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-xl);
+  gap: var(--space-md);
+  z-index: var(--z-input-bar);
+  box-shadow: 0 -2px 12px rgba(107, 87, 53, 0.08);
+}
+
+.input-bar__context {
+  font-family: var(--font-system);
+  font-size: var(--text-sm);
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.input-bar__field {
+  flex: 1;
+  height: 38px;
+  background: var(--surface-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 0 var(--space-lg);
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color var(--duration-fast) var(--ease-smooth),
+              box-shadow var(--duration-fast) var(--ease-smooth);
+}
+
+.input-bar__field:focus {
+  border-color: var(--border-active);
+  box-shadow: var(--shadow-focus);
+}
+
+.input-bar__field::placeholder {
+  color: var(--text-tertiary);
+}
+
+.input-bar__status {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* Status Indicator */
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--state-idle);
+  transition: background var(--duration-fast);
+}
+
+.status-dot--working {
+  background: var(--state-working);
+  animation: pulse 1.5s infinite;
+}
+
+.status-dot--error {
+  background: var(--state-error);
+}
+
+.status-dot--success {
+  background: var(--state-success);
+}
