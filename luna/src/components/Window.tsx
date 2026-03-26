@@ -3,6 +3,7 @@ import type { WindowState } from '../types/window';
 import { useWindowStore } from '../stores/windowStore';
 import { useAppStore } from '../stores/appStore';
 import { useMagneticDrag } from '../hooks/useMagneticDrag';
+import { useDropContext } from '../hooks/useDropContext';
 import { ResponseDisplay } from './ResponseDisplay';
 import { DynamicRenderer } from '../renderer/DynamicRenderer';
 
@@ -23,6 +24,7 @@ export function Window({ window: win }: WindowProps) {
   const resizeRef = useRef<{ startX: number; startY: number; origW: number; origH: number } | null>(null);
   const windowRef = useRef<HTMLDivElement>(null);
   const { startDrag, moveDrag, endDrag, isDragging } = useMagneticDrag();
+  const { isDropTarget, handleDragOver, handleDragLeave, handleDrop } = useDropContext();
 
   // Drag handling (magnetic)
   const onDragStart = useCallback(
@@ -93,6 +95,7 @@ export function Window({ window: win }: WindowProps) {
     win.visibility === 'minimized' && 'window--minimized',
     isDragging() && 'window--dragging',
     groupSize > 0 && 'window--grouped',
+    isDropTarget && 'window--drop-target',
   ]
     .filter(Boolean)
     .join(' ');
@@ -112,6 +115,9 @@ export function Window({ window: win }: WindowProps) {
         zIndex: win.focused ? 200 : 100 + win.z_order,
       }}
       onMouseDown={handleFocus}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
     >
       {groupSize > 1 && (
         <div className="window__group-badge">{groupSize}</div>

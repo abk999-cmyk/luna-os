@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tokio::sync::RwLock;
 use tracing::{info, warn};
@@ -18,6 +19,7 @@ pub struct ActionDispatcher {
     session_id: RwLock<Option<String>>,
     permissions: Arc<RwLock<PermissionMatrix>>,
     audit: Arc<AuditLog>,
+    pending_actions: RwLock<HashMap<String, Action>>,
 }
 
 impl ActionDispatcher {
@@ -37,6 +39,7 @@ impl ActionDispatcher {
             session_id: RwLock::new(None),
             permissions,
             audit,
+            pending_actions: RwLock::new(HashMap::new()),
         }
     }
 
@@ -79,13 +82,15 @@ impl ActionDispatcher {
                             warn!(
                                 agent_id = %agent_id,
                                 action_type = %action.action_type,
-                                "Action requires user approval"
+                                "Action requires user approval — parking"
                             );
                             self.audit.log(&agent_id, &action.action_type, "pending_approval").ok();
-                            return Err(LunaError::Dispatch(format!(
-                                "Permission pending: agent '{}' needs approval for '{}'",
-                                agent_id, action.action_type
-                            )));
+                            let action_id = action.id.to_string();
+                            {
+                                let mut pending = self.pending_actions.write().await;
+                                pending.insert(action_id.clone(), action);
+                            }
+                            return Err(LunaError::PendingApproval(action_id));
                         }
                     }
                 }
@@ -146,7 +151,14 @@ impl ActionDispatcher {
         );
 
         // ── 7. Enqueue for processing ─────────────────────────────────────────
+        let action_type = action.action_type.clone();
         self.queue.enqueue(action)?;
+
+        // ── 8. Increment usage counter ───────────────────────────────────────
+        {
+            let mut registry = self.registry.write().await;
+            registry.increment_usage(&action_type);
+        }
 
         Ok(action_id)
     }
@@ -164,5 +176,43 @@ impl ActionDispatcher {
     pub async fn query_by_type(&self, action_type: &str) -> Vec<Action> {
         let history = self.history.read().await;
         history.query_by_type(action_type).into_iter().cloned().collect()
+    }
+
+    /// Approve a pending action and re-dispatch it (bypasses permission check).
+    pub async fn approve_pending(&self, action_id: &str) -> Result<ActionId, LunaError> {
+        let action = {
+            let mut pending = self.pending_actions.write().await;
+            pending.remove(action_id).ok_or_else(|| {
+                LunaError::Dispatch(format!("No pending action with id: {}", action_id))
+            })?
+        };
+        info!(action_id = %action_id, action_type = %action.action_type, "Pending action approved");
+        // Re-dispatch — grant temporary permission so it passes this time
+        {
+            let mut perms = self.permissions.write().await;
+            let agent_id = match &action.source {
+                crate::action::types::ActionSource::Agent(id) => id.clone(),
+                _ => "system".to_string(),
+            };
+            perms.grant(&agent_id, &action.action_type, false).ok();
+        }
+        self.dispatch(action).await
+    }
+
+    /// Deny and discard a pending action.
+    pub async fn deny_pending(&self, action_id: &str) -> Result<(), LunaError> {
+        let mut pending = self.pending_actions.write().await;
+        let action = pending.remove(action_id).ok_or_else(|| {
+            LunaError::Dispatch(format!("No pending action with id: {}", action_id))
+        })?;
+        warn!(action_id = %action_id, action_type = %action.action_type, "Pending action denied");
+        self.audit.log("user", &action.action_type, "denied_by_user").ok();
+        Ok(())
+    }
+
+    /// Get details of a pending action (for the permission dialog).
+    pub async fn get_pending_action(&self, action_id: &str) -> Option<Action> {
+        let pending = self.pending_actions.read().await;
+        pending.get(action_id).cloned()
     }
 }

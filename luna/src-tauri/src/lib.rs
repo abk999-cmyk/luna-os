@@ -32,6 +32,7 @@ use config::LunaConfig;
 use memory::MemorySystem;
 use persistence::db::Database;
 use security::{AuditLog, PermissionMatrix};
+use agent::task_graph::TaskGraph;
 use app::lifecycle::AppManager;
 use state::AppState;
 use sync::batcher::UpdateBatcher;
@@ -122,6 +123,7 @@ pub fn run() {
     let app_manager = Arc::new(AppManager::new());
     let topic_manager = Arc::new(TopicManager::new());
     let update_batcher = Arc::new(UpdateBatcher::new());
+    let task_graph = Arc::new(TaskGraph::new());
 
     // ── Session ───────────────────────────────────────────────────────────────
     let session_id = Uuid::new_v4().to_string();
@@ -224,6 +226,7 @@ pub fn run() {
         app_manager.clone(),
         topic_manager.clone(),
         update_batcher.clone(),
+        task_graph.clone(),
     );
 
     info!(session_id = %session_id, "Luna session started");
@@ -275,6 +278,9 @@ pub fn run() {
                     let mut interval = tokio::time::interval(Duration::from_millis(16));
                     loop {
                         interval.tick().await;
+                        if sync_batcher.is_shutdown() {
+                            break;
+                        }
                         if sync_batcher.should_flush().await {
                             let batch = sync_batcher.flush().await;
                             if !batch.is_empty() {
@@ -300,11 +306,17 @@ pub fn run() {
             commands::dispatch_action,
             commands::query_actions,
             commands::send_message,
+            commands::send_message_streaming,
             commands::get_agent_status,
             commands::grant_permission,
             commands::deny_permission,
             commands::get_scratchpad,
             commands::query_permission_log,
+            commands::approve_pending_action,
+            commands::deny_pending_action,
+            commands::transcribe_audio,
+            commands::inject_context,
+            commands::get_task_graph,
             window::commands::create_window,
             window::commands::close_window,
             window::commands::resize_window,

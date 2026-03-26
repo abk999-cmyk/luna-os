@@ -25,7 +25,8 @@ pub async fn dispatch_app_event(
         "app_id": app_id,
         "handler_name": handler_name,
         "component_id": component_id,
-        "event_data": serde_json::from_str::<serde_json::Value>(&event_data).unwrap_or_default(),
+        "event_data": serde_json::from_str::<serde_json::Value>(&event_data)
+            .map_err(|e| LunaError::Dispatch(format!("Invalid event_data JSON: {}", e)))?,
     });
 
     let action = crate::action::types::Action::new(

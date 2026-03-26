@@ -110,7 +110,9 @@ pub fn register_core_handlers(registry: &ActionHandlerRegistry) {
         "agent.response",
         Arc::new(|action, handle, _state| {
             Box::pin(async move {
-                let _ = handle.emit("agent-response", &action.payload);
+                if let Err(e) = handle.emit("agent-response", &action.payload) {
+                    tracing::debug!(error = %e, "Failed to emit agent-response");
+                }
                 Ok(())
             })
         }),
@@ -121,7 +123,9 @@ pub fn register_core_handlers(registry: &ActionHandlerRegistry) {
         "window.create",
         Arc::new(|action, handle, _state| {
             Box::pin(async move {
-                let _ = handle.emit("agent-window-create", &action.payload);
+                if let Err(e) = handle.emit("agent-window-create", &action.payload) {
+                    tracing::debug!(error = %e, "Failed to emit agent-window-create");
+                }
                 Ok(())
             })
         }),
@@ -132,7 +136,9 @@ pub fn register_core_handlers(registry: &ActionHandlerRegistry) {
         "window.update_content",
         Arc::new(|action, handle, _state| {
             Box::pin(async move {
-                let _ = handle.emit("window-content-update", &action.payload);
+                if let Err(e) = handle.emit("window-content-update", &action.payload) {
+                    tracing::debug!(error = %e, "Failed to emit window-content-update");
+                }
                 Ok(())
             })
         }),
@@ -143,7 +149,9 @@ pub fn register_core_handlers(registry: &ActionHandlerRegistry) {
         "window.close",
         Arc::new(|action, handle, _state| {
             Box::pin(async move {
-                let _ = handle.emit("agent-window-close", &action.payload);
+                if let Err(e) = handle.emit("agent-window-close", &action.payload) {
+                    tracing::debug!(error = %e, "Failed to emit agent-window-close");
+                }
                 Ok(())
             })
         }),
@@ -154,7 +162,9 @@ pub fn register_core_handlers(registry: &ActionHandlerRegistry) {
         "window.focus",
         Arc::new(|action, handle, _state| {
             Box::pin(async move {
-                let _ = handle.emit("agent-window-focus", &action.payload);
+                if let Err(e) = handle.emit("agent-window-focus", &action.payload) {
+                    tracing::debug!(error = %e, "Failed to emit agent-window-focus");
+                }
                 Ok(())
             })
         }),
@@ -165,7 +175,9 @@ pub fn register_core_handlers(registry: &ActionHandlerRegistry) {
         "system.notify",
         Arc::new(|action, handle, _state| {
             Box::pin(async move {
-                let _ = handle.emit("system-notification", &action.payload);
+                if let Err(e) = handle.emit("system-notification", &action.payload) {
+                    tracing::debug!(error = %e, "Failed to emit system-notification");
+                }
                 Ok(())
             })
         }),
@@ -259,14 +271,16 @@ pub fn register_core_handlers(registry: &ActionHandlerRegistry) {
                 state.app_manager.create_app(descriptor.clone(), window_id.clone(), agent_id)?;
 
                 // Emit to frontend
-                let _ = handle.emit(
+                if let Err(e) = handle.emit(
                     "app-created",
                     serde_json::json!({
                         "app_id": app_id,
                         "window_id": window_id,
                         "descriptor": descriptor,
                     }),
-                );
+                ) {
+                    tracing::debug!(error = %e, "Failed to emit app-created");
+                }
 
                 tracing::info!(app_id = %app_id, window_id = %window_id, "Dynamic app created");
                 Ok(())
@@ -305,14 +319,16 @@ pub fn register_core_handlers(registry: &ActionHandlerRegistry) {
                 // Get current app state for the event
                 let app = state.app_manager.get_app(&app_id);
 
-                let _ = handle.emit(
+                if let Err(e) = handle.emit(
                     "app-updated",
                     serde_json::json!({
                         "app_id": app_id,
                         "data": app.as_ref().map(|a| &a.data_context),
                         "descriptor": app.as_ref().map(|a| &a.descriptor),
                     }),
-                );
+                ) {
+                    tracing::debug!(error = %e, "Failed to emit app-updated");
+                }
 
                 tracing::info!(app_id = %app_id, "Dynamic app updated");
                 Ok(())
@@ -338,15 +354,19 @@ pub fn register_core_handlers(registry: &ActionHandlerRegistry) {
                 state.handler_registry.deregister_app_handlers(&app_id);
 
                 // Close the window
-                let _ = handle.emit(
+                if let Err(e) = handle.emit(
                     "agent-window-close",
                     serde_json::json!({ "window_id": app.window_id }),
-                );
+                ) {
+                    tracing::debug!(error = %e, "Failed to emit agent-window-close for app destroy");
+                }
 
-                let _ = handle.emit(
+                if let Err(e) = handle.emit(
                     "app-destroyed",
                     serde_json::json!({ "app_id": app_id }),
-                );
+                ) {
+                    tracing::debug!(error = %e, "Failed to emit app-destroyed");
+                }
 
                 tracing::info!(app_id = %app_id, "Dynamic app destroyed");
                 Ok(())
@@ -374,6 +394,8 @@ pub fn register_core_handlers(registry: &ActionHandlerRegistry) {
                     if let Err(e) = state.message_bus.send(&agent_id, msg).await {
                         warn!(error = %e, agent = %agent_id, "Failed to route app event to agent");
                     }
+                } else {
+                    warn!(app_id = %app_id, "No controlling agent found for app event — event dropped");
                 }
                 Ok(())
             })

@@ -7,6 +7,7 @@ use crate::agent::conductor::ConductorAgent;
 use crate::agent::messaging::MessageBus;
 use crate::agent::registry::AgentRegistry;
 use crate::agent::scratchpad::Scratchpad;
+use crate::agent::task_graph::TaskGraph;
 use crate::app::lifecycle::AppManager;
 use crate::memory::MemorySystem;
 use crate::sync::batcher::UpdateBatcher;
@@ -35,6 +36,8 @@ pub struct AppState {
     // Sprint 3: state sync
     pub topic_manager: Arc<TopicManager>,
     pub update_batcher: Arc<UpdateBatcher>,
+    // Sprint 4: task graph
+    pub task_graph: Arc<TaskGraph>,
 }
 
 impl AppState {
@@ -55,6 +58,7 @@ impl AppState {
         app_manager: Arc<AppManager>,
         topic_manager: Arc<TopicManager>,
         update_batcher: Arc<UpdateBatcher>,
+        task_graph: Arc<TaskGraph>,
     ) -> Self {
         Self {
             dispatcher,
@@ -72,6 +76,7 @@ impl AppState {
             app_manager,
             topic_manager,
             update_batcher,
+            task_graph,
         }
     }
 

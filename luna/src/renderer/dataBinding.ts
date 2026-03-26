@@ -48,10 +48,17 @@ export function resolveDataBindings(
       // Strip "$." prefix and resolve
       resolved[key] = resolvePath(value.slice(2), context);
     } else if (Array.isArray(value)) {
-      // Resolve bindings inside arrays
-      resolved[key] = value.map((item) =>
-        isBinding(item) ? resolvePath(item.slice(2), context) : item
-      );
+      // Resolve bindings inside arrays (including nested objects)
+      resolved[key] = value.map((item) => {
+        if (isBinding(item)) return resolvePath(item.slice(2), context);
+        if (item && typeof item === 'object' && !Array.isArray(item)) {
+          return resolveDataBindings(item, context);
+        }
+        if (Array.isArray(item)) {
+          return resolveDataBindings({ _arr: item }, context)._arr;
+        }
+        return item;
+      });
     } else if (value && typeof value === 'object' && !Array.isArray(value)) {
       // Recursively resolve nested objects
       resolved[key] = resolveDataBindings(value, context);

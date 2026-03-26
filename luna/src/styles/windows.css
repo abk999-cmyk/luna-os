@@ -131,3 +131,29 @@
 .window:hover .window__resize-handle::after {
   opacity: 0.6;
 }
+
+/* === Drop Target === */
+.window--drop-target {
+  border-color: var(--color-accent, #d4a574);
+  box-shadow: 0 0 0 2px var(--color-accent, #d4a574), var(--shadow-window);
+}
+
+.window--drop-target .window__body::after {
+  content: 'Drop file to add context';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.4);
+  color: white;
+  font-family: var(--font-system);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  border-radius: var(--radius-md);
+  pointer-events: none;
+}
+
+.window--drop-target .window__body {
+  position: relative;
+}

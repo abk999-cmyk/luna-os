@@ -2,6 +2,7 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
 
+use super::llm_stream::{self, StreamReceiver};
 use crate::error::LunaError;
 
 #[derive(Debug, Clone)]
@@ -125,6 +126,29 @@ impl LlmClient {
         match self.provider {
             LlmProvider::Anthropic => self.send_anthropic(system_prompt, messages, max_tokens).await,
             LlmProvider::OpenAI => self.send_openai(system_prompt, messages, max_tokens).await,
+        }
+    }
+
+    /// Send a streaming request. Returns a channel that receives incremental tokens.
+    pub async fn send_streaming(
+        &self,
+        system_prompt: &str,
+        messages: &[LlmMessage],
+        max_tokens: u32,
+    ) -> Result<StreamReceiver, LunaError> {
+        match self.provider {
+            LlmProvider::Anthropic => {
+                llm_stream::stream_anthropic(
+                    &self.client, &self.api_key, &self.model,
+                    system_prompt, messages, max_tokens,
+                ).await
+            }
+            LlmProvider::OpenAI => {
+                llm_stream::stream_openai(
+                    &self.client, &self.api_key, &self.model,
+                    system_prompt, messages, max_tokens,
+                ).await
+            }
         }
     }
 

@@ -26,7 +26,7 @@ export interface PrimitiveProps {
   id: string;
   props: Record<string, any>;
   onEvent: (eventType: string, data: any) => void;
-  children?: ComponentSpec[];
+  children?: React.ReactNode;
   layout?: LayoutSpec;
 }
 

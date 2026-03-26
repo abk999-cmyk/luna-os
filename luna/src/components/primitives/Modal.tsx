@@ -1,21 +1,23 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { PrimitiveProps } from './types';
 import '../../styles/primitives/modal.css';
 
 /** Modal overlay dialog with title, body, and action buttons. */
 export function Modal({ id, props, onEvent }: PrimitiveProps) {
   const open = props.open ?? true;
+  const onEventRef = useRef(onEvent);
+  onEventRef.current = onEvent;
 
   useEffect(() => {
     if (!open) return;
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && props.closable !== false) {
-        onEvent('onClose', {});
+        onEventRef.current('onClose', {});
       }
     };
     document.addEventListener('keydown', handleEsc);
     return () => document.removeEventListener('keydown', handleEsc);
-  }, [open, props.closable, onEvent]);
+  }, [open, props.closable]);
 
   if (!open) return null;
 

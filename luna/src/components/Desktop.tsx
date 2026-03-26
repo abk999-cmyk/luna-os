@@ -1,11 +1,14 @@
+import { useState } from 'react';
 import { useWindowStore } from '../stores/windowStore';
 import { Window } from './Window';
 import { WindowConnector } from './WindowConnector';
 import { TextInputBar } from './TextInputBar';
+import { TaskGraphPanel } from './TaskGraphPanel';
 
 export function Desktop() {
   const windows = useWindowStore((s) => s.windows);
   const unfocusAll = useWindowStore((s) => s.unfocusAll);
+  const [taskGraphOpen, setTaskGraphOpen] = useState(false);
 
   const handleDesktopClick = (e: React.MouseEvent) => {
     // Only unfocus if clicking directly on desktop (not on a window)
@@ -41,6 +44,32 @@ export function Desktop() {
         <MinimizedBar />
       )}
 
+      {/* Task Graph toggle */}
+      <button
+        onClick={() => setTaskGraphOpen((v) => !v)}
+        title="Toggle task graph"
+        style={{
+          position: 'fixed',
+          top: 12,
+          right: 12,
+          width: 32,
+          height: 32,
+          borderRadius: '50%',
+          border: '1px solid var(--border-subtle)',
+          background: taskGraphOpen ? 'var(--color-accent, #d4a574)' : 'var(--surface-elevated)',
+          color: taskGraphOpen ? 'white' : 'var(--text-secondary)',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '0.85rem',
+          zIndex: 901,
+        }}
+      >
+        {'\u2630'}
+      </button>
+
+      <TaskGraphPanel open={taskGraphOpen} onClose={() => setTaskGraphOpen(false)} />
       <TextInputBar />
     </div>
   );

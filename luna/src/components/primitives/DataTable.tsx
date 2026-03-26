@@ -54,13 +54,10 @@ export function DataTable({ id, props, onEvent }: PrimitiveProps) {
 
   const handleSort = (colIdx: number) => {
     if (!sortable) return;
-    if (sortCol === colIdx) {
-      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortCol(colIdx);
-      setSortDir('asc');
-    }
-    onEvent('onSort', { column: headers[colIdx], direction: sortDir });
+    const newDir = sortCol === colIdx ? (sortDir === 'asc' ? 'desc' : 'asc') : 'asc';
+    setSortCol(colIdx);
+    setSortDir(newDir);
+    onEvent('onSort', { column: headers[colIdx], direction: newDir });
   };
 
   const handleRowClick = (rowIdx: number, row: any[]) => {

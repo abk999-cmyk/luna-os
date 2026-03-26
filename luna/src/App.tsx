@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { Desktop } from './components/Desktop';
 import { PermissionDialog } from './components/PermissionDialog';
+import { AmbientBadge } from './components/AmbientBadge';
 import { ToastContainer, addToast } from './components/primitives/Toast';
 import { useWindowStore } from './stores/windowStore';
 import { useAgentStore } from './stores/agentStore';
@@ -51,7 +52,7 @@ function App() {
       setHasConductor(status.has_conductor);
     });
 
-    // ── Agent response ───────────────────────────────────────────────────────
+    // ── Agent response (non-streaming fallback) ─────────────────────────────
     const unlistenResponse = listen<{ text?: string }>('agent-response', async (event) => {
       const text = event.payload?.text || 'No response';
       setStatus('idle');
@@ -67,6 +68,29 @@ function App() {
       } else {
         await addWindow('Response', 'response', text);
       }
+    });
+
+    // ── Streaming: accumulate tokens into a response window ─────────────────
+    let streamingWindowId: string | null = null;
+    let streamBuffer = '';
+
+    const unlistenStreamToken = listen<{ token: string }>('agent-stream-token', async (event) => {
+      const token = event.payload?.token || '';
+      streamBuffer += token;
+
+      if (!streamingWindowId) {
+        // Create a new window for the streaming response
+        const win = await addWindow('Response', 'response', streamBuffer);
+        streamingWindowId = win.id;
+      } else {
+        setWindowContent(streamingWindowId, streamBuffer);
+      }
+    });
+
+    const unlistenStreamDone = listen('agent-stream-done', () => {
+      setStatus('idle');
+      streamingWindowId = null;
+      streamBuffer = '';
     });
 
     // ── Agent window creation ────────────────────────────────────────────────
@@ -109,21 +133,24 @@ function App() {
     }>('app-created', (event) => {
       const { app_id, window_id, spec } = event.payload;
       useAppStore.getState().registerApp(app_id, spec, window_id);
-      // Add the window locally (backend already created the WindowState)
-      useWindowStore.getState().addWindowLocal({
-        id: window_id,
-        title: spec.title || 'App',
-        bounds: {
-          x: 100, y: 100,
-          width: spec.width || 600,
-          height: spec.height || 400,
-        },
-        z_order: 999,
-        visibility: 'visible',
-        focused: true,
-        content_type: 'dynamic_app',
-        created_at: new Date().toISOString(),
-      });
+      // Add the window locally only if backend hasn't already synced it
+      const existing = useWindowStore.getState().windows.find((w) => w.id === window_id);
+      if (!existing) {
+        useWindowStore.getState().addWindowLocal({
+          id: window_id,
+          title: spec.title || 'App',
+          bounds: {
+            x: 100, y: 100,
+            width: spec.width || 600,
+            height: spec.height || 400,
+          },
+          z_order: 999,
+          visibility: 'visible',
+          focused: true,
+          content_type: 'dynamic_app',
+          created_at: new Date().toISOString(),
+        });
+      }
     });
 
     // ── Dynamic app data update ──────────────────────────────────────────────
@@ -152,6 +179,8 @@ function App() {
 
     return () => {
       unlistenResponse.then((fn) => fn());
+      unlistenStreamToken.then((fn) => fn());
+      unlistenStreamDone.then((fn) => fn());
       unlistenWindowCreate.then((fn) => fn());
       unlistenContentUpdate.then((fn) => fn());
       unlistenNotify.then((fn) => fn());
@@ -165,6 +194,7 @@ function App() {
   return (
     <>
       <Desktop />
+      <AmbientBadge />
       <ToastContainer />
       {pendingPermission && (
         <PermissionDialog

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type AgentStatus = 'idle' | 'working' | 'error' | 'success';
+export type AgentStatus = 'idle' | 'working' | 'streaming' | 'error' | 'success';
 
 interface AgentStore {
   status: AgentStatus;

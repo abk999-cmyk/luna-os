@@ -168,8 +168,14 @@ export function useMagneticDrag() {
 
       // Create group if snapped and not already grouped
       const currentGroup = store.getWindowGroup(ds.windowId);
-      if (!currentGroup || !currentGroup.has(snap.snappedTo)) {
+      if (!currentGroup?.has(snap.snappedTo)) {
         store.joinWindows(ds.windowId, snap.snappedTo);
+      }
+    } else {
+      // Not snapped — detach from group if previously grouped
+      const currentGroup = store.getWindowGroup(ds.windowId);
+      if (currentGroup && currentGroup.size > 1) {
+        store.detachWindow(ds.windowId);
       }
     }
 
@@ -181,17 +187,6 @@ export function useMagneticDrag() {
       for (const [memberId, offset] of ds.groupOffsets) {
         store.updateWindowPosition(memberId, newX + offset.dx, newY + offset.dy);
       }
-    }
-
-    // Check detach: if we've moved far from original snap, break group
-    const rawX = ds.origX + dx;
-    const rawY = ds.origY + dy;
-    const snapDelta = Math.sqrt(
-      Math.pow(newX - rawX, 2) + Math.pow(newY - rawY, 2)
-    );
-    if (!snap.snappedTo && snapDelta < 1) {
-      // Not snapped anymore, detach from group
-      store.detachWindow(ds.windowId);
     }
   }, []);
 

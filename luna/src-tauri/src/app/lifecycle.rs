@@ -55,6 +55,9 @@ impl AppManager {
 
         let app_id = app.descriptor.id.clone();
         let mut apps = self.apps.write().unwrap();
+        if apps.contains_key(&app_id) {
+            return Err(LunaError::Dispatch(format!("App already exists: {}", app_id)));
+        }
         apps.insert(app_id, app.clone());
 
         Ok(app)

@@ -63,19 +63,16 @@ function ComponentNode({ spec, dataContext, appId }: ComponentNodeProps) {
   const onEvent = createEventHandler(appId, spec.id, spec.events);
 
   // If this component has children specs, render them recursively
-  // and pass as a React children prop
-  if (spec.children && spec.children.length > 0) {
-    const renderedChildren = spec.children.map((child) => (
-      <ComponentNode
-        key={child.id}
-        spec={child}
-        dataContext={dataContext}
-        appId={appId}
-      />
-    ));
-
-    resolvedProps.children = renderedChildren;
-  }
+  const renderedChildren = spec.children && spec.children.length > 0
+    ? spec.children.map((child) => (
+        <ComponentNode
+          key={child.id}
+          spec={child}
+          dataContext={dataContext}
+          appId={appId}
+        />
+      ))
+    : null;
 
   const layoutStyle = spec.layout ? layoutToStyle(spec.layout) : {};
 
@@ -85,9 +82,10 @@ function ComponentNode({ spec, dataContext, appId }: ComponentNodeProps) {
         id={spec.id}
         props={resolvedProps}
         onEvent={onEvent}
-        children={spec.children}
         layout={spec.layout}
-      />
+      >
+        {renderedChildren}
+      </Component>
     </div>
   );
 }

@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
 
@@ -16,6 +18,7 @@ pub struct UpdateBatcher {
     pending: Mutex<HashMap<String, PendingUpdate>>,
     max_batch_size: usize,
     flush_interval: Duration,
+    shutdown: Arc<AtomicBool>,
 }
 
 impl UpdateBatcher {
@@ -24,6 +27,7 @@ impl UpdateBatcher {
             pending: Mutex::new(HashMap::new()),
             max_batch_size: 10,
             flush_interval: Duration::from_millis(16),
+            shutdown: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -73,6 +77,9 @@ impl UpdateBatcher {
             let mut interval = tokio::time::interval(Duration::from_millis(16));
             loop {
                 interval.tick().await;
+                if batcher.is_shutdown() {
+                    break;
+                }
                 if batcher.should_flush().await {
                     let batch = batcher.flush().await;
                     if !batch.is_empty() {
@@ -81,5 +88,15 @@ impl UpdateBatcher {
                 }
             }
         });
+    }
+
+    /// Signal the batcher to stop its flush loop.
+    pub fn shutdown(&self) {
+        self.shutdown.store(true, Ordering::Relaxed);
+    }
+
+    /// Check if shutdown has been signaled.
+    pub fn is_shutdown(&self) -> bool {
+        self.shutdown.load(Ordering::Relaxed)
     }
 }

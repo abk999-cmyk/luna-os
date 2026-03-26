@@ -1,4 +1,6 @@
 pub mod llm_client;
+pub mod llm_stream;
+pub mod stream_parser;
 pub mod response_parser;
 pub mod conductor;
 pub mod registry;
@@ -6,3 +8,5 @@ pub mod messaging;
 pub mod leaf;
 pub mod scratchpad;
 pub mod orchestrator;
+pub mod transcription;
+pub mod task_graph;

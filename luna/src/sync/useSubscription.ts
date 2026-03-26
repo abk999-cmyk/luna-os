@@ -16,5 +16,6 @@ export function useSubscription(topic: string, callback: (payload: any) => void)
   useEffect(() => {
     const unsubscribe = subscribe(topic, stableCallback);
     return unsubscribe;
-  }, [topic, stableCallback]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [topic]);
 }

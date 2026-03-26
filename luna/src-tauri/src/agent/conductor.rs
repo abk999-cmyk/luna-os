@@ -2,6 +2,8 @@ use std::sync::Arc;
 use tracing::{info, warn};
 
 use super::llm_client::{LlmClient, LlmMessage};
+use super::llm_stream::StreamEvent;
+use super::stream_parser::StreamParser;
 use super::response_parser;
 use crate::action::types::{Action, ActionSource};
 use crate::error::LunaError;
@@ -179,6 +181,146 @@ impl ConductorAgent {
         }
 
         Ok(actions)
+    }
+
+    /// Handle user input with streaming. Returns actions incrementally via the callback.
+    /// The `on_token` callback receives each token for the frontend.
+    /// The `on_actions` callback receives complete actions as they're parsed mid-stream.
+    pub async fn handle_user_input_streaming<F, G>(
+        &mut self,
+        text: String,
+        action_space: Option<String>,
+        memory: Option<&Arc<MemorySystem>>,
+        open_windows: Vec<String>,
+        session_id: &str,
+        mut on_token: F,
+        mut on_actions: G,
+    ) -> Result<(), LunaError>
+    where
+        F: FnMut(&str) + Send,
+        G: FnMut(Vec<Action>) + Send,
+    {
+        // Build system prompt (same as non-streaming)
+        let recent_memory = if let Some(mem) = memory {
+            mem.episodic.recent_summary(session_id, 10)
+        } else {
+            "Memory not available.".to_string()
+        };
+
+        let system_prompt = if let Some(space) = action_space {
+            let window_list = if open_windows.is_empty() {
+                "None".to_string()
+            } else {
+                open_windows.join(", ")
+            };
+            format!(
+                "You are the Conductor for Luna OS — an LLM-native operating system.\n\
+                You receive user input and respond with structured JSON actions.\n\n\
+                ## Current Context\n\
+                - Open windows: {window_list}\n\
+                - Active workspace: workspace_default\n\
+                - Recent memory:\n{recent_memory}\n\n\
+                {space}\n\n\
+                ## Dynamic Apps (Interactive UI)\n\
+                Use app.create to build interactive applications. The payload IS the app descriptor.\n\
+                Available component types: DataTable, List, Card, Panel, Container, Grid, Divider, Spacer,\n\
+                TextInput, NumberInput, Select, Checkbox, Toggle, Slider, Stat, Timeline, Tabs, Modal, Toast,\n\
+                Chat, Chart, Gauge, Breadcrumbs, CodeEditor, Terminal.\n\
+                Components use $.field.path for data binding against the \"data\" object.\n\n\
+                ## Response Format\n\
+                Respond ONLY with a JSON array of actions. No markdown outside the JSON.\n\
+                Always include agent.response if you want to communicate text to the user.\n\
+                Example: [{{\"action_type\": \"agent.response\", \"payload\": {{\"text\": \"Hello!\"}}}}]\n"
+            )
+        } else {
+            FALLBACK_SYSTEM_PROMPT.to_string()
+        };
+
+        // Add user message to history
+        self.conversation_history.push(LlmMessage {
+            role: "user".to_string(),
+            content: text.clone(),
+        });
+
+        // Keep history bounded
+        if self.conversation_history.len() > 20 {
+            let drain = self.conversation_history.len() - 20;
+            self.conversation_history.drain(..drain);
+        }
+
+        info!(history_len = self.conversation_history.len(), "Conductor streaming user input");
+
+        // Start streaming
+        let mut rx = self
+            .llm_client
+            .send_streaming(&system_prompt, &self.conversation_history, 4096)
+            .await?;
+
+        let mut parser = StreamParser::new(&self.id);
+        let mut input_tokens: u32 = 0;
+        let mut output_tokens: u32 = 0;
+
+        while let Some(event) = rx.recv().await {
+            match event {
+                StreamEvent::Token(token) => {
+                    on_token(&token);
+                    let actions = parser.feed(&token);
+                    if !actions.is_empty() {
+                        on_actions(actions);
+                    }
+                }
+                StreamEvent::Usage { input, output } => {
+                    input_tokens = input;
+                    output_tokens = output;
+                }
+                StreamEvent::Done => break,
+                StreamEvent::Error(e) => {
+                    warn!(error = %e, "Stream error");
+                    return Err(LunaError::Api(format!("Stream error: {}", e)));
+                }
+            }
+        }
+
+        let full_text = parser.full_text().to_string();
+
+        // Add assistant response to history
+        self.conversation_history.push(LlmMessage {
+            role: "assistant".to_string(),
+            content: full_text.clone(),
+        });
+
+        // Record token usage
+        if let Some(mem) = memory {
+            if let Err(e) = mem.agent_state.record_tokens(&self.id, input_tokens, output_tokens) {
+                warn!(error = %e, "Failed to record token usage");
+            }
+        }
+
+        // Parse any remaining actions from the full text (in case streaming didn't catch them all)
+        let remaining_actions = response_parser::parse_for_agent(&full_text, &self.id);
+        // Only dispatch if they weren't already caught by the stream parser
+        // The stream parser may have already extracted all of them, so we check
+        // by seeing if the response looks like it has valid JSON actions
+        if !remaining_actions.is_empty() {
+            on_actions(remaining_actions);
+        }
+
+        // Record episodic event
+        if let Some(mem) = memory {
+            if let Err(e) = mem.episodic.record(
+                session_id,
+                &self.id,
+                "user.input_handled_streaming",
+                &serde_json::json!({"text": &text}),
+                &serde_json::json!({"input_tokens": input_tokens, "output_tokens": output_tokens}),
+                &["conductor".to_string(), "streaming".to_string()],
+            ) {
+                warn!(error = %e, "Failed to record episodic event");
+            }
+        }
+
+        info!(input_tokens, output_tokens, "Conductor streaming complete");
+        Ok(())
     }
 
     /// Check if the Conductor should delegate to the orchestrator.
