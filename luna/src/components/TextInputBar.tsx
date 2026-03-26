@@ -22,7 +22,7 @@ export function TextInputBar() {
 
     try {
       await sendMessageStreaming(submitText);
-      setStatus('idle');
+      // H6: Don't set idle here — let the agent-stream-done handler in App.tsx own this
     } catch (e) {
       console.error('Failed to send message:', e);
       setStatus('error');

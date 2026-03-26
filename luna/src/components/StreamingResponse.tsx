@@ -1,41 +1,23 @@
-import { useState, useEffect, useRef } from 'react';
-import { listen } from '@tauri-apps/api/event';
+import { useRef, useEffect } from 'react';
 
 interface StreamingResponseProps {
-  /** Once streaming is done, this contains the final text. */
-  finalText?: string;
+  /** The current text content (accumulated tokens or final text). */
+  text: string;
+  /** Whether the response is still streaming. */
+  streaming: boolean;
 }
 
-/** Renders LLM response tokens as they stream in, with a blinking cursor. */
-export function StreamingResponse({ finalText }: StreamingResponseProps) {
-  const [text, setText] = useState('');
-  const [streaming, setStreaming] = useState(true);
+/** Renders LLM response tokens as they stream in, with a blinking cursor.
+ *  H16: Accepts text and streaming as props instead of duplicating App.tsx event listeners. */
+export function StreamingResponse({ text, streaming }: StreamingResponseProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Auto-scroll as content grows
   useEffect(() => {
-    if (finalText !== undefined) {
-      setText(finalText);
-      setStreaming(false);
-      return;
+    if (containerRef.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
     }
-
-    const unlistenToken = listen<{ token: string }>('agent-stream-token', (event) => {
-      setText((prev) => prev + (event.payload.token || ''));
-      // Auto-scroll
-      if (containerRef.current) {
-        containerRef.current.scrollTop = containerRef.current.scrollHeight;
-      }
-    });
-
-    const unlistenDone = listen('agent-stream-done', () => {
-      setStreaming(false);
-    });
-
-    return () => {
-      unlistenToken.then((fn) => fn());
-      unlistenDone.then((fn) => fn());
-    };
-  }, [finalText]);
+  }, [text]);
 
   return (
     <div

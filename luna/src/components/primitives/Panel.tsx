@@ -2,7 +2,7 @@ import { PrimitiveProps } from './types';
 import '../../styles/primitives/containers.css';
 
 /** Titled container with header and body sections. */
-export function Panel({ id, props, onEvent }: PrimitiveProps) {
+export function Panel({ id, props, onEvent, children }: PrimitiveProps) {
   return (
     <div className={`luna-panel ${props.variant === 'outlined' ? 'luna-panel--outlined' : ''}`} id={id}>
       {props.title && (
@@ -21,7 +21,7 @@ export function Panel({ id, props, onEvent }: PrimitiveProps) {
       )}
       {!props.collapsed && (
         <div className="luna-panel__body">
-          {props.children}
+          {children || props.children}
         </div>
       )}
     </div>

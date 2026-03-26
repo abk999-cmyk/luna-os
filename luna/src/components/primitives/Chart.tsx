@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { PrimitiveProps } from './types';
 import '../../styles/primitives/chart.css';
 
@@ -71,37 +72,41 @@ export function Chart({ id, props, onEvent }: PrimitiveProps) {
     );
   }
 
-  if (chartType === 'pie') {
+  // M19: Pre-compute pie slices in useMemo to avoid mutating startAngle during render
+  const pieSlices = useMemo(() => {
+    if (chartType !== 'pie') return [];
     const total = data.reduce((sum, d) => sum + d.value, 0) || 1;
-    const cx = width / 2;
-    const cy = height / 2;
-    const r = Math.min(cx, cy) - 20;
-    let startAngle = 0;
-
+    const pcx = width / 2;
+    const pcy = height / 2;
+    const pr = Math.min(pcx, pcy) - 20;
     const colors = ['var(--color-amber-500)', 'var(--color-teal-500)', 'var(--color-sand-600)', 'var(--color-error)', 'var(--color-info)', 'var(--color-success)'];
+    let angle = 0;
+    return data.map((d, i) => {
+      const sweep = (d.value / total) * 2 * Math.PI;
+      const x1 = pcx + pr * Math.cos(angle);
+      const y1 = pcy + pr * Math.sin(angle);
+      const x2 = pcx + pr * Math.cos(angle + sweep);
+      const y2 = pcy + pr * Math.sin(angle + sweep);
+      const largeArc = sweep > Math.PI ? 1 : 0;
+      const path = `M ${pcx} ${pcy} L ${x1} ${y1} A ${pr} ${pr} 0 ${largeArc} 1 ${x2} ${y2} Z`;
+      angle += sweep;
+      return { path, fill: colors[i % colors.length], data: d, index: i };
+    });
+  }, [chartType, data, width, height]);
 
+  if (chartType === 'pie') {
     return (
       <div className="luna-chart" id={id} style={{ height, width }}>
         {props.title && <div className="luna-chart__title">{props.title}</div>}
         <svg viewBox={`0 0 ${width} ${height}`} className="luna-chart__svg">
-          {data.map((d, i) => {
-            const angle = (d.value / total) * 2 * Math.PI;
-            const x1 = cx + r * Math.cos(startAngle);
-            const y1 = cy + r * Math.sin(startAngle);
-            const x2 = cx + r * Math.cos(startAngle + angle);
-            const y2 = cy + r * Math.sin(startAngle + angle);
-            const largeArc = angle > Math.PI ? 1 : 0;
-            const path = `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} Z`;
-            startAngle += angle;
-            return (
-              <path
-                key={i} d={path}
-                fill={colors[i % colors.length]}
-                className="luna-chart__slice"
-                onClick={() => onEvent('onElementClick', { index: i, data: d })}
-              />
-            );
-          })}
+          {pieSlices.map((slice) => (
+            <path
+              key={slice.index} d={slice.path}
+              fill={slice.fill}
+              className="luna-chart__slice"
+              onClick={() => onEvent('onElementClick', { index: slice.index, data: slice.data })}
+            />
+          ))}
         </svg>
       </div>
     );

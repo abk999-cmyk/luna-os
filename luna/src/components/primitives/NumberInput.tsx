@@ -1,10 +1,15 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { PrimitiveProps } from './types';
 import '../../styles/primitives/inputs.css';
 
 /** Numeric input with min/max/step constraints. */
 export function NumberInput({ id, props, onEvent }: PrimitiveProps) {
   const [value, setValue] = useState<number>(props.value ?? props.defaultValue ?? 0);
+
+  // M9: Sync internal state when external props.value changes
+  useEffect(() => {
+    if (props.value !== undefined) setValue(props.value);
+  }, [props.value]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value;

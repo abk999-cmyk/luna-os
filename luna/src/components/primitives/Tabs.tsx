@@ -9,7 +9,7 @@ interface Tab {
 }
 
 /** Tabbed content panel. */
-export function Tabs({ id, props, onEvent }: PrimitiveProps) {
+export function Tabs({ id, props, onEvent, children }: PrimitiveProps) {
   const tabs: Tab[] = props.tabs || [];
   const [activeTab, setActiveTab] = useState(props.defaultTab || tabs[0]?.id || '');
 
@@ -36,7 +36,7 @@ export function Tabs({ id, props, onEvent }: PrimitiveProps) {
         ))}
       </div>
       <div className="luna-tabs__content" role="tabpanel">
-        {active?.content || props.children}
+        {children || active?.content || props.children}
       </div>
     </div>
   );

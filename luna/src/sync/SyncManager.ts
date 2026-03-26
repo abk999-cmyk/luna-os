@@ -9,11 +9,13 @@ interface SyncUpdate {
 
 const subscriptions: Map<string, Set<SyncCallback>> = new Map();
 let initialized = false;
+let initializing = false;
 
 /** Initialize the sync manager. Subscribes to the backend sync event. */
 export async function initSyncManager() {
-  if (initialized) return;
-  initialized = true;
+  // H12: Guard against concurrent initialization
+  if (initialized || initializing) return;
+  initializing = true;
 
   // Listen for batched sync events from backend
   await listen<SyncUpdate[]>('luna-sync', (event) => {
@@ -27,6 +29,9 @@ export async function initSyncManager() {
   await listen<SyncUpdate>('luna-sync-single', (event) => {
     dispatch(event.payload.topic, event.payload.payload);
   });
+
+  // H12: Mark initialized only after all listeners are registered
+  initialized = true;
 }
 
 /** Subscribe to a topic pattern. Returns an unsubscribe function. */

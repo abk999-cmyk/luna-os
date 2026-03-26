@@ -4,6 +4,7 @@ import { parseFile, generateContextSummary } from '../services/contextParser';
 
 interface UseDropContextReturn {
   isDropTarget: boolean;
+  handleDragEnter: (e: React.DragEvent) => void;
   handleDragOver: (e: React.DragEvent) => void;
   handleDragLeave: (e: React.DragEvent) => void;
   handleDrop: (e: React.DragEvent) => void;
@@ -14,12 +15,19 @@ export function useDropContext(): UseDropContextReturn {
   const [isDropTarget, setIsDropTarget] = useState(false);
   const dragCountRef = useRef(0);
 
+  // M7: Increment counter on dragEnter (fires once per element boundary),
+  // not dragOver (fires continuously)
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCountRef.current++;
+    setIsDropTarget(true);
+  }, []);
+
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     e.dataTransfer.dropEffect = 'copy';
-    dragCountRef.current++;
-    setIsDropTarget(true);
   }, []);
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
@@ -58,5 +66,5 @@ export function useDropContext(): UseDropContextReturn {
     }
   }, []);
 
-  return { isDropTarget, handleDragOver, handleDragLeave, handleDrop };
+  return { isDropTarget, handleDragEnter, handleDragOver, handleDragLeave, handleDrop };
 }

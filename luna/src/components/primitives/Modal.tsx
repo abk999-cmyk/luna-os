@@ -3,7 +3,7 @@ import { PrimitiveProps } from './types';
 import '../../styles/primitives/modal.css';
 
 /** Modal overlay dialog with title, body, and action buttons. */
-export function Modal({ id, props, onEvent }: PrimitiveProps) {
+export function Modal({ id, props, onEvent, children }: PrimitiveProps) {
   const open = props.open ?? true;
   const onEventRef = useRef(onEvent);
   onEventRef.current = onEvent;
@@ -37,7 +37,7 @@ export function Modal({ id, props, onEvent }: PrimitiveProps) {
           )}
         </div>
         <div className="luna-modal__body">
-          {props.content || props.children}
+          {children || props.content || props.children}
         </div>
         {props.actions && props.actions.length > 0 && (
           <div className="luna-modal__footer">

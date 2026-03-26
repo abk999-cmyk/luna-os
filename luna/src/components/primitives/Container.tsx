@@ -2,7 +2,7 @@ import { PrimitiveProps, layoutToStyle } from './types';
 import '../../styles/primitives/containers.css';
 
 /** Flex/grid container for layout composition. */
-export function Container({ id, props, layout }: PrimitiveProps) {
+export function Container({ id, props, layout, children }: PrimitiveProps) {
   const style: React.CSSProperties = {
     ...layoutToStyle(layout),
     ...(props.style || {}),
@@ -10,13 +10,13 @@ export function Container({ id, props, layout }: PrimitiveProps) {
 
   return (
     <div className={`luna-container ${props.className || ''}`} id={id} style={style}>
-      {props.children}
+      {children || props.children}
     </div>
   );
 }
 
 /** CSS Grid container. */
-export function Grid({ id, props }: PrimitiveProps) {
+export function Grid({ id, props, children }: PrimitiveProps) {
   const columns = props.columns || 2;
   const gap = props.gap ?? 16;
 
@@ -31,7 +31,7 @@ export function Grid({ id, props }: PrimitiveProps) {
         ...(props.style || {}),
       }}
     >
-      {props.children}
+      {children || props.children}
     </div>
   );
 }

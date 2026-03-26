@@ -6,6 +6,7 @@ export function StatusIndicator() {
   const className = [
     'status-dot',
     status === 'working' && 'status-dot--working',
+    status === 'streaming' && 'status-dot--streaming',
     status === 'error' && 'status-dot--error',
     status === 'success' && 'status-dot--success',
   ]

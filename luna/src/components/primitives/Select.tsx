@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { PrimitiveProps } from './types';
 import '../../styles/primitives/inputs.css';
 
@@ -16,6 +16,11 @@ export function Select({ id, props, onEvent }: PrimitiveProps) {
   const [value, setValue] = useState<string | string[]>(
     props.value ?? props.defaultValue ?? (multiple ? [] : '')
   );
+
+  // M9: Sync internal state when external props.value changes
+  useEffect(() => {
+    if (props.value !== undefined) setValue(props.value);
+  }, [props.value]);
 
   const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     if (multiple) {

@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { approvePendingAction, denyPendingAction } from '../ipc/actions';
 
 interface PermissionRequest {
   action_id: string;
@@ -15,19 +16,29 @@ interface PermissionDialogProps {
 
 export function PermissionDialog({ request, onResolved }: PermissionDialogProps) {
   const handleAllow = async (permanent: boolean) => {
-    await invoke('grant_permission', {
-      agentId: request.agent_id,
-      actionType: request.action_type,
-      permanent,
-    });
+    try {
+      if (permanent) {
+        // Grant permanent permission for this action type
+        await invoke('grant_permission', {
+          agentId: request.agent_id,
+          actionType: request.action_type,
+          permanent: true,
+        });
+      }
+      // Always approve the specific pending action (re-dispatches it)
+      await approvePendingAction(request.action_id);
+    } catch (err) {
+      console.error('Failed to approve pending action:', err);
+    }
     onResolved();
   };
 
   const handleDeny = async () => {
-    await invoke('deny_permission', {
-      agentId: request.agent_id,
-      actionType: request.action_type,
-    });
+    try {
+      await denyPendingAction(request.action_id);
+    } catch (err) {
+      console.error('Failed to deny pending action:', err);
+    }
     onResolved();
   };
 

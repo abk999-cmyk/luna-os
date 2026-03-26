@@ -1,4 +1,4 @@
-import { useCallback, useRef, useEffect } from 'react';
+import { useCallback, useRef, useEffect, useState } from 'react';
 import type { WindowState } from '../types/window';
 import { useWindowStore } from '../stores/windowStore';
 import { useAppStore } from '../stores/appStore';
@@ -12,19 +12,18 @@ interface WindowProps {
 }
 
 export function Window({ window: win }: WindowProps) {
-  const {
-    removeWindow,
-    minimizeWindow,
-    focusWindow,
-    updateWindowSize,
-    syncWindowSize,
-    windowContent,
-  } = useWindowStore();
+  // C7: Use individual selectors to avoid O(n²) re-renders
+  const removeWindow = useWindowStore((s) => s.removeWindow);
+  const minimizeWindow = useWindowStore((s) => s.minimizeWindow);
+  const focusWindow = useWindowStore((s) => s.focusWindow);
+  const updateWindowSize = useWindowStore((s) => s.updateWindowSize);
+  const syncWindowSize = useWindowStore((s) => s.syncWindowSize);
+  const windowContent = useWindowStore((s) => s.windowContent);
 
   const resizeRef = useRef<{ startX: number; startY: number; origW: number; origH: number } | null>(null);
   const windowRef = useRef<HTMLDivElement>(null);
   const { startDrag, moveDrag, endDrag, isDragging } = useMagneticDrag();
-  const { isDropTarget, handleDragOver, handleDragLeave, handleDrop } = useDropContext();
+  const { isDropTarget, handleDragEnter, handleDragOver, handleDragLeave, handleDrop } = useDropContext();
 
   // Drag handling (magnetic)
   const onDragStart = useCallback(
@@ -86,6 +85,24 @@ export function Window({ window: win }: WindowProps) {
     focusWindow(win.id);
   }, [win.id, focusWindow]);
 
+  // H15: Maximize/restore toggle
+  const [preMaxBounds, setPreMaxBounds] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  const updateWindowPosition = useWindowStore((s) => s.updateWindowPosition);
+
+  const handleMaximize = useCallback(() => {
+    if (preMaxBounds) {
+      // Restore
+      updateWindowPosition(win.id, preMaxBounds.x, preMaxBounds.y);
+      updateWindowSize(win.id, preMaxBounds.width, preMaxBounds.height);
+      setPreMaxBounds(null);
+    } else {
+      // Save current bounds and maximize
+      setPreMaxBounds({ ...win.bounds });
+      updateWindowPosition(win.id, 0, 0);
+      updateWindowSize(win.id, window.innerWidth, window.innerHeight - 60); // 60px for input bar
+    }
+  }, [win.id, win.bounds, preMaxBounds, updateWindowPosition, updateWindowSize]);
+
   const windowGroup = useWindowStore((s) => s.getWindowGroup(win.id));
   const groupSize = windowGroup ? windowGroup.size : 0;
 
@@ -112,9 +129,10 @@ export function Window({ window: win }: WindowProps) {
         top: win.bounds.y,
         width: win.bounds.width,
         height: win.bounds.height,
-        zIndex: win.focused ? 200 : 100 + win.z_order,
+        zIndex: win.focused ? 10000 + win.z_order : 100 + win.z_order,
       }}
       onMouseDown={handleFocus}
+      onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -135,7 +153,7 @@ export function Window({ window: win }: WindowProps) {
           />
           <button
             className="window__control window__control--maximize"
-            onClick={(e) => { e.stopPropagation(); }}
+            onClick={(e) => { e.stopPropagation(); handleMaximize(); }}
           />
         </div>
         <div className="window__title">{win.title}</div>

@@ -2,7 +2,7 @@ import { PrimitiveProps } from './types';
 import '../../styles/primitives/containers.css';
 
 /** Card with title, body, and optional actions footer. */
-export function Card({ id, props, onEvent }: PrimitiveProps) {
+export function Card({ id, props, onEvent, children }: PrimitiveProps) {
   return (
     <div
       className={`luna-card ${props.clickable ? 'luna-card--clickable' : ''}`}
@@ -17,7 +17,7 @@ export function Card({ id, props, onEvent }: PrimitiveProps) {
         </div>
       )}
       <div className="luna-card__body">
-        {props.content || props.children}
+        {children || props.content || props.children}
       </div>
       {props.actions && props.actions.length > 0 && (
         <div className="luna-card__footer">

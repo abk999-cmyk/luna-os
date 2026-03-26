@@ -24,7 +24,11 @@ pub async fn query_actions(
 ) -> Result<Vec<Action>, LunaError> {
     let limit = limit.unwrap_or(50);
     match action_type {
-        Some(at) => Ok(state.dispatcher.query_by_type(&at).await),
+        Some(at) => {
+            let mut results = state.dispatcher.query_by_type(&at).await;
+            results.truncate(limit);
+            Ok(results)
+        }
         None => Ok(state.dispatcher.query_recent(limit).await),
     }
 }
@@ -62,9 +66,14 @@ pub async fn send_message(
         reg.generate_action_space_prompt()
     };
 
-    // Send to conductor if available
-    let mut conductor_guard = state.conductor.write().await;
-    if let Some(ref mut conductor) = *conductor_guard {
+    // M4: Take conductor out of the lock so the write lock isn't held across the LLM call.
+    // This unblocks get_agent_status and concurrent requests.
+    let conductor_opt = {
+        let mut guard = state.conductor.write().await;
+        guard.take()
+    };
+
+    if let Some(mut conductor) = conductor_opt {
         let result = conductor.handle_user_input(
             text.clone(),
             Some(action_space),
@@ -72,6 +81,12 @@ pub async fn send_message(
             open_windows,
             &session_id,
         ).await;
+
+        // Put conductor back before processing results
+        {
+            let mut guard = state.conductor.write().await;
+            *guard = Some(conductor);
+        }
 
         match result {
             Ok(actions) => {
@@ -239,8 +254,13 @@ pub async fn send_message_streaming(
         reg.generate_action_space_prompt()
     };
 
-    let mut conductor_guard = state.conductor.write().await;
-    if let Some(ref mut conductor) = *conductor_guard {
+    // M4: Take conductor out of the lock so the write lock isn't held during streaming
+    let conductor_opt = {
+        let mut guard = state.conductor.write().await;
+        guard.take()
+    };
+
+    if let Some(mut conductor) = conductor_opt {
         let app_handle = app.clone();
         let dispatcher = state.dispatcher.clone();
         let app_handle2 = app.clone();
@@ -287,6 +307,12 @@ pub async fn send_message_streaming(
             },
         ).await;
 
+        // Put conductor back
+        {
+            let mut guard = state.conductor.write().await;
+            *guard = Some(conductor);
+        }
+
         // Emit stream-done event
         use tauri::Emitter;
         let _ = app.emit("agent-stream-done", serde_json::json!({}));
@@ -321,8 +347,8 @@ pub async fn transcribe_audio(
     let config = crate::config::LunaConfig::load()
         .map_err(|e| LunaError::Config(format!("{}", e)))?;
 
-    let api_key = config.openai_api_key.or(config.anthropic_api_key)
-        .ok_or_else(|| LunaError::Config("No API key configured for transcription".into()))?;
+    let api_key = config.openai_api_key
+        .ok_or_else(|| LunaError::Config("Whisper transcription requires OPENAI_API_KEY".into()))?;
 
     let client = reqwest::Client::new();
     crate::agent::transcription::transcribe(&client, &api_key, audio_bytes, &format).await
@@ -366,7 +392,8 @@ pub async fn inject_context(
 
     // Push to working memory so conductor sees it in next prompt
     let preview = if content.len() > 500 {
-        format!("{}...", &content[..500])
+        let truncated: String = content.chars().take(500).collect();
+        format!("{}...", truncated)
     } else {
         content
     };

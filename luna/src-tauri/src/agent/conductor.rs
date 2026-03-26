@@ -296,15 +296,6 @@ impl ConductorAgent {
             }
         }
 
-        // Parse any remaining actions from the full text (in case streaming didn't catch them all)
-        let remaining_actions = response_parser::parse_for_agent(&full_text, &self.id);
-        // Only dispatch if they weren't already caught by the stream parser
-        // The stream parser may have already extracted all of them, so we check
-        // by seeing if the response looks like it has valid JSON actions
-        if !remaining_actions.is_empty() {
-            on_actions(remaining_actions);
-        }
-
         // Record episodic event
         if let Some(mem) = memory {
             if let Err(e) = mem.episodic.record(

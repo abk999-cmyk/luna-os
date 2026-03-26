@@ -178,25 +178,52 @@ impl ActionDispatcher {
         history.query_by_type(action_type).into_iter().cloned().collect()
     }
 
-    /// Approve a pending action and re-dispatch it (bypasses permission check).
+    /// Approve a pending action and dispatch it directly, bypassing permission check.
     pub async fn approve_pending(&self, action_id: &str) -> Result<ActionId, LunaError> {
-        let action = {
+        let mut action = {
             let mut pending = self.pending_actions.write().await;
             pending.remove(action_id).ok_or_else(|| {
                 LunaError::Dispatch(format!("No pending action with id: {}", action_id))
             })?
         };
-        info!(action_id = %action_id, action_type = %action.action_type, "Pending action approved");
-        // Re-dispatch — grant temporary permission so it passes this time
+
+        let agent_id = match &action.source {
+            crate::action::types::ActionSource::Agent(id) => id.clone(),
+            crate::action::types::ActionSource::User => "user".to_string(),
+            crate::action::types::ActionSource::System => "system".to_string(),
+        };
+
+        info!(action_id = %action_id, action_type = %action.action_type, agent_id = %agent_id, "Pending action approved — dispatching directly");
+        self.audit.log(&agent_id, &action.action_type, "approved_by_user").ok();
+
+        // Dispatch directly to queue, bypassing permission check (user already approved)
+        action.status = ActionStatus::Dispatched;
+        let aid = action.id;
+
         {
-            let mut perms = self.permissions.write().await;
-            let agent_id = match &action.source {
-                crate::action::types::ActionSource::Agent(id) => id.clone(),
-                _ => "system".to_string(),
-            };
-            perms.grant(&agent_id, &action.action_type, false).ok();
+            let mut history = self.history.write().await;
+            history.push(action.clone());
         }
-        self.dispatch(action).await
+
+        {
+            let db_guard = self.db.lock().unwrap();
+            if let Some(ref db) = *db_guard {
+                let session_id = self.session_id.try_read().ok().and_then(|s| s.clone());
+                if let Err(e) = db.insert_action(&action, session_id.as_deref()) {
+                    warn!(error = %e, "Failed to persist approved action to DB");
+                }
+            }
+        }
+
+        let action_type = action.action_type.clone();
+        self.queue.enqueue(action)?;
+
+        {
+            let mut registry = self.registry.write().await;
+            registry.increment_usage(&action_type);
+        }
+
+        Ok(aid)
     }
 
     /// Deny and discard a pending action.
@@ -214,5 +241,20 @@ impl ActionDispatcher {
     pub async fn get_pending_action(&self, action_id: &str) -> Option<Action> {
         let pending = self.pending_actions.read().await;
         pending.get(action_id).cloned()
+    }
+
+    /// Remove pending actions older than max_age.
+    pub async fn cleanup_stale_pending(&self, max_age: std::time::Duration) {
+        let now = chrono::Utc::now();
+        let mut pending = self.pending_actions.write().await;
+        let before = pending.len();
+        pending.retain(|_, action| {
+            let age = now - action.timestamp;
+            age.to_std().map(|d| d < max_age).unwrap_or(true)
+        });
+        let removed = before - pending.len();
+        if removed > 0 {
+            info!(removed, "Cleaned up stale pending actions");
+        }
     }
 }

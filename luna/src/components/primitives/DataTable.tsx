@@ -16,7 +16,8 @@ export function DataTable({ id, props, onEvent }: PrimitiveProps) {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(0);
-  const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
+  // H13: Key selected rows by serialized content, not display index (survives sort)
+  const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
 
   // Normalize rows to arrays if they're objects
   const normalizedRows = useMemo(() => {
@@ -61,9 +62,10 @@ export function DataTable({ id, props, onEvent }: PrimitiveProps) {
   };
 
   const handleRowClick = (rowIdx: number, row: any[]) => {
+    const rowKey = JSON.stringify(row);
     if (selectable) {
       const next = new Set(selectedRows);
-      if (next.has(rowIdx)) next.delete(rowIdx); else next.add(rowIdx);
+      if (next.has(rowKey)) next.delete(rowKey); else next.add(rowKey);
       setSelectedRows(next);
     }
     onEvent('onRowSelect', { rowIndex: rowIdx, rowData: row });
@@ -110,7 +112,7 @@ export function DataTable({ id, props, onEvent }: PrimitiveProps) {
             {displayed.map((row: any[], rowIdx: number) => (
               <tr
                 key={rowIdx}
-                className={`luna-datatable__tr ${selectedRows.has(rowIdx) ? 'luna-datatable__tr--selected' : ''} ${selectable ? 'luna-datatable__tr--selectable' : ''}`}
+                className={`luna-datatable__tr ${selectedRows.has(JSON.stringify(row)) ? 'luna-datatable__tr--selected' : ''} ${selectable ? 'luna-datatable__tr--selectable' : ''}`}
                 onClick={() => handleRowClick(rowIdx, row)}
               >
                 {row.map((cell: any, cellIdx: number) => (

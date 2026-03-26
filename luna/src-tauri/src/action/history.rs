@@ -43,6 +43,15 @@ impl ActionHistory {
         self.buffer.len()
     }
 
+    pub fn update_status(&mut self, action_id: &uuid::Uuid, status: super::types::ActionStatus) {
+        for action in self.buffer.iter_mut() {
+            if action.id == *action_id {
+                action.status = status;
+                break;
+            }
+        }
+    }
+
     pub fn drain_all(&mut self) -> Vec<Action> {
         self.buffer.drain(..).collect()
     }

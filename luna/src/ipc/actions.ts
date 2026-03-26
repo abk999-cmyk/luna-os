@@ -11,3 +11,11 @@ export async function queryActions(actionType?: string, limit?: number): Promise
     limit: limit ?? null,
   });
 }
+
+export async function approvePendingAction(actionId: string): Promise<void> {
+  return invoke('approve_pending_action', { actionId });
+}
+
+export async function denyPendingAction(actionId: string): Promise<void> {
+  return invoke('deny_pending_action', { actionId });
+}

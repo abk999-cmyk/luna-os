@@ -1,10 +1,15 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { PrimitiveProps } from './types';
 import '../../styles/primitives/inputs.css';
 
 /** Checkbox with label. */
 export function Checkbox({ id, props, onEvent }: PrimitiveProps) {
   const [checked, setChecked] = useState(props.checked ?? props.defaultChecked ?? false);
+
+  // M9: Sync internal state when external props.checked changes
+  useEffect(() => {
+    if (props.checked !== undefined) setChecked(props.checked);
+  }, [props.checked]);
 
   const handleChange = () => {
     if (props.disabled) return;

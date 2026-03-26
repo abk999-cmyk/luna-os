@@ -1,10 +1,15 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { PrimitiveProps } from './types';
 import '../../styles/primitives/inputs.css';
 
 /** Range slider with min/max/step. */
 export function Slider({ id, props, onEvent }: PrimitiveProps) {
   const [value, setValue] = useState(props.value ?? props.defaultValue ?? 50);
+
+  // M9: Sync internal state when external props.value changes
+  useEffect(() => {
+    if (props.value !== undefined) setValue(props.value);
+  }, [props.value]);
   const min = props.min ?? 0;
   const max = props.max ?? 100;
   const step = props.step ?? 1;

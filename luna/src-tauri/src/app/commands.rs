@@ -32,7 +32,7 @@ pub async fn dispatch_app_event(
     let action = crate::action::types::Action::new(
         "app.event".to_string(),
         event_payload,
-        crate::action::types::ActionSource::System,
+        crate::action::types::ActionSource::User,
     );
 
     state.dispatcher.dispatch(action).await?;

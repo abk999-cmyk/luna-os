@@ -267,8 +267,13 @@ pub fn register_core_handlers(registry: &ActionHandlerRegistry) {
                     _ => "conductor".to_string(),
                 };
 
-                // Register in AppManager
-                state.app_manager.create_app(descriptor.clone(), window_id.clone(), agent_id)?;
+                // Register in AppManager — rollback window on failure (H3)
+                if let Err(e) = state.app_manager.create_app(descriptor.clone(), window_id.clone(), agent_id) {
+                    // Rollback: remove the orphaned window
+                    let mut wm = state.window_manager.write().await;
+                    let _ = wm.close_window(&window_id);
+                    return Err(e);
+                }
 
                 // Emit to frontend
                 if let Err(e) = handle.emit(
@@ -276,7 +281,7 @@ pub fn register_core_handlers(registry: &ActionHandlerRegistry) {
                     serde_json::json!({
                         "app_id": app_id,
                         "window_id": window_id,
-                        "descriptor": descriptor,
+                        "spec": descriptor,
                     }),
                 ) {
                     tracing::debug!(error = %e, "Failed to emit app-created");
@@ -324,7 +329,7 @@ pub fn register_core_handlers(registry: &ActionHandlerRegistry) {
                     serde_json::json!({
                         "app_id": app_id,
                         "data": app.as_ref().map(|a| &a.data_context),
-                        "descriptor": app.as_ref().map(|a| &a.descriptor),
+                        "spec": app.as_ref().map(|a| &a.descriptor),
                     }),
                 ) {
                     tracing::debug!(error = %e, "Failed to emit app-updated");
@@ -353,7 +358,13 @@ pub fn register_core_handlers(registry: &ActionHandlerRegistry) {
                 // Deregister any app-specific handlers
                 state.handler_registry.deregister_app_handlers(&app_id);
 
-                // Close the window
+                // M13: Remove window from WindowManager
+                {
+                    let mut wm = state.window_manager.write().await;
+                    let _ = wm.close_window(&app.window_id);
+                }
+
+                // Close the window (notify frontend)
                 if let Err(e) = handle.emit(
                     "agent-window-close",
                     serde_json::json!({ "window_id": app.window_id }),

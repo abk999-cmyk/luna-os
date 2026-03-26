@@ -29,6 +29,12 @@ export function useAmbientVoice(): UseAmbientVoiceReturn {
 
   const isAmbientActive = ambientState !== 'off';
 
+  // C8: Use ref to avoid stale closure in recognition.onend
+  const ambientStateRef = useRef<AmbientState>(ambientState);
+  useEffect(() => {
+    ambientStateRef.current = ambientState;
+  }, [ambientState]);
+
   const cleanup = useCallback(() => {
     if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
@@ -89,8 +95,8 @@ export function useAmbientVoice(): UseAmbientVoiceReturn {
 
         recognition.onerror = () => {};
         recognition.onend = () => {
-          // Restart if still in ambient mode
-          if (ambientState !== 'off' && recognitionRef.current) {
+          // C8: Use ref to read current state (not stale closure value)
+          if (ambientStateRef.current !== 'off' && recognitionRef.current) {
             try { recognition.start(); } catch (_) {}
           }
         };
@@ -117,10 +123,19 @@ export function useAmbientVoice(): UseAmbientVoiceReturn {
 
         if (rms > SPEECH_THRESHOLD) {
           lastSpeechTimeRef.current = Date.now();
+          // M10: Clear existing timer and re-arm after speech
           if (silenceTimerRef.current) {
             clearTimeout(silenceTimerRef.current);
             silenceTimerRef.current = null;
           }
+        } else if (lastSpeechTimeRef.current > 0 && !silenceTimerRef.current) {
+          // M10: Re-arm silence timer when volume drops below threshold after speech
+          silenceTimerRef.current = setTimeout(() => {
+            if (Date.now() - lastSpeechTimeRef.current > SILENCE_TIMEOUT_MS) {
+              cleanup();
+            }
+            silenceTimerRef.current = null;
+          }, SILENCE_TIMEOUT_MS);
         }
 
         animFrameRef.current = requestAnimationFrame(monitorVolume);
@@ -137,7 +152,7 @@ export function useAmbientVoice(): UseAmbientVoiceReturn {
       console.error('Ambient voice start failed:', err);
       cleanup();
     }
-  }, [cleanup, ambientState]);
+  }, [cleanup]);
 
   const toggleAmbient = useCallback(() => {
     if (isAmbientActive) {

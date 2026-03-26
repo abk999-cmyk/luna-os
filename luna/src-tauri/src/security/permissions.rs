@@ -61,8 +61,10 @@ impl PermissionMatrix {
 
     /// Check permission for an agent to perform an action.
     pub fn check(&self, agent_id: &str, action_type: &str) -> PermissionState {
-        // System-level actions always allowed
-        if action_type.starts_with("system.") || action_type.starts_with("user.") {
+        // System-level actions only auto-allowed for system/user sources, not agents
+        if (action_type.starts_with("system.") || action_type.starts_with("user."))
+            && (agent_id == "system" || agent_id == "user")
+        {
             return PermissionState::Allowed;
         }
 

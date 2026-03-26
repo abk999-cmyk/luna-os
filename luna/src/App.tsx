@@ -38,7 +38,8 @@ function App() {
   const setHasConductor = useAgentStore((s) => s.setHasConductor);
   const setStatus = useAgentStore((s) => s.setStatus);
 
-  const [pendingPermission, setPendingPermission] = useState<PermissionRequest | null>(null);
+  // H7: Support multiple simultaneous permission requests via queue
+  const [permissionQueue, setPermissionQueue] = useState<PermissionRequest[]>([]);
 
   useEffect(() => {
     // Initialize sync manager
@@ -71,26 +72,34 @@ function App() {
     });
 
     // ── Streaming: accumulate tokens into a response window ─────────────────
-    let streamingWindowId: string | null = null;
-    let streamBuffer = '';
+    // H1: Use a Map to support multiple concurrent streams
+    const streamMap = new Map<string, { windowId: string | null; buffer: string }>();
 
-    const unlistenStreamToken = listen<{ token: string }>('agent-stream-token', async (event) => {
+    const unlistenStreamToken = listen<{ token: string; stream_id?: string }>('agent-stream-token', async (event) => {
       const token = event.payload?.token || '';
-      streamBuffer += token;
+      const streamId = event.payload?.stream_id || 'default';
 
-      if (!streamingWindowId) {
-        // Create a new window for the streaming response
-        const win = await addWindow('Response', 'response', streamBuffer);
-        streamingWindowId = win.id;
+      if (!streamMap.has(streamId)) {
+        streamMap.set(streamId, { windowId: null, buffer: '' });
+      }
+      const stream = streamMap.get(streamId)!;
+      stream.buffer += token;
+
+      if (!stream.windowId) {
+        const win = await addWindow('Response', 'response', stream.buffer);
+        stream.windowId = win.id;
       } else {
-        setWindowContent(streamingWindowId, streamBuffer);
+        setWindowContent(stream.windowId, stream.buffer);
       }
     });
 
-    const unlistenStreamDone = listen('agent-stream-done', () => {
-      setStatus('idle');
-      streamingWindowId = null;
-      streamBuffer = '';
+    const unlistenStreamDone = listen<{ stream_id?: string }>('agent-stream-done', (event) => {
+      const streamId = event.payload?.stream_id || 'default';
+      streamMap.delete(streamId);
+      // Only set idle if no more active streams
+      if (streamMap.size === 0) {
+        setStatus('idle');
+      }
     });
 
     // ── Agent window creation ────────────────────────────────────────────────
@@ -173,7 +182,8 @@ function App() {
     const unlistenPermission = listen<PermissionRequest>(
       'permission-request',
       (event) => {
-        setPendingPermission(event.payload);
+        // H7: Queue permission requests instead of replacing
+        setPermissionQueue((prev) => [...prev, event.payload]);
       }
     );
 
@@ -196,10 +206,10 @@ function App() {
       <Desktop />
       <AmbientBadge />
       <ToastContainer />
-      {pendingPermission && (
+      {permissionQueue.length > 0 && (
         <PermissionDialog
-          request={pendingPermission}
-          onResolved={() => setPendingPermission(null)}
+          request={permissionQueue[0]}
+          onResolved={() => setPermissionQueue((prev) => prev.slice(1))}
         />
       )}
     </>

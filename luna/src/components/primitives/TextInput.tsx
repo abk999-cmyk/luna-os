@@ -1,10 +1,15 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { PrimitiveProps } from './types';
 import '../../styles/primitives/inputs.css';
 
 /** Text input with label, placeholder, and validation support. */
 export function TextInput({ id, props, onEvent }: PrimitiveProps) {
   const [value, setValue] = useState(props.value ?? props.defaultValue ?? '');
+
+  // M9: Sync internal state when external props.value changes
+  useEffect(() => {
+    if (props.value !== undefined) setValue(props.value);
+  }, [props.value]);
   const [error, setError] = useState<string | null>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {

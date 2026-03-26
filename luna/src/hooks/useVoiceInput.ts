@@ -21,6 +21,8 @@ export function useVoiceInput(): UseVoiceInputReturn {
   const audioChunksRef = useRef<Blob[]>([]);
   const audioContextRef = useRef<AudioContext | null>(null);
   const speechRecognitionRef = useRef<any>(null);
+  // C9: Use ref to avoid stale transcript in stopRecording closure
+  const transcriptRef = useRef('');
 
   const hasSpeechRecognition =
     typeof window !== 'undefined' &&
@@ -56,6 +58,7 @@ export function useVoiceInput(): UseVoiceInputReturn {
           for (let i = 0; i < event.results.length; i++) {
             final_transcript += event.results[i][0].transcript;
           }
+          transcriptRef.current = final_transcript;
           setTranscript(final_transcript);
         };
 
@@ -92,11 +95,14 @@ export function useVoiceInput(): UseVoiceInputReturn {
       speechRecognitionRef.current = null;
     }
 
-    // Stop media recorder
+    // H14: Wait for final chunks by wrapping mediaRecorder.stop() in a Promise
     const mediaRecorder = mediaRecorderRef.current;
     if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-      mediaRecorder.stop();
-      // Stop all tracks
+      await new Promise<void>((resolve) => {
+        mediaRecorder.onstop = () => resolve();
+        mediaRecorder.stop();
+      });
+      // Stop all tracks after final data is collected
       mediaRecorder.stream.getTracks().forEach((track) => track.stop());
     }
     mediaRecorderRef.current = null;
@@ -108,9 +114,9 @@ export function useVoiceInput(): UseVoiceInputReturn {
     }
     setAnalyserNode(null);
 
-    // If we already have a transcript from Speech API, return it
-    if (transcript) {
-      return transcript;
+    // C9: Use ref to read current transcript (avoids stale closure)
+    if (transcriptRef.current) {
+      return transcriptRef.current;
     }
 
     // Fallback: send audio to Whisper API
@@ -127,6 +133,7 @@ export function useVoiceInput(): UseVoiceInputReturn {
           format: 'webm',
         });
 
+        transcriptRef.current = text;
         setTranscript(text);
         return text;
       } catch (err) {
@@ -137,7 +144,7 @@ export function useVoiceInput(): UseVoiceInputReturn {
     }
 
     return '';
-  }, [transcript]);
+  }, []);
 
   return { startRecording, stopRecording, isRecording, transcript, error, analyserNode };
 }

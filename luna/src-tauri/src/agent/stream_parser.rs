@@ -4,6 +4,7 @@ use crate::action::types::{Action, ActionSource};
 /// Tracks bracket depth to find complete `{...}` and `[...]` boundaries.
 pub struct StreamParser {
     buffer: String,
+    original_text: String,
     agent_id: String,
     in_code_fence: bool,
 }
@@ -12,6 +13,7 @@ impl StreamParser {
     pub fn new(agent_id: &str) -> Self {
         Self {
             buffer: String::new(),
+            original_text: String::new(),
             agent_id: agent_id.to_string(),
             in_code_fence: false,
         }
@@ -19,13 +21,14 @@ impl StreamParser {
 
     /// Feed a token into the parser. Returns any complete actions detected.
     pub fn feed(&mut self, token: &str) -> Vec<Action> {
+        self.original_text.push_str(token);
         self.buffer.push_str(token);
         self.try_extract_actions()
     }
 
     /// Get the full accumulated text (for conversation history).
     pub fn full_text(&self) -> &str {
-        &self.buffer
+        &self.original_text
     }
 
     fn try_extract_actions(&mut self) -> Vec<Action> {

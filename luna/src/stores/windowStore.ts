@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { WindowState } from '../types/window';
 import * as windowIpc from '../ipc/windows';
+import { useAppStore } from './appStore';
 
 interface WindowStore {
   windows: WindowState[];
@@ -46,8 +47,9 @@ export const useWindowStore = create<WindowStore>((set, get) => ({
 
   addWindow: async (title: string, contentType?: string, content?: string) => {
     const window = await windowIpc.createWindow(title, undefined, undefined, undefined, undefined, contentType);
+    // H8: Unfocus all existing windows before adding new focused window
     set((state) => ({
-      windows: [...state.windows, window],
+      windows: [...state.windows.map((w) => ({ ...w, focused: false })), { ...window, focused: true }],
       focusedWindowId: window.id,
     }));
     if (content) {
@@ -57,6 +59,14 @@ export const useWindowStore = create<WindowStore>((set, get) => ({
   },
 
   removeWindow: async (id: string) => {
+    // H9: Clean up magnetic groups before removing
+    get().detachWindow(id);
+    // H9: Clean up app state if this window hosts an app
+    const appInfo = useAppStore.getState().getAppByWindowId(id);
+    if (appInfo) {
+      useAppStore.getState().destroyApp(appInfo.appId);
+    }
+
     await windowIpc.closeWindow(id);
     set((state) => ({
       windows: state.windows.filter((w) => w.id !== id),
@@ -137,8 +147,9 @@ export const useWindowStore = create<WindowStore>((set, get) => ({
   },
 
   addWindowLocal: (window: WindowState) => {
+    // H8: Unfocus all existing windows before adding new focused window
     set((state) => ({
-      windows: [...state.windows, window],
+      windows: [...state.windows.map((w) => ({ ...w, focused: false })), { ...window, focused: true }],
       focusedWindowId: window.id,
     }));
   },

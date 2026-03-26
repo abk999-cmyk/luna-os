@@ -73,3 +73,8 @@
 .status-dot--success {
   background: var(--state-success);
 }
+
+.status-dot--streaming {
+  background: var(--state-working, var(--color-amber-500));
+  animation: pulse 0.8s infinite;
+}

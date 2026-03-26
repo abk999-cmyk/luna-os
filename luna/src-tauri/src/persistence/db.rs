@@ -261,7 +261,7 @@ impl Database {
         let mut stmt = self.conn.prepare(
             "SELECT id, agent_id, timestamp, action_type, payload, result, context_tags
              FROM episodic_memory WHERE session_id = ?1
-             ORDER BY timestamp ASC LIMIT ?2"
+             ORDER BY timestamp DESC LIMIT ?2"
         )?;
         let rows = stmt.query_map(params![session_id, limit], |row| {
             Ok(serde_json::json!({
@@ -310,9 +310,10 @@ impl Database {
     }
 
     pub fn semantic_search_by_tag(&self, tag: &str) -> Result<Vec<(String, String)>, LunaError> {
-        let like_pattern = format!("%{}%", tag);
+        let escaped = tag.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
+        let like_pattern = format!("%\"{}\"%" , escaped);
         let mut stmt = self.conn.prepare(
-            "SELECT key, value FROM semantic_memory WHERE tags LIKE ?1 LIMIT 50"
+            "SELECT key, value FROM semantic_memory WHERE tags LIKE ?1 ESCAPE '\\' LIMIT 100"
         )?;
         let rows = stmt.query_map(params![like_pattern], |row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
@@ -409,14 +410,21 @@ impl Database {
         Ok(rows)
     }
 
-    pub fn load_window_states(&self) -> Result<Vec<WindowState>, LunaError> {
+    pub fn get_latest_session_id(&self) -> Result<Option<String>, LunaError> {
+        let mut stmt = self.conn.prepare("SELECT id FROM sessions ORDER BY start_time DESC LIMIT 1")?;
+        let mut rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+        Ok(rows.next().transpose()?)
+    }
+
+    pub fn load_window_states(&self, session_id: &str) -> Result<Vec<WindowState>, LunaError> {
         let mut stmt = self.conn.prepare(
             "SELECT id, title, x, y, width, height, z_order, visibility, content_type
              FROM window_states
+             WHERE session_id = ?1
              ORDER BY z_order ASC"
         )?;
 
-        let rows = stmt.query_map([], |row| {
+        let rows = stmt.query_map(params![session_id], |row| {
             let visibility_str: String = row.get(7)?;
             let content_type_str: String = row.get(8)?;
 

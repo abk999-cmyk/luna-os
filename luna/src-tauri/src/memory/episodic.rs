@@ -58,7 +58,7 @@ impl EpisodicMemory {
     pub fn recent_summary(&self, session_id: &str, limit: usize) -> String {
         match self.query_session(session_id, limit) {
             Ok(events) if !events.is_empty() => {
-                let lines: Vec<String> = events.iter().rev().take(5).map(|e| {
+                let lines: Vec<String> = events.iter().take(5).map(|e| {
                     format!("[{}] {}",
                         e.get("agent_id").and_then(|v| v.as_str()).unwrap_or("?"),
                         e.get("action_type").and_then(|v| v.as_str()).unwrap_or("?")

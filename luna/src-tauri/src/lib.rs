@@ -45,7 +45,7 @@ pub fn run() {
     let config = LunaConfig::load().expect("Failed to load configuration");
 
     // Initialize logging
-    logging::init_logging(&config.log_dir);
+    let _logging_guard = logging::init_logging(&config.log_dir);
 
     info!("Luna starting up (Sprint 2)");
 
@@ -74,7 +74,21 @@ pub fn run() {
     memory.episodic.purge_old(30).ok();
 
     // ── Security: permissions + audit ─────────────────────────────────────────
-    let permissions = Arc::new(RwLock::new(PermissionMatrix::new_with_defaults(db.clone())));
+    let permissions = {
+        let mut perm_matrix = PermissionMatrix::new_with_defaults(db.clone());
+        // M2: Reload persisted permanent grants from agent_state
+        {
+            let db_guard = db.lock().unwrap();
+            if let Some(ref database) = *db_guard {
+                for agent_id in &["conductor", "orchestrator_default"] {
+                    if let Ok(Some(state)) = database.agent_state_load(agent_id) {
+                        perm_matrix.load_from_agent_state(agent_id, &state);
+                    }
+                }
+            }
+        }
+        Arc::new(RwLock::new(perm_matrix))
+    };
     let audit = Arc::new(AuditLog::new(db.clone()));
 
     // ── Dispatcher (with permissions) ─────────────────────────────────────────
@@ -92,12 +106,14 @@ pub fn run() {
     {
         let db_guard = db.lock().unwrap();
         if let Some(ref database) = *db_guard {
-            match database.load_window_states() {
-                Ok(windows) if !windows.is_empty() => {
-                    info!(count = windows.len(), "Restoring window states");
-                    window_manager.restore_windows(windows);
+            if let Ok(Some(latest_session)) = database.get_latest_session_id() {
+                match database.load_window_states(&latest_session) {
+                    Ok(windows) if !windows.is_empty() => {
+                        info!(count = windows.len(), "Restoring window states");
+                        window_manager.restore_windows(windows);
+                    }
+                    _ => {}
                 }
-                _ => {}
             }
         }
     }
@@ -159,6 +175,20 @@ pub fn run() {
                 workspace_id: None,
                 status: AgentStatus::Idle,
             }).await;
+        });
+    }
+
+    // ── Register conductor on message bus ──────────────────────────────────
+    {
+        let bus = message_bus.clone();
+        tauri::async_runtime::block_on(async {
+            let mut rx = bus.register("conductor").await;
+            tauri::async_runtime::spawn(async move {
+                while let Some(msg) = rx.recv().await {
+                    tracing::info!(msg = ?msg, "Conductor received message on bus");
+                }
+                tracing::warn!("Conductor message bus listener ended");
+            });
         });
     }
 
@@ -232,10 +262,12 @@ pub fn run() {
     info!(session_id = %session_id, "Luna session started");
 
     let flush_batcher = update_batcher.clone();
+    let pending_cleanup_dispatcher = dispatcher.clone();
 
     // Clone for the queue processor (all fields are Arc so this is cheap).
     let queue_state = Arc::new(app_state.clone());
     let queue_handler_registry = handler_registry.clone();
+    let queue_history = history.clone();
 
     // ── Build and run Tauri app ───────────────────────────────────────────────
     tauri::Builder::default()
@@ -246,6 +278,7 @@ pub fn run() {
             let mut recv = receiver;
             let proc_handler_registry = queue_handler_registry;
             let proc_state = queue_state;
+            let proc_history = queue_history;
 
             // ── Action queue processor ────────────────────────────────────────
             // Central event loop: dispatches actions through the handler registry.
@@ -258,7 +291,19 @@ pub fn run() {
                         "Processing action from queue"
                     );
 
-                    if let Err(e) = proc_handler_registry.dispatch(&action, &queue_handle, &proc_state).await {
+                    let result = proc_handler_registry.dispatch(&action, &queue_handle, &proc_state).await;
+                    let new_status = if result.is_ok() {
+                        crate::action::types::ActionStatus::Completed
+                    } else {
+                        crate::action::types::ActionStatus::Failed(
+                            result.as_ref().err().map(|e| e.to_string()).unwrap_or_default()
+                        )
+                    };
+                    {
+                        let mut history = proc_history.write().await;
+                        history.update_status(&action.id, new_status);
+                    }
+                    if let Err(e) = result {
                         tracing::warn!(
                             action_type = %action.action_type,
                             error = %e,
@@ -268,6 +313,18 @@ pub fn run() {
                 }
                 tracing::warn!("Action queue channel closed — processor stopping");
             });
+
+            // ── Pending actions cleanup (every 60s, remove actions older than 5min) ──
+            {
+                let cleanup_dispatcher = pending_cleanup_dispatcher.clone();
+                tauri::async_runtime::spawn(async move {
+                    let mut interval = tokio::time::interval(Duration::from_secs(60));
+                    loop {
+                        interval.tick().await;
+                        cleanup_dispatcher.cleanup_stale_pending(Duration::from_secs(300)).await;
+                    }
+                });
+            }
 
             // ── State sync batcher flush loop ────────────────────────────────
             {
