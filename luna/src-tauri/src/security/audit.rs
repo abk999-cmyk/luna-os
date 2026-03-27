@@ -14,14 +14,14 @@ impl AuditLog {
         Self { db }
     }
 
-    pub fn log(&self, agent_id: &str, action_type: &str, decision: &str) -> Result<(), LunaError> {
-        let db = self.db.blocking_lock();
+    pub async fn log(&self, agent_id: &str, action_type: &str, decision: &str) -> Result<(), LunaError> {
+        let db = self.db.lock().await;
         db.permission_log_insert(agent_id, action_type, decision)?;
         Ok(())
     }
 
-    pub fn query(&self, agent_id: Option<&str>, limit: usize) -> Result<Vec<serde_json::Value>, LunaError> {
-        let db = self.db.blocking_lock();
+    pub async fn query(&self, agent_id: Option<&str>, limit: usize) -> Result<Vec<serde_json::Value>, LunaError> {
+        let db = self.db.lock().await;
         db.permission_log_query(agent_id, limit)
     }
 }

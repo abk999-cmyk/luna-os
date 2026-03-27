@@ -63,9 +63,9 @@ impl UndoManager {
     }
 
     /// Record an undo entry for a completed action.
-    pub fn record(&self, entry: &UndoEntry) -> Result<(), LunaError> {
+    pub async fn record(&self, entry: &UndoEntry) -> Result<(), LunaError> {
         let inverse_json = serde_json::to_string(&entry.inverse_operation)?;
-        let db = self.db.blocking_lock();
+        let db = self.db.lock().await;
         db.undo_insert(
             &entry.id,
             &entry.action_id,
@@ -79,15 +79,15 @@ impl UndoManager {
     }
 
     /// Get the most recent N undo entries (not yet executed, not expired).
-    pub fn get_recent(&self, limit: usize) -> Result<Vec<UndoEntry>, LunaError> {
-        let db = self.db.blocking_lock();
+    pub async fn get_recent(&self, limit: usize) -> Result<Vec<UndoEntry>, LunaError> {
+        let db = self.db.lock().await;
         let rows = db.undo_get_recent(limit)?;
         Self::rows_to_entries(rows)
     }
 
     /// Get undo entry by action_id.
-    pub fn get_by_action(&self, action_id: &str) -> Result<Option<UndoEntry>, LunaError> {
-        let db = self.db.blocking_lock();
+    pub async fn get_by_action(&self, action_id: &str) -> Result<Option<UndoEntry>, LunaError> {
+        let db = self.db.lock().await;
         match db.undo_get_by_action(action_id)? {
             Some(row) => Ok(Some(Self::row_to_entry(row)?)),
             None => Ok(None),
@@ -95,21 +95,20 @@ impl UndoManager {
     }
 
     /// Mark an undo entry as executed.
-    pub fn mark_executed(&self, id: &str) -> Result<(), LunaError> {
-        let db = self.db.blocking_lock();
+    pub async fn mark_executed(&self, id: &str) -> Result<(), LunaError> {
+        let db = self.db.lock().await;
         db.undo_mark_executed(id)
     }
 
     /// Purge expired entries (older than 24 hours).
-    pub fn purge_expired(&self) -> Result<usize, LunaError> {
-        let db = self.db.blocking_lock();
+    pub async fn purge_expired(&self) -> Result<usize, LunaError> {
+        let db = self.db.lock().await;
         db.undo_purge_expired()
     }
 
     /// Get the inverse operation for the last N actions (most-recent-first).
-    pub fn get_undo_stack(&self, limit: usize) -> Result<Vec<UndoEntry>, LunaError> {
-        // Same as get_recent — the DB query already orders most-recent-first.
-        self.get_recent(limit)
+    pub async fn get_undo_stack(&self, limit: usize) -> Result<Vec<UndoEntry>, LunaError> {
+        self.get_recent(limit).await
     }
 
     /// Check if an action type is reversible.
@@ -233,26 +232,22 @@ impl UndoManager {
     }
 
     /// Create and record an undo entry directly from a dispatched Action.
-    ///
-    /// Inspects the action type and builds the inverse operation.  Returns an
-    /// error only when persistence fails; non-reversible actions are silently
-    /// recorded with `InverseOperation::NonReversible`.
-    pub fn create_entry_from_action(
+    pub async fn create_entry_from_action(
         &self,
         action: &crate::action::types::Action,
         agent_id: &str,
     ) -> Result<(), LunaError> {
         if !Self::is_reversible(&action.action_type) {
-            return Ok(()); // skip non-reversible actions silently
+            return Ok(());
         }
         let entry = Self::create_entry(
             &action.id.to_string(),
             &action.action_type,
             agent_id,
             &action.payload,
-            &serde_json::json!({}), // result context not available at dispatch site
+            &serde_json::json!({}),
         );
-        self.record(&entry)
+        self.record(&entry).await
     }
 
     // ── Internal helpers ────────────────────────────────────────────────────
@@ -320,31 +315,31 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_record_and_retrieve() {
+    #[tokio::test]
+    async fn test_record_and_retrieve() {
         let db = make_db();
         let mgr = UndoManager::new(db);
         let entry = make_entry("act-1", "file.create");
 
-        mgr.record(&entry).unwrap();
-        let recent = mgr.get_recent(10).unwrap();
+        mgr.record(&entry).await.unwrap();
+        let recent = mgr.get_recent(10).await.unwrap();
         assert_eq!(recent.len(), 1);
         assert_eq!(recent[0].action_id, "act-1");
     }
 
-    #[test]
-    fn test_mark_executed_filters_from_recent() {
+    #[tokio::test]
+    async fn test_mark_executed_filters_from_recent() {
         let db = make_db();
         let mgr = UndoManager::new(db);
 
         let e1 = make_entry("act-1", "file.create");
         let e2 = make_entry("act-2", "file.write");
         let id1 = e1.id.clone();
-        mgr.record(&e1).unwrap();
-        mgr.record(&e2).unwrap();
+        mgr.record(&e1).await.unwrap();
+        mgr.record(&e2).await.unwrap();
 
-        mgr.mark_executed(&id1).unwrap();
-        let recent = mgr.get_recent(10).unwrap();
+        mgr.mark_executed(&id1).await.unwrap();
+        let recent = mgr.get_recent(10).await.unwrap();
         assert_eq!(recent.len(), 1);
         assert_eq!(recent[0].action_id, "act-2");
     }
@@ -396,18 +391,18 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_get_by_action() {
+    #[tokio::test]
+    async fn test_get_by_action() {
         let db = make_db();
         let mgr = UndoManager::new(db);
         let entry = make_entry("act-lookup", "file.create");
-        mgr.record(&entry).unwrap();
+        mgr.record(&entry).await.unwrap();
 
-        let found = mgr.get_by_action("act-lookup").unwrap();
+        let found = mgr.get_by_action("act-lookup").await.unwrap();
         assert!(found.is_some());
         assert_eq!(found.unwrap().action_id, "act-lookup");
 
-        let not_found = mgr.get_by_action("nonexistent").unwrap();
+        let not_found = mgr.get_by_action("nonexistent").await.unwrap();
         assert!(not_found.is_none());
     }
 }

@@ -101,8 +101,8 @@ impl ProceduralMemory {
     }
 
     /// Store (insert or replace) a workflow pattern.
-    pub fn store_workflow(&self, workflow: &WorkflowPattern) -> Result<(), LunaError> {
-        let db = self.db.blocking_lock();
+    pub async fn store_workflow(&self, workflow: &WorkflowPattern) -> Result<(), LunaError> {
+        let db = self.db.lock().await;
         let trigger_keywords = serde_json::to_string(&workflow.trigger_keywords)?;
         let trigger_tags = serde_json::to_string(&workflow.trigger_tags)?;
         let steps_json = serde_json::to_string(&workflow.steps)?;
@@ -124,14 +124,14 @@ impl ProceduralMemory {
     }
 
     /// Retrieve a workflow by ID.
-    pub fn get_workflow(&self, id: &str) -> Result<Option<WorkflowPattern>, LunaError> {
-        let db = self.db.blocking_lock();
+    pub async fn get_workflow(&self, id: &str) -> Result<Option<WorkflowPattern>, LunaError> {
+        let db = self.db.lock().await;
         db.procedural_get(id)
     }
 
     /// Find workflows whose trigger_tags overlap with the given tags.
-    pub fn get_by_trigger_tags(&self, tags: &[String]) -> Result<Vec<WorkflowPattern>, LunaError> {
-        let db = self.db.blocking_lock();
+    pub async fn get_by_trigger_tags(&self, tags: &[String]) -> Result<Vec<WorkflowPattern>, LunaError> {
+        let db = self.db.lock().await;
         let patterns: Vec<String> = tags.iter().map(|t| {
             let escaped = t.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
             format!("%\"{}\"%" , escaped)
@@ -140,8 +140,8 @@ impl ProceduralMemory {
     }
 
     /// Find workflows whose trigger_keywords match any of the given keywords.
-    pub fn get_by_keywords(&self, keywords: &[String]) -> Result<Vec<WorkflowPattern>, LunaError> {
-        let db = self.db.blocking_lock();
+    pub async fn get_by_keywords(&self, keywords: &[String]) -> Result<Vec<WorkflowPattern>, LunaError> {
+        let db = self.db.lock().await;
         let patterns: Vec<String> = keywords.iter().map(|k| {
             let escaped = k.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
             format!("%\"{}\"%" , escaped)
@@ -150,14 +150,14 @@ impl ProceduralMemory {
     }
 
     /// Get high-value workflows by minimum frequency and success rate.
-    pub fn get_high_value(&self, min_frequency: u32, min_success_rate: f64) -> Result<Vec<WorkflowPattern>, LunaError> {
-        let db = self.db.blocking_lock();
+    pub async fn get_high_value(&self, min_frequency: u32, min_success_rate: f64) -> Result<Vec<WorkflowPattern>, LunaError> {
+        let db = self.db.lock().await;
         db.procedural_get_high_value(min_frequency, min_success_rate)
     }
 
     /// Combined tag + keyword search, ordered by frequency * success_rate DESC.
-    pub fn get_applicable(&self, tags: &[String], keywords: &[String], limit: usize) -> Result<Vec<WorkflowPattern>, LunaError> {
-        let db = self.db.blocking_lock();
+    pub async fn get_applicable(&self, tags: &[String], keywords: &[String], limit: usize) -> Result<Vec<WorkflowPattern>, LunaError> {
+        let db = self.db.lock().await;
         let tag_patterns: Vec<String> = tags.iter().map(|t| {
             let escaped = t.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
             format!("%\"{}\"%" , escaped)
@@ -200,34 +200,34 @@ impl ProceduralMemory {
     }
 
     /// Increment frequency, update last_observed and updated_at.
-    pub fn record_observation(&self, id: &str) -> Result<(), LunaError> {
-        let db = self.db.blocking_lock();
+    pub async fn record_observation(&self, id: &str) -> Result<(), LunaError> {
+        let db = self.db.lock().await;
         db.procedural_update_observation(id)
     }
 
     /// Set user feedback for a workflow.
-    pub fn set_feedback(&self, id: &str, feedback: UserFeedback) -> Result<(), LunaError> {
-        let db = self.db.blocking_lock();
+    pub async fn set_feedback(&self, id: &str, feedback: UserFeedback) -> Result<(), LunaError> {
+        let db = self.db.lock().await;
         db.procedural_set_feedback(id, &feedback.to_string())
     }
 
     /// Halve success_rate for workflows not observed in threshold days.
-    pub fn decay_stale(&self, days_threshold: i64) -> Result<(), LunaError> {
-        let db = self.db.blocking_lock();
+    pub async fn decay_stale(&self, days_threshold: i64) -> Result<(), LunaError> {
+        let db = self.db.lock().await;
         let threshold_ts = chrono::Utc::now().timestamp() - (days_threshold * 86_400);
         db.procedural_decay(threshold_ts)
     }
 
     /// Delete rejected workflows older than days_old days.
-    pub fn purge_rejected(&self, days_old: i64) -> Result<(), LunaError> {
-        let db = self.db.blocking_lock();
+    pub async fn purge_rejected(&self, days_old: i64) -> Result<(), LunaError> {
+        let db = self.db.lock().await;
         let threshold_ts = chrono::Utc::now().timestamp() - (days_old * 86_400);
         db.procedural_purge_rejected(threshold_ts)
     }
 
     /// Delete a workflow by id.
-    pub fn delete_workflow(&self, id: &str) -> Result<(), LunaError> {
-        let db = self.db.blocking_lock();
+    pub async fn delete_workflow(&self, id: &str) -> Result<(), LunaError> {
+        let db = self.db.lock().await;
         db.procedural_delete(id)
     }
 }
@@ -274,14 +274,14 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_store_and_retrieve_workflow() {
+    #[tokio::test]
+    async fn test_store_and_retrieve_workflow() {
         let db = make_test_db();
         let mem = ProceduralMemory::new(db);
         let wf = make_workflow("wf-1", "Deploy Pipeline");
 
-        mem.store_workflow(&wf).expect("store");
-        let retrieved = mem.get_workflow("wf-1").expect("get").expect("should exist");
+        mem.store_workflow(&wf).await.expect("store");
+        let retrieved = mem.get_workflow("wf-1").await.expect("get").expect("should exist");
 
         assert_eq!(retrieved.id, "wf-1");
         assert_eq!(retrieved.name, "Deploy Pipeline");
@@ -290,8 +290,8 @@ mod tests {
         assert_eq!(retrieved.steps[0].actor, "user");
     }
 
-    #[test]
-    fn test_search_by_trigger_tags() {
+    #[tokio::test]
+    async fn test_search_by_trigger_tags() {
         let db = make_test_db();
         let mem = ProceduralMemory::new(db);
 
@@ -299,20 +299,20 @@ mod tests {
         let mut wf2 = make_workflow("wf-2", "Build");
         wf2.trigger_tags = vec!["build".to_string(), "compile".to_string()];
 
-        mem.store_workflow(&wf1).expect("store wf1");
-        mem.store_workflow(&wf2).expect("store wf2");
+        mem.store_workflow(&wf1).await.expect("store wf1");
+        mem.store_workflow(&wf2).await.expect("store wf2");
 
-        let results = mem.get_by_trigger_tags(&["ci".to_string()]).expect("search");
+        let results = mem.get_by_trigger_tags(&["ci".to_string()]).await.expect("search");
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].id, "wf-1");
 
-        let results = mem.get_by_trigger_tags(&["build".to_string()]).expect("search");
+        let results = mem.get_by_trigger_tags(&["build".to_string()]).await.expect("search");
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].id, "wf-2");
     }
 
-    #[test]
-    fn test_search_by_keywords() {
+    #[tokio::test]
+    async fn test_search_by_keywords() {
         let db = make_test_db();
         let mem = ProceduralMemory::new(db);
 
@@ -320,54 +320,54 @@ mod tests {
         let mut wf2 = make_workflow("wf-2", "Test");
         wf2.trigger_keywords = vec!["test".to_string(), "validate".to_string()];
 
-        mem.store_workflow(&wf1).expect("store wf1");
-        mem.store_workflow(&wf2).expect("store wf2");
+        mem.store_workflow(&wf1).await.expect("store wf1");
+        mem.store_workflow(&wf2).await.expect("store wf2");
 
-        let results = mem.get_by_keywords(&["deploy".to_string()]).expect("search");
+        let results = mem.get_by_keywords(&["deploy".to_string()]).await.expect("search");
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].id, "wf-1");
 
-        let results = mem.get_by_keywords(&["test".to_string()]).expect("search");
+        let results = mem.get_by_keywords(&["test".to_string()]).await.expect("search");
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].id, "wf-2");
     }
 
-    #[test]
-    fn test_record_observation_increments_frequency() {
+    #[tokio::test]
+    async fn test_record_observation_increments_frequency() {
         let db = make_test_db();
         let mem = ProceduralMemory::new(db);
 
         let wf = make_workflow("wf-1", "Deploy");
-        mem.store_workflow(&wf).expect("store");
+        mem.store_workflow(&wf).await.expect("store");
 
-        mem.record_observation("wf-1").expect("observe");
-        let updated = mem.get_workflow("wf-1").expect("get").expect("exists");
+        mem.record_observation("wf-1").await.expect("observe");
+        let updated = mem.get_workflow("wf-1").await.expect("get").expect("exists");
         assert_eq!(updated.frequency, 6);
 
-        mem.record_observation("wf-1").expect("observe again");
-        let updated = mem.get_workflow("wf-1").expect("get").expect("exists");
+        mem.record_observation("wf-1").await.expect("observe again");
+        let updated = mem.get_workflow("wf-1").await.expect("get").expect("exists");
         assert_eq!(updated.frequency, 7);
     }
 
-    #[test]
-    fn test_set_feedback_updates_correctly() {
+    #[tokio::test]
+    async fn test_set_feedback_updates_correctly() {
         let db = make_test_db();
         let mem = ProceduralMemory::new(db);
 
         let wf = make_workflow("wf-1", "Deploy");
-        mem.store_workflow(&wf).expect("store");
+        mem.store_workflow(&wf).await.expect("store");
 
-        mem.set_feedback("wf-1", UserFeedback::Endorsed).expect("feedback");
-        let updated = mem.get_workflow("wf-1").expect("get").expect("exists");
+        mem.set_feedback("wf-1", UserFeedback::Endorsed).await.expect("feedback");
+        let updated = mem.get_workflow("wf-1").await.expect("get").expect("exists");
         assert_eq!(updated.user_feedback, UserFeedback::Endorsed);
 
-        mem.set_feedback("wf-1", UserFeedback::Rejected).expect("feedback");
-        let updated = mem.get_workflow("wf-1").expect("get").expect("exists");
+        mem.set_feedback("wf-1", UserFeedback::Rejected).await.expect("feedback");
+        let updated = mem.get_workflow("wf-1").await.expect("get").expect("exists");
         assert_eq!(updated.user_feedback, UserFeedback::Rejected);
     }
 
-    #[test]
-    fn test_decay_stale_reduces_success_rate() {
+    #[tokio::test]
+    async fn test_decay_stale_reduces_success_rate() {
         let db = make_test_db();
         let mem = ProceduralMemory::new(db);
 
@@ -375,30 +375,30 @@ mod tests {
         // Set last_observed to 100 days ago
         wf.last_observed = chrono::Utc::now().timestamp() - (100 * 86_400);
         wf.success_rate = 0.8;
-        mem.store_workflow(&wf).expect("store");
+        mem.store_workflow(&wf).await.expect("store");
 
         // Decay workflows not observed in 30 days
-        mem.decay_stale(30).expect("decay");
+        mem.decay_stale(30).await.expect("decay");
 
-        let updated = mem.get_workflow("wf-1").expect("get").expect("exists");
+        let updated = mem.get_workflow("wf-1").await.expect("get").expect("exists");
         assert!((updated.success_rate - 0.4).abs() < 0.001, "success_rate should be halved from 0.8 to 0.4, got {}", updated.success_rate);
     }
 
-    #[test]
-    fn test_delete_workflow() {
+    #[tokio::test]
+    async fn test_delete_workflow() {
         let db = make_test_db();
         let mem = ProceduralMemory::new(db);
 
         let wf = make_workflow("wf-1", "Deploy");
-        mem.store_workflow(&wf).expect("store");
-        assert!(mem.get_workflow("wf-1").expect("get").is_some());
+        mem.store_workflow(&wf).await.expect("store");
+        assert!(mem.get_workflow("wf-1").await.expect("get").is_some());
 
-        mem.delete_workflow("wf-1").expect("delete");
-        assert!(mem.get_workflow("wf-1").expect("get").is_none());
+        mem.delete_workflow("wf-1").await.expect("delete");
+        assert!(mem.get_workflow("wf-1").await.expect("get").is_none());
     }
 
-    #[test]
-    fn test_get_high_value() {
+    #[tokio::test]
+    async fn test_get_high_value() {
         let db = make_test_db();
         let mem = ProceduralMemory::new(db);
 
@@ -410,10 +410,10 @@ mod tests {
         wf2.frequency = 1;
         wf2.success_rate = 0.3;
 
-        mem.store_workflow(&wf1).expect("store");
-        mem.store_workflow(&wf2).expect("store");
+        mem.store_workflow(&wf1).await.expect("store");
+        mem.store_workflow(&wf2).await.expect("store");
 
-        let results = mem.get_high_value(5, 0.8).expect("high value");
+        let results = mem.get_high_value(5, 0.8).await.expect("high value");
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].id, "wf-1");
     }

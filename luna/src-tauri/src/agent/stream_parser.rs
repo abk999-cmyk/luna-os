@@ -34,11 +34,13 @@ impl StreamParser {
     fn try_extract_actions(&mut self) -> Vec<Action> {
         let mut actions = Vec::new();
 
-        // Strip code fences for parsing
-        let text = self.strip_code_fences();
+        // Strip code fences and replace buffer with stripped version
+        // so that find() operations work correctly against the same text.
+        let stripped = self.strip_code_fences();
+        self.buffer = stripped;
 
         // Find the outermost JSON array or object
-        let trimmed = text.trim();
+        let trimmed = self.buffer.trim().to_string();
 
         // Try to find a complete JSON array
         if let Some(start) = trimmed.find('[') {

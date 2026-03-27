@@ -109,7 +109,7 @@ impl LearningEngine {
     }
 
     /// Record an observation, persist to DB, and return its ID.
-    pub fn record_observation(
+    pub async fn record_observation(
         &self,
         actions: Vec<String>,
         tags: Vec<String>,
@@ -130,7 +130,7 @@ impl LearningEngine {
         let actions_json = serde_json::to_string(&obs.action_sequence)?;
         let tags_json = serde_json::to_string(&obs.context_tags)?;
         {
-            let db = self.db.blocking_lock();
+            let db = self.db.lock().await;
             db.conn().execute(
                 "INSERT INTO learning_observations (id, actions_json, tags_json, outcome, timestamp) VALUES (?1, ?2, ?3, ?4, ?5)",
                 rusqlite::params![obs.id, actions_json, tags_json, obs.outcome.to_string(), obs.timestamp],
@@ -139,7 +139,7 @@ impl LearningEngine {
 
         // Keep in memory
         {
-            let mut mem = self.observations.blocking_write();
+            let mut mem = self.observations.write().await;
             mem.push(obs);
             // Cap in-memory buffer at 500
             if mem.len() > 500 {
@@ -152,15 +152,15 @@ impl LearningEngine {
     }
 
     /// Return recent observations from the in-memory buffer.
-    pub fn get_recent_observations(&self, limit: usize) -> Vec<Observation> {
-        let mem = self.observations.blocking_read();
+    pub async fn get_recent_observations(&self, limit: usize) -> Vec<Observation> {
+        let mem = self.observations.read().await;
         let start = if mem.len() > limit { mem.len() - limit } else { 0 };
         mem[start..].to_vec()
     }
 
     /// Scan recent observations for repeated action sequences.
-    pub fn check_for_patterns(&self) -> Vec<DetectedPattern> {
-        let mem = self.observations.blocking_read();
+    pub async fn check_for_patterns(&self) -> Vec<DetectedPattern> {
+        let mem = self.observations.read().await;
         let action_seqs: Vec<Vec<String>> =
             mem.iter().map(|o| o.action_sequence.clone()).collect();
 
@@ -204,10 +204,10 @@ impl LearningEngine {
     ///
     /// Scans recent observations for repeated patterns and decision patterns,
     /// then returns up to `max_count` proposals sorted by confidence.
-    pub fn generate_proposals(&self, max_count: usize) -> Vec<AutomationProposal> {
+    pub async fn generate_proposals(&self, max_count: usize) -> Vec<AutomationProposal> {
         use super::pattern_detector::PatternDetector;
 
-        let mem = self.observations.blocking_read();
+        let mem = self.observations.read().await;
         if mem.is_empty() {
             return Vec::new();
         }
@@ -304,8 +304,8 @@ impl LearningEngine {
 
     /// Track how often a user approves actions of a given type.
     /// Returns a ratio in [0.0, 1.0].
-    pub fn get_approval_rate(&self, action_type: &str) -> f64 {
-        let db = self.db.blocking_lock();
+    pub async fn get_approval_rate(&self, action_type: &str) -> f64 {
+        let db = self.db.lock().await;
         let result: Option<(i64, i64)> = db
             .conn()
             .query_row(
@@ -341,8 +341,8 @@ mod tests {
         LearningEngine::new(db)
     }
 
-    #[test]
-    fn test_record_and_retrieve_observation() {
+    #[tokio::test]
+    async fn test_record_and_retrieve_observation() {
         let engine = make_engine();
         let id = engine
             .record_observation(
@@ -350,16 +350,17 @@ mod tests {
                 vec!["coding".into()],
                 ObservationOutcome::Success,
             )
+            .await
             .expect("record");
 
         assert!(!id.is_empty());
-        let recent = engine.get_recent_observations(10);
+        let recent = engine.get_recent_observations(10).await;
         assert_eq!(recent.len(), 1);
         assert_eq!(recent[0].action_sequence, vec!["open", "edit"]);
     }
 
-    #[test]
-    fn test_check_for_patterns_detects_repeats() {
+    #[tokio::test]
+    async fn test_check_for_patterns_detects_repeats() {
         let engine = make_engine();
 
         // Record the same sequence 3 times
@@ -370,10 +371,11 @@ mod tests {
                     vec!["coding".into()],
                     ObservationOutcome::Success,
                 )
+                .await
                 .expect("record");
         }
 
-        let patterns = engine.check_for_patterns();
+        let patterns = engine.check_for_patterns().await;
         assert!(!patterns.is_empty(), "should detect repeated sequences");
         let has_open_edit = patterns
             .iter()
@@ -381,8 +383,8 @@ mod tests {
         assert!(has_open_edit);
     }
 
-    #[test]
-    fn test_generate_proposal_from_pattern() {
+    #[tokio::test]
+    async fn test_generate_proposal_from_pattern() {
         let engine = make_engine();
         let pattern = DetectedPattern {
             sequence: vec!["open".into(), "edit".into()],
@@ -400,8 +402,8 @@ mod tests {
         assert!(proposal.dismissed_at.is_none());
     }
 
-    #[test]
-    fn test_get_recent_observations_limit() {
+    #[tokio::test]
+    async fn test_get_recent_observations_limit() {
         let engine = make_engine();
         for i in 0..10 {
             engine
@@ -410,20 +412,21 @@ mod tests {
                     vec![],
                     ObservationOutcome::Success,
                 )
+                .await
                 .expect("record");
         }
 
-        let recent = engine.get_recent_observations(3);
+        let recent = engine.get_recent_observations(3).await;
         assert_eq!(recent.len(), 3);
         // Should be the last 3
         assert_eq!(recent[0].action_sequence[0], "action-7");
         assert_eq!(recent[2].action_sequence[0], "action-9");
     }
 
-    #[test]
-    fn test_get_approval_rate_default() {
+    #[tokio::test]
+    async fn test_get_approval_rate_default() {
         let engine = make_engine();
-        let rate = engine.get_approval_rate("nonexistent");
+        let rate = engine.get_approval_rate("nonexistent").await;
         assert!((rate - 0.5).abs() < f64::EPSILON, "default should be 0.5");
     }
 }

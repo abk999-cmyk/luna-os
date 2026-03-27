@@ -34,7 +34,7 @@ impl AppManager {
     pub fn load_from_db(&self) {
         let database = self.db.blocking_lock();
         if let Ok(rows) = database.load_active_apps() {
-            let mut apps = self.apps.write().unwrap();
+            let mut apps = self.apps.write().unwrap_or_else(|e| e.into_inner());
             for row in rows {
                 let app_id = row.get("app_id").and_then(|v| v.as_str()).unwrap_or_default().to_string();
                 let window_id = row.get("window_id").and_then(|v| v.as_str()).unwrap_or_default().to_string();
@@ -58,7 +58,7 @@ impl AppManager {
     }
 
     /// Create and register a new dynamic app.
-    pub fn create_app(
+    pub async fn create_app(
         &self,
         descriptor: AppDescriptor,
         window_id: String,
@@ -85,14 +85,18 @@ impl AppManager {
         };
 
         let app_id = app.descriptor.id.clone();
-        let mut apps = self.apps.write().unwrap();
-        if apps.contains_key(&app_id) {
-            return Err(LunaError::Dispatch(format!("App already exists: {}", app_id)));
+
+        // Check existence first (brief read lock)
+        {
+            let apps = self.apps.read().unwrap_or_else(|e| e.into_inner());
+            if apps.contains_key(&app_id) {
+                return Err(LunaError::Dispatch(format!("App already exists: {}", app_id)));
+            }
         }
 
-        // Persist to DB
+        // Persist to DB first (no apps lock held)
         {
-            let database = self.db.blocking_lock();
+            let database = self.db.lock().await;
             let descriptor_json = serde_json::to_string(&app.descriptor).unwrap_or_default();
             let data_json = serde_json::to_string(&app.data_context).unwrap_or_default();
             if let Err(e) = database.save_app(&app_id, &app.window_id, &app.controlling_agent_id, &descriptor_json, &data_json) {
@@ -100,67 +104,83 @@ impl AppManager {
             }
         }
 
-        apps.insert(app_id, app.clone());
+        // Then update in-memory map
+        {
+            let mut apps = self.apps.write().unwrap_or_else(|e| e.into_inner());
+            apps.insert(app_id, app.clone());
+        }
 
         Ok(app)
     }
 
     /// Update an app's data context.
-    pub fn update_data(&self, app_id: &str, data: serde_json::Value) -> Result<(), LunaError> {
-        let mut apps = self.apps.write().unwrap();
-        let app = apps.get_mut(app_id).ok_or_else(|| {
-            LunaError::Dispatch(format!("App not found: {}", app_id))
-        })?;
+    pub async fn update_data(&self, app_id: &str, data: serde_json::Value) -> Result<(), LunaError> {
+        // Update in-memory first, collect info for DB persist
+        let (window_id, agent_id, descriptor_json, data_json) = {
+            let mut apps = self.apps.write().unwrap_or_else(|e| e.into_inner());
+            let app = apps.get_mut(app_id).ok_or_else(|| {
+                LunaError::Dispatch(format!("App not found: {}", app_id))
+            })?;
 
-        // Merge data
-        if let (Some(existing), Some(new)) = (app.data_context.as_object_mut(), data.as_object()) {
-            for (k, v) in new {
-                existing.insert(k.clone(), v.clone());
+            // Merge data
+            if let (Some(existing), Some(new)) = (app.data_context.as_object_mut(), data.as_object()) {
+                for (k, v) in new {
+                    existing.insert(k.clone(), v.clone());
+                }
+            } else {
+                app.data_context = data;
             }
-        } else {
-            app.data_context = data;
-        }
 
-        // Persist updated data context
-        {
-            let database = self.db.blocking_lock();
             let descriptor_json = serde_json::to_string(&app.descriptor).unwrap_or_default();
             let data_json = serde_json::to_string(&app.data_context).unwrap_or_default();
-            let _ = database.save_app(app_id, &app.window_id, &app.controlling_agent_id, &descriptor_json, &data_json);
+            (app.window_id.clone(), app.controlling_agent_id.clone(), descriptor_json, data_json)
+        };
+
+        // Persist updated data context (no apps lock held)
+        {
+            let database = self.db.lock().await;
+            let _ = database.save_app(app_id, &window_id, &agent_id, &descriptor_json, &data_json);
         }
 
         Ok(())
     }
 
     /// Update an app's descriptor (full replacement).
-    pub fn update_spec(&self, app_id: &str, descriptor: AppDescriptor) -> Result<(), LunaError> {
-        let mut apps = self.apps.write().unwrap();
-        let app = apps.get_mut(app_id).ok_or_else(|| {
-            LunaError::Dispatch(format!("App not found: {}", app_id))
-        })?;
-        app.descriptor = descriptor;
+    pub async fn update_spec(&self, app_id: &str, descriptor: AppDescriptor) -> Result<(), LunaError> {
+        // Update in-memory first, collect info for DB persist
+        let (window_id, agent_id, descriptor_json, data_json) = {
+            let mut apps = self.apps.write().unwrap_or_else(|e| e.into_inner());
+            let app = apps.get_mut(app_id).ok_or_else(|| {
+                LunaError::Dispatch(format!("App not found: {}", app_id))
+            })?;
+            app.descriptor = descriptor;
 
-        // Persist updated descriptor
-        {
-            let database = self.db.blocking_lock();
             let descriptor_json = serde_json::to_string(&app.descriptor).unwrap_or_default();
             let data_json = serde_json::to_string(&app.data_context).unwrap_or_default();
-            let _ = database.save_app(app_id, &app.window_id, &app.controlling_agent_id, &descriptor_json, &data_json);
+            (app.window_id.clone(), app.controlling_agent_id.clone(), descriptor_json, data_json)
+        };
+
+        // Persist updated descriptor (no apps lock held)
+        {
+            let database = self.db.lock().await;
+            let _ = database.save_app(app_id, &window_id, &agent_id, &descriptor_json, &data_json);
         }
 
         Ok(())
     }
 
     /// Destroy an app and remove it from the registry.
-    pub fn destroy_app(&self, app_id: &str) -> Result<RunningApp, LunaError> {
-        let mut apps = self.apps.write().unwrap();
-        let app = apps.remove(app_id).ok_or_else(|| {
-            LunaError::Dispatch(format!("App not found: {}", app_id))
-        })?;
+    pub async fn destroy_app(&self, app_id: &str) -> Result<RunningApp, LunaError> {
+        let app = {
+            let mut apps = self.apps.write().unwrap_or_else(|e| e.into_inner());
+            apps.remove(app_id).ok_or_else(|| {
+                LunaError::Dispatch(format!("App not found: {}", app_id))
+            })?
+        };
 
-        // Mark as destroyed in DB
+        // Mark as destroyed in DB (no apps lock held)
         {
-            let database = self.db.blocking_lock();
+            let database = self.db.lock().await;
             if let Err(e) = database.destroy_app_record(app_id) {
                 tracing::warn!(error = %e, "Failed to mark app as destroyed in DB");
             }
@@ -171,31 +191,31 @@ impl AppManager {
 
     /// Get a running app by ID.
     pub fn get_app(&self, app_id: &str) -> Option<RunningApp> {
-        let apps = self.apps.read().unwrap();
+        let apps = self.apps.read().unwrap_or_else(|e| e.into_inner());
         apps.get(app_id).cloned()
     }
 
     /// Check if an app exists.
     pub fn app_exists(&self, app_id: &str) -> bool {
-        let apps = self.apps.read().unwrap();
+        let apps = self.apps.read().unwrap_or_else(|e| e.into_inner());
         apps.contains_key(app_id)
     }
 
     /// Get the controlling agent for an app.
     pub fn get_controlling_agent(&self, app_id: &str) -> Option<String> {
-        let apps = self.apps.read().unwrap();
+        let apps = self.apps.read().unwrap_or_else(|e| e.into_inner());
         apps.get(app_id).map(|a| a.controlling_agent_id.clone())
     }
 
     /// List all running apps.
     pub fn list_apps(&self) -> Vec<String> {
-        let apps = self.apps.read().unwrap();
+        let apps = self.apps.read().unwrap_or_else(|e| e.into_inner());
         apps.keys().cloned().collect()
     }
 
     /// Get the descriptor for a running app.
     pub fn get_descriptor(&self, app_id: &str) -> Option<AppDescriptor> {
-        let apps = self.apps.read().unwrap();
+        let apps = self.apps.read().unwrap_or_else(|e| e.into_inner());
         apps.get(app_id).map(|a| a.descriptor.clone())
     }
 }

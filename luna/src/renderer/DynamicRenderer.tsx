@@ -24,6 +24,7 @@ export function DynamicRenderer({ spec, dataContext, appId }: DynamicRendererPro
         ...layoutToStyle(rootLayout),
         height: '100%',
         overflow: 'auto',
+        ...(spec.styles || {}),
       }}
     >
       {spec.components.map((comp) => (

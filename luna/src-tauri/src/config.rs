@@ -18,8 +18,8 @@ impl LunaConfig {
         let luna_dir = home.join(".luna");
 
         let config = Self {
-            anthropic_api_key: env::var("ANTHROPIC_API_KEY").ok(),
-            openai_api_key: env::var("OPENAI_API_KEY").ok(),
+            anthropic_api_key: env::var("ANTHROPIC_API_KEY").ok().filter(|k| is_real_key(k)),
+            openai_api_key: env::var("OPENAI_API_KEY").ok().filter(|k| is_real_key(k)),
             db_path: luna_dir
                 .join("data")
                 .join("luna.db")
@@ -41,6 +41,16 @@ impl LunaConfig {
     pub fn has_any_api_key(&self) -> bool {
         self.anthropic_api_key.is_some() || self.openai_api_key.is_some()
     }
+}
+
+/// Returns true if the value looks like a real API key (not a placeholder).
+fn is_real_key(value: &str) -> bool {
+    let v = value.trim();
+    !v.is_empty()
+        && !v.starts_with("your-")
+        && !v.contains("api-key-here")
+        && !v.contains("placeholder")
+        && v.len() > 10
 }
 
 fn dirs_home() -> PathBuf {

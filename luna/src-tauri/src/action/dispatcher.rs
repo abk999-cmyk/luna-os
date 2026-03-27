@@ -65,7 +65,7 @@ impl ActionDispatcher {
                         action_type = %action.action_type,
                         "Action denied by permission matrix"
                     );
-                    self.audit.log(&agent_id, &action.action_type, "denied").ok();
+                    self.audit.log(&agent_id, &action.action_type, "denied").await.ok();
                     return Err(LunaError::Dispatch(format!(
                         "Permission denied: agent '{}' cannot perform '{}'",
                         agent_id, action.action_type
@@ -84,7 +84,7 @@ impl ActionDispatcher {
                                 action_type = %action.action_type,
                                 "Action requires user approval — parking"
                             );
-                            self.audit.log(&agent_id, &action.action_type, "pending_approval").ok();
+                            self.audit.log(&agent_id, &action.action_type, "pending_approval").await.ok();
                             let action_id = action.id.to_string();
                             {
                                 let mut pending = self.pending_actions.write().await;
@@ -200,7 +200,7 @@ impl ActionDispatcher {
         };
 
         info!(action_id = %action_id, action_type = %action.action_type, agent_id = %agent_id, "Pending action approved — dispatching directly");
-        self.audit.log(&agent_id, &action.action_type, "approved_by_user").ok();
+        self.audit.log(&agent_id, &action.action_type, "approved_by_user").await.ok();
 
         // Dispatch directly to queue, bypassing permission check (user already approved)
         let aid = action.id;
@@ -242,7 +242,7 @@ impl ActionDispatcher {
             LunaError::Dispatch(format!("No pending action with id: {}", action_id))
         })?;
         warn!(action_id = %action_id, action_type = %action.action_type, "Pending action denied");
-        self.audit.log("user", &action.action_type, "denied_by_user").ok();
+        self.audit.log("user", &action.action_type, "denied_by_user").await.ok();
         Ok(())
     }
 

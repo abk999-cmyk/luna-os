@@ -38,14 +38,14 @@ impl MetricsCollector {
     pub fn increment_by(&self, name: &str, n: u64) {
         // Try read-lock first (fast path: counter already exists)
         {
-            let counters = self.counters.read().unwrap();
+            let counters = self.counters.read().unwrap_or_else(|e| e.into_inner());
             if let Some(counter) = counters.get(name) {
                 counter.fetch_add(n, Ordering::Relaxed);
                 return;
             }
         }
         // Slow path: insert new counter
-        let mut counters = self.counters.write().unwrap();
+        let mut counters = self.counters.write().unwrap_or_else(|e| e.into_inner());
         counters
             .entry(name.to_string())
             .or_insert_with(|| AtomicU64::new(0))
@@ -54,13 +54,13 @@ impl MetricsCollector {
 
     /// Set a gauge to an absolute value.
     pub fn set_gauge(&self, name: &str, value: f64) {
-        let mut gauges = self.gauges.write().unwrap();
+        let mut gauges = self.gauges.write().unwrap_or_else(|e| e.into_inner());
         gauges.insert(name.to_string(), value);
     }
 
     /// Read the current value of a counter (0 if it doesn't exist).
     pub fn get_counter(&self, name: &str) -> u64 {
-        let counters = self.counters.read().unwrap();
+        let counters = self.counters.read().unwrap_or_else(|e| e.into_inner());
         counters
             .get(name)
             .map(|c| c.load(Ordering::Relaxed))
@@ -69,7 +69,7 @@ impl MetricsCollector {
 
     /// Read the current value of a gauge.
     pub fn get_gauge(&self, name: &str) -> Option<f64> {
-        let gauges = self.gauges.read().unwrap();
+        let gauges = self.gauges.read().unwrap_or_else(|e| e.into_inner());
         gauges.get(name).copied()
     }
 
@@ -98,13 +98,13 @@ impl MetricsCollector {
         self.set_gauge("action_throughput_per_sec", self.get_actions_per_second());
 
         let counters = {
-            let map = self.counters.read().unwrap();
+            let map = self.counters.read().unwrap_or_else(|e| e.into_inner());
             map.iter()
                 .map(|(k, v)| (k.clone(), v.load(Ordering::Relaxed)))
                 .collect()
         };
         let gauges = {
-            let map = self.gauges.read().unwrap();
+            let map = self.gauges.read().unwrap_or_else(|e| e.into_inner());
             map.clone()
         };
         MetricsSnapshot {

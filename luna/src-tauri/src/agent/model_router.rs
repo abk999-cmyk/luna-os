@@ -151,7 +151,7 @@ impl UsageTracker {
         let input_cost = (input_tokens as f64 / 1000.0) * config.cost_per_1k_input;
         let output_cost = (output_tokens as f64 / 1000.0) * config.cost_per_1k_output;
 
-        let mut map = self.usage.lock().unwrap();
+        let mut map = self.usage.lock().unwrap_or_else(|e| e.into_inner());
         let entry = map.entry(level.clone()).or_default();
         entry.total_input_tokens += input_tokens as u64;
         entry.total_output_tokens += output_tokens as u64;
@@ -161,19 +161,19 @@ impl UsageTracker {
 
     /// Get usage snapshot for a given agent level.
     pub fn get_usage(&self, level: &AgentLevel) -> LevelUsage {
-        let map = self.usage.lock().unwrap();
+        let map = self.usage.lock().unwrap_or_else(|e| e.into_inner());
         map.get(level).cloned().unwrap_or_default()
     }
 
     /// Get total cost across all levels.
     pub fn total_cost(&self) -> f64 {
-        let map = self.usage.lock().unwrap();
+        let map = self.usage.lock().unwrap_or_else(|e| e.into_inner());
         map.values().map(|u| u.total_cost).sum()
     }
 
     /// Reset all tracked usage.
     pub fn reset(&self) {
-        let mut map = self.usage.lock().unwrap();
+        let mut map = self.usage.lock().unwrap_or_else(|e| e.into_inner());
         map.clear();
     }
 }
@@ -244,7 +244,7 @@ impl RateLimiter {
     /// If allowed, records the request and returns `Ok(())`.
     /// If the limit is exceeded, returns an error.
     pub fn check(&self, level: &AgentLevel) -> Result<(), LunaError> {
-        let mut buckets = self.buckets.lock().unwrap();
+        let mut buckets = self.buckets.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(bucket) = buckets.get_mut(level) {
             if bucket.check_and_record() {
                 Ok(())
@@ -262,7 +262,7 @@ impl RateLimiter {
 
     /// Update limits from a new hierarchy configuration.
     pub fn update_limits(&self, hierarchy: &ModelHierarchy) {
-        let mut buckets = self.buckets.lock().unwrap();
+        let mut buckets = self.buckets.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(b) = buckets.get_mut(&AgentLevel::Conductor) {
             b.limit = hierarchy.conductor.requests_per_minute;
         }

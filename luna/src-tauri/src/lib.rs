@@ -50,6 +50,12 @@ use window::manager::WindowManager;
 use action::undo::UndoManager;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Load .env file (silently ignore if missing)
+    // Try CWD first, then parent directory (src-tauri → luna/)
+    if dotenvy::dotenv().is_err() {
+        let _ = dotenvy::from_filename("../.env");
+    }
+
     // Load config first (before logging)
     let config = LunaConfig::load().expect("Failed to load configuration");
 
@@ -72,7 +78,7 @@ pub fn run() {
     let memory = Arc::new(MemorySystem::new(db.clone()));
 
     // Purge episodic memory older than 30 days (on startup)
-    memory.episodic.purge_old(30).ok();
+    memory.episodic.purge_old_sync(30).ok();
 
     // ── Security: permissions + audit ─────────────────────────────────────────
     let permissions = {
@@ -365,7 +371,7 @@ pub fn run() {
                                 crate::action::types::ActionSource::User => "user".to_string(),
                                 crate::action::types::ActionSource::System => "system".to_string(),
                             };
-                            if let Err(e) = proc_state.undo_manager.create_entry_from_action(&action, &agent_id) {
+                            if let Err(e) = proc_state.undo_manager.create_entry_from_action(&action, &agent_id).await {
                                 tracing::debug!(error = %e, "Could not create undo entry");
                             }
                         }

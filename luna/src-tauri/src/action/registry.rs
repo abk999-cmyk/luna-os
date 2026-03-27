@@ -119,7 +119,8 @@ impl ActionTypeRegistry {
         // Window actions
         registry.add_core("window.create", "Create a new virtual window on the desktop", vec![
             FieldDef { name: "title".into(), required: true, field_type: FieldType::String, description: "Window title text".into() },
-            FieldDef { name: "content_type".into(), required: false, field_type: FieldType::String, description: "response|editor|panel|terminal|canvas|scratchpad".into() },
+            FieldDef { name: "content_type".into(), required: false, field_type: FieldType::String, description: "editor|panel|terminal|canvas|scratchpad".into() },
+            FieldDef { name: "content".into(), required: false, field_type: FieldType::String, description: "Initial text content for the window".into() },
             FieldDef { name: "x".into(), required: false, field_type: FieldType::Number, description: "X position in pixels".into() },
             FieldDef { name: "y".into(), required: false, field_type: FieldType::Number, description: "Y position in pixels".into() },
             FieldDef { name: "width".into(), required: false, field_type: FieldType::Number, description: "Width in pixels (min 320)".into() },

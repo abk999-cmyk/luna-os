@@ -70,7 +70,7 @@ pub async fn save_as_template(
         &category,
         tags,
         &descriptor,
-    )?;
+    ).await?;
 
     info!(template_id = %template.id, name = %template.name, "Template saved");
     Ok(template)
@@ -81,7 +81,7 @@ pub async fn save_as_template(
 pub async fn list_templates(
     state: State<'_, AppState>,
 ) -> Result<Vec<AppTemplate>, LunaError> {
-    state.template_registry.list_templates()
+    state.template_registry.list_templates().await
 }
 
 /// Instantiate a new app from a template.
@@ -96,7 +96,7 @@ pub async fn instantiate_from_template(
         &template_id,
         &new_app_id,
         new_title.as_deref(),
-    )?;
+    ).await?;
 
     info!(
         template_id = %template_id,
@@ -112,7 +112,7 @@ pub async fn delete_template(
     state: State<'_, AppState>,
     template_id: String,
 ) -> Result<(), LunaError> {
-    state.template_registry.delete_template(&template_id)?;
+    state.template_registry.delete_template(&template_id).await?;
     info!(template_id = %template_id, "Template deleted");
     Ok(())
 }

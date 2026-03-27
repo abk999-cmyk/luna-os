@@ -26,6 +26,67 @@ impl ConductorAgent {
         }
     }
 
+    /// Build the shared system prompt used by both streaming and non-streaming paths.
+    fn build_system_prompt(window_list: &str, recent_memory: &str, action_space: &str) -> String {
+        format!(
+            "You are the Conductor for Luna OS — an LLM-native operating system.\n\
+            You receive user input and respond with a JSON array of actions.\n\n\
+            ## Current State\n\
+            Open windows: {window_list}\n\
+            Workspace: workspace_default\n\
+            Memory:\n{recent_memory}\n\n\
+            {action_space}\n\n\
+            ## Action Reference\n\n\
+            ### 1. Chat with user (ALWAYS include this)\n\
+            {{\"action_type\": \"agent.response\", \"payload\": {{\"text\": \"message\"}}}}\n\n\
+            ### 2. Built-in App Windows\n\
+            Each content_type opens a FULL APP with toolbar, panels, and interactivity.\n\
+            Pass initial data as a JSON string in the \"content\" field.\n\n\
+            | content_type | App | content (JSON string) |\n\
+            |---|---|---|\n\
+            | editor | Rich Text Editor | Markdown: \"# Title\\n**bold**\" |\n\
+            | spreadsheet | Spreadsheet (Excel) | {{\"sheets\":[\"Sheet1\"],\"data\":{{\"Sheet1\":{{\"A1\":{{\"value\":\"Name\"}},\"B1\":{{\"value\":\"Age\"}}}}}}}} |\n\
+            | slides | Presentations (Slides) | {{\"slides\":[{{\"id\":\"s1\",\"template\":\"title\",\"elements\":[{{\"id\":\"t1\",\"type\":\"heading\",\"content\":\"Title\",\"x\":10,\"y\":30,\"width\":80,\"height\":15}}]}}]}} |\n\
+            | email | Email Client | {{\"emails\":[{{\"id\":\"1\",\"from\":\"a@b.com\",\"to\":[\"u@b.com\"],\"subject\":\"Hi\",\"body\":\"Hello\",\"date\":\"2025-01-15\",\"read\":false,\"starred\":false,\"folder\":\"Inbox\"}}]}} |\n\
+            | calendar | Calendar | {{\"events\":[{{\"id\":\"1\",\"title\":\"Meeting\",\"start\":\"2025-01-15T10:00\",\"end\":\"2025-01-15T11:00\"}}],\"view\":\"month\"}} |\n\
+            | file_manager | File Manager | {{\"files\":[{{\"id\":\"1\",\"name\":\"Docs\",\"type\":\"folder\",\"path\":\"/Docs\"}}]}} |\n\
+            | kanban | Kanban Board | {{\"columns\":[{{\"id\":\"todo\",\"title\":\"To Do\",\"cards\":[{{\"id\":\"c1\",\"title\":\"Task\"}}]}}]}} |\n\
+            | notes | Notes | {{\"notes\":[{{\"id\":\"1\",\"title\":\"Ideas\",\"content\":\"Text\",\"pinned\":true,\"created\":\"2025-01-15\",\"modified\":\"2025-01-15\"}}]}} |\n\
+            | calculator | Calculator | {{\"mode\":\"scientific\"}} or omit |\n\
+            | browser | Web Browser | {{\"url\":\"https://example.com\"}} |\n\
+            | music | Music Player | {{\"playlist\":[{{\"id\":\"1\",\"title\":\"Song\",\"artist\":\"Artist\",\"album\":\"Album\",\"duration\":240}}]}} |\n\
+            | terminal | Terminal | plain text |\n\
+            | canvas | Drawing Canvas | (none) |\n\
+            | code_editor | Code Editor | {{\"language\":\"python\",\"code\":\"print('hi')\"}} |\n\n\
+            Example: {{\"action_type\": \"window.create\", \"payload\": {{\"title\": \"Budget\", \"content_type\": \"spreadsheet\", \"content\": \"{{\\\"sheets\\\":[\\\"Sheet1\\\"],\\\"data\\\":{{\\\"Sheet1\\\":{{\\\"A1\\\":{{\\\"value\\\":\\\"Item\\\"}},\\\"B1\\\":{{\\\"value\\\":\\\"Cost\\\"}}}}}}}}\" }}}}\n\n\
+            ### 3. Modify any existing app/window — YOU HAVE FULL CONTROL\n\
+            Use window.update_content to COMPLETELY RE-RENDER any open window with new data.\n\
+            For app windows (spreadsheet, slides, email, etc.), send the FULL updated JSON.\n\
+            This is how you add/remove/change ANYTHING in any app — slides, cells, emails, events, etc.\n\n\
+            Examples:\n\
+            - Add a slide: Send updated slides JSON with the new slide appended\n\
+            - Add a hyperlink to slides: Add an element with type \"text\" and HTML content like \"<a href='url'>Link</a>\"\n\
+            - Add rows to spreadsheet: Send updated data JSON with new cells\n\
+            - Add an email: Send updated emails array with new email appended\n\
+            - Add a calendar event: Send updated events array with new event\n\
+            - Bold text in editor: Send updated Markdown with **bold** syntax\n\n\
+            {{\"action_type\": \"window.update_content\", \"payload\": {{\"window_id\": \"<id from Open windows>\", \"content\": \"<full updated JSON or markdown>\"}}}}\n\n\
+            IMPORTANT: You can modify ANY aspect of ANY open app this way. There is no feature you cannot add — just update the content JSON.\n\n\
+            ### 4. Custom Dynamic Apps (for UIs not covered by built-in apps)\n\
+            {{\"action_type\": \"app.create\", \"payload\": {{\"id\": \"app-id\", \"title\": \"Title\", \"layout\": \"vertical\",\n\
+              \"components\": [{{\"id\": \"c1\", \"type\": \"Type\", \"props\": {{}}}}], \"data\": {{}}\n\
+            }}}}\n\n\
+            ## Rules\n\
+            1. Output ONLY a JSON array. No markdown fences, no extra text.\n\
+            2. ALWAYS include agent.response.\n\
+            3. Field name for window content is \"content\" (never \"body\"/\"text\").\n\
+            4. Do NOT re-create existing windows — use window.update_content.\n\
+            5. Use built-in content_types (spreadsheet, slides, etc.) for matching apps.\n\
+            6. Use \"editor\" content_type for documents with Markdown.\n\
+            7. You have FULL CONTROL over all apps. Any modification is possible via window.update_content with updated JSON.\n"
+        )
+    }
+
     /// Reset conversation history for a new session.
     pub async fn reset_session(&self, session_id: &str) {
         let current = self.session_id.read().await;
@@ -49,7 +110,7 @@ impl ConductorAgent {
     ) -> Result<Vec<Action>, LunaError> {
         // Build system prompt
         let recent_memory = if let Some(mem) = memory {
-            mem.episodic.recent_summary(session_id, 10)
+            mem.episodic.recent_summary(session_id, 10).await
         } else {
             "Memory not available.".to_string()
         };
@@ -60,34 +121,7 @@ impl ConductorAgent {
             } else {
                 open_windows.join(", ")
             };
-            format!(
-                "You are the Conductor for Luna OS — an LLM-native operating system.\n\
-                You receive user input and respond with structured JSON actions.\n\n\
-                ## Current Context\n\
-                - Open windows: {window_list}\n\
-                - Active workspace: workspace_default\n\
-                - Recent memory:\n{recent_memory}\n\n\
-                {space}\n\n\
-                ## Dynamic Apps (Interactive UI)\n\
-                Use app.create to build interactive applications. The payload IS the app descriptor.\n\
-                Available component types: DataTable, List, Card, Panel, Container, Grid, Divider, Spacer,\n\
-                TextInput, NumberInput, Select, Checkbox, Toggle, Slider, Stat, Timeline, Tabs, Modal, Toast,\n\
-                Chat, Chart, Gauge, Breadcrumbs, CodeEditor, Terminal.\n\
-                Components use $.field.path for data binding against the \"data\" object.\n\
-                Example app.create: {{\"action_type\": \"app.create\", \"payload\": {{\n\
-                  \"id\": \"todo-app\", \"title\": \"My Tasks\", \"layout\": \"vertical\",\n\
-                  \"components\": [\n\
-                    {{\"id\": \"input\", \"type\": \"TextInput\", \"props\": {{\"placeholder\": \"New task...\"}}, \"events\": {{\"onSubmit\": \"add_task\"}}}},\n\
-                    {{\"id\": \"list\", \"type\": \"List\", \"props\": {{\"items\": \"$.tasks\"}}}}\n\
-                  ],\n\
-                  \"data\": {{\"tasks\": []}}\n\
-                }}}}\n\
-                Use app.update to change data or components. Use app.destroy to close an app.\n\n\
-                ## Response Format\n\
-                Respond ONLY with a JSON array of actions. No markdown outside the JSON.\n\
-                Always include agent.response if you want to communicate text to the user.\n\
-                Example: [{{\"action_type\": \"agent.response\", \"payload\": {{\"text\": \"Hello!\"}}}}]\n"
-            )
+            Self::build_system_prompt(&window_list, &recent_memory, &space)
         } else {
             FALLBACK_SYSTEM_PROMPT.to_string()
         };
@@ -126,7 +160,7 @@ impl ConductorAgent {
                 &self.id,
                 response.input_tokens,
                 response.output_tokens,
-            ) {
+            ).await {
                 warn!(error = %e, "Failed to record token usage");
             }
         }
@@ -187,7 +221,7 @@ impl ConductorAgent {
                 &["conductor".to_string(), "user_input".to_string()],
                 "action",
                 None,
-            ) {
+            ).await {
                 warn!(error = %e, "Failed to record episodic event");
             }
         }
@@ -214,7 +248,7 @@ impl ConductorAgent {
     {
         // Build system prompt (same as non-streaming)
         let recent_memory = if let Some(mem) = memory {
-            mem.episodic.recent_summary(session_id, 10)
+            mem.episodic.recent_summary(session_id, 10).await
         } else {
             "Memory not available.".to_string()
         };
@@ -225,25 +259,7 @@ impl ConductorAgent {
             } else {
                 open_windows.join(", ")
             };
-            format!(
-                "You are the Conductor for Luna OS — an LLM-native operating system.\n\
-                You receive user input and respond with structured JSON actions.\n\n\
-                ## Current Context\n\
-                - Open windows: {window_list}\n\
-                - Active workspace: workspace_default\n\
-                - Recent memory:\n{recent_memory}\n\n\
-                {space}\n\n\
-                ## Dynamic Apps (Interactive UI)\n\
-                Use app.create to build interactive applications. The payload IS the app descriptor.\n\
-                Available component types: DataTable, List, Card, Panel, Container, Grid, Divider, Spacer,\n\
-                TextInput, NumberInput, Select, Checkbox, Toggle, Slider, Stat, Timeline, Tabs, Modal, Toast,\n\
-                Chat, Chart, Gauge, Breadcrumbs, CodeEditor, Terminal.\n\
-                Components use $.field.path for data binding against the \"data\" object.\n\n\
-                ## Response Format\n\
-                Respond ONLY with a JSON array of actions. No markdown outside the JSON.\n\
-                Always include agent.response if you want to communicate text to the user.\n\
-                Example: [{{\"action_type\": \"agent.response\", \"payload\": {{\"text\": \"Hello!\"}}}}]\n"
-            )
+            Self::build_system_prompt(&window_list, &recent_memory, &space)
         } else {
             FALLBACK_SYSTEM_PROMPT.to_string()
         };
@@ -311,7 +327,7 @@ impl ConductorAgent {
 
         // Record token usage
         if let Some(mem) = memory {
-            if let Err(e) = mem.agent_state.record_tokens(&self.id, input_tokens, output_tokens) {
+            if let Err(e) = mem.agent_state.record_tokens(&self.id, input_tokens, output_tokens).await {
                 warn!(error = %e, "Failed to record token usage");
             }
         }
@@ -327,7 +343,7 @@ impl ConductorAgent {
                 &["conductor".to_string(), "streaming".to_string()],
                 "action",
                 None,
-            ) {
+            ).await {
                 warn!(error = %e, "Failed to record episodic event");
             }
         }

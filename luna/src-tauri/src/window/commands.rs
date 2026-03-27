@@ -32,6 +32,17 @@ pub async fn create_window(
             "dynamic_app" => super::types::WindowContentType::DynamicApp,
             "terminal" => super::types::WindowContentType::Terminal,
             "scratchpad" => super::types::WindowContentType::Scratchpad,
+            "spreadsheet" => super::types::WindowContentType::Spreadsheet,
+            "slides" => super::types::WindowContentType::Slides,
+            "email" => super::types::WindowContentType::Email,
+            "calendar" => super::types::WindowContentType::Calendar,
+            "file_manager" => super::types::WindowContentType::FileManager,
+            "kanban" => super::types::WindowContentType::Kanban,
+            "notes" => super::types::WindowContentType::Notes,
+            "calculator" => super::types::WindowContentType::Calculator,
+            "browser" => super::types::WindowContentType::Browser,
+            "music" => super::types::WindowContentType::Music,
+            "code_editor" => super::types::WindowContentType::CodeEditor,
             _ => super::types::WindowContentType::Empty,
         };
         // Update in manager too

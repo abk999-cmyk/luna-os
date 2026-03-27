@@ -19,6 +19,7 @@ export { Gauge } from './Gauge';
 export { Breadcrumbs } from './Breadcrumbs';
 export { CodeEditor } from './CodeEditor';
 export { Terminal } from './Terminal';
+export { Button } from './Button';
 
 export type { PrimitiveProps, ComponentSpec, LayoutSpec } from './types';
 export { layoutToStyle } from './types';

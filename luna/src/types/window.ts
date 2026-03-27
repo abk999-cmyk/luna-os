@@ -5,7 +5,7 @@ export interface WindowState {
   z_order: number;
   visibility: 'visible' | 'minimized' | 'hidden';
   focused: boolean;
-  content_type: 'response' | 'editor' | 'panel' | 'canvas' | 'empty' | 'dynamic_app' | 'terminal' | 'scratchpad';
+  content_type: string; // 'editor' | 'spreadsheet' | 'slides' | 'email' | 'calendar' | 'file_manager' | 'kanban' | 'notes' | 'calculator' | 'browser' | 'music' | 'code_editor' | 'terminal' | 'canvas' | 'scratchpad' | 'response' | 'panel' | 'dynamic_app' | 'empty';
   created_at: string;
 }
 

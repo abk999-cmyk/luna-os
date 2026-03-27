@@ -3,7 +3,7 @@ use crate::state::AppState;
 
 #[tauri::command]
 pub async fn get_user_model(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
-    let model = state.user_model.get_or_create("default")
+    let model = state.user_model.get_or_create("default").await
         .map_err(|e| e.to_string())?;
     serde_json::to_value(&model).map_err(|e| e.to_string())
 }
@@ -14,7 +14,7 @@ pub async fn update_user_expertise(
     domain: String,
     delta: f64,
 ) -> Result<(), String> {
-    state.user_model.update_expertise(&domain, delta)
+    state.user_model.update_expertise(&domain, delta).await
         .map_err(|e| e.to_string())
 }
 
@@ -31,7 +31,7 @@ pub async fn record_learning_observation(
         "corrected" => crate::intelligence::learning::ObservationOutcome::Corrected,
         _ => crate::intelligence::learning::ObservationOutcome::Abandoned,
     };
-    state.learning_engine.record_observation(actions, tags, outcome)
+    state.learning_engine.record_observation(actions, tags, outcome).await
         .map_err(|e| e.to_string())
 }
 
@@ -41,7 +41,7 @@ pub async fn get_automation_proposals(
     state: State<'_, AppState>,
     max_count: Option<usize>,
 ) -> Result<serde_json::Value, String> {
-    let proposals = state.learning_engine.generate_proposals(max_count.unwrap_or(10));
+    let proposals = state.learning_engine.generate_proposals(max_count.unwrap_or(10)).await;
     let pending: Vec<_> = proposals
         .into_iter()
         .filter(|p| p.status == crate::intelligence::learning::ProposalStatus::Pending)
@@ -75,6 +75,7 @@ pub async fn respond_to_proposal(
             vec!["proposal_response".to_string()],
             outcome,
         )
+        .await
         .map_err(|e| e.to_string())?;
     Ok(())
 }
@@ -82,7 +83,7 @@ pub async fn respond_to_proposal(
 /// Returns the full user model as JSON for inspection.
 #[tauri::command]
 pub async fn inspect_user_model(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
-    let model = state.user_model.get_or_create("default")
+    let model = state.user_model.get_or_create("default").await
         .map_err(|e| e.to_string())?;
     serde_json::to_value(&model).map_err(|e| e.to_string())
 }
@@ -90,7 +91,7 @@ pub async fn inspect_user_model(state: State<'_, AppState>) -> Result<serde_json
 /// Resets the user model to defaults (privacy control).
 #[tauri::command]
 pub async fn delete_user_model(state: State<'_, AppState>) -> Result<(), String> {
-    state.user_model.reset_to_defaults("default")
+    state.user_model.reset_to_defaults("default").await
         .map_err(|e| e.to_string())
 }
 
@@ -100,6 +101,6 @@ pub async fn get_user_model_audit(
     state: State<'_, AppState>,
     limit: Option<usize>,
 ) -> Result<serde_json::Value, String> {
-    let entries = state.user_model.get_audit_log(limit.unwrap_or(50));
+    let entries = state.user_model.get_audit_log(limit.unwrap_or(50)).await;
     serde_json::to_value(&entries).map_err(|e| e.to_string())
 }

@@ -4,11 +4,13 @@ import { useAgentStore } from '../stores/agentStore';
 import { useVoiceInput } from '../hooks/useVoiceInput';
 import { VoiceWaveform } from './VoiceWaveform';
 import { StatusIndicator } from './StatusIndicator';
+import { ChatPanel } from './ChatPanel';
 
 export function TextInputBar() {
   const [value, setValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const setStatus = useAgentStore((s) => s.setStatus);
+  const addChatMessage = useAgentStore((s) => s.addChatMessage);
   const hasConductor = useAgentStore((s) => s.hasConductor);
 
   const { startRecording, stopRecording, isRecording, transcript, error: voiceError, analyserNode } = useVoiceInput();
@@ -18,19 +20,20 @@ export function TextInputBar() {
     if (!submitText) return;
 
     setValue('');
+    addChatMessage('user', submitText);
     setStatus('streaming');
 
     try {
       await sendMessageStreaming(submitText);
-      // H6: Don't set idle here — let the agent-stream-done handler in App.tsx own this
     } catch (e) {
       console.error('Failed to send message:', e);
+      addChatMessage('assistant', `Error: ${e}`);
       setStatus('error');
       setTimeout(() => setStatus('idle'), 3000);
     }
 
     inputRef.current?.focus();
-  }, [value, setStatus]);
+  }, [value, setStatus, addChatMessage]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -59,6 +62,8 @@ export function TextInputBar() {
   const displayValue = isRecording && transcript ? transcript : value;
 
   return (
+    <>
+    <ChatPanel />
     <div className="input-bar">
       <div className="input-bar__context">
         {hasConductor ? 'Conductor' : 'No Agent'}
@@ -118,5 +123,6 @@ export function TextInputBar() {
         <StatusIndicator />
       </div>
     </div>
+    </>
   );
 }

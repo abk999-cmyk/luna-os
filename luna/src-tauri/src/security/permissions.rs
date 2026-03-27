@@ -130,8 +130,8 @@ impl PermissionMatrix {
             .collect()
     }
 
-    pub fn log_decision(&self, agent_id: &str, action_type: &str, decision: &str) {
-        let db = self.db.blocking_lock();
+    pub async fn log_decision(&self, agent_id: &str, action_type: &str, decision: &str) {
+        let db = self.db.lock().await;
         let _ = db.permission_log_insert(agent_id, action_type, decision);
     }
 }

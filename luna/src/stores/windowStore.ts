@@ -34,6 +34,10 @@ interface WindowStore {
   detachWindow: (windowId: string) => void;
 }
 
+// Dedup map: title+contentType → timestamp (prevents duplicate window creation)
+const _windowDedupMap = new Map<string, number>();
+const DEDUP_WINDOW_MS = 2000;
+
 export const useWindowStore = create<WindowStore>((set, get) => ({
   windows: [],
   focusedWindowId: null,
@@ -46,6 +50,17 @@ export const useWindowStore = create<WindowStore>((set, get) => ({
   },
 
   addWindow: async (title: string, contentType?: string, content?: string) => {
+    // Dedup guard: skip if same title+contentType was added within last 2 seconds
+    const dedupKey = `${title}::${contentType || 'panel'}`;
+    const now = Date.now();
+    const lastTime = _windowDedupMap.get(dedupKey);
+    if (lastTime && now - lastTime < DEDUP_WINDOW_MS) {
+      // Return a dummy window state to avoid breaking callers
+      const existing = get().windows[get().windows.length - 1];
+      if (existing) return existing;
+    }
+    _windowDedupMap.set(dedupKey, now);
+
     const window = await windowIpc.createWindow(title, undefined, undefined, undefined, undefined, contentType);
     // H8: Unfocus all existing windows before adding new focused window
     set((state) => ({

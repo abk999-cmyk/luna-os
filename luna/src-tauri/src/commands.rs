@@ -157,17 +157,17 @@ pub async fn grant_permission(
         perms.grant(&agent_id, &action_type, permanent)?;
     }
 
-    state.audit.log(&agent_id, &action_type, "granted").ok();
+    state.audit.log(&agent_id, &action_type, "granted").await.ok();
 
     if permanent {
         // Persist to agent_state so it survives restart
-        let mut agent_state = state.memory.agent_state.load(&agent_id)?;
+        let mut agent_state = state.memory.agent_state.load(&agent_id).await?;
         let perms = state.permissions.read().await;
         let grants = perms.serialize_grants(&agent_id);
         if let Some(obj) = agent_state.as_object_mut() {
             obj.insert("granted_permissions".to_string(), serde_json::json!(grants));
         }
-        state.memory.agent_state.save(&agent_id, &agent_state)?;
+        state.memory.agent_state.save(&agent_id, &agent_state).await?;
     }
 
     info!(agent_id = %agent_id, action_type = %action_type, permanent, "Permission granted");
@@ -185,7 +185,7 @@ pub async fn deny_permission(
         let mut perms = state.permissions.write().await;
         perms.deny(&agent_id, &action_type)?;
     }
-    state.audit.log(&agent_id, &action_type, "denied").ok();
+    state.audit.log(&agent_id, &action_type, "denied").await.ok();
     info!(agent_id = %agent_id, action_type = %action_type, "Permission denied");
     Ok(())
 }
@@ -206,7 +206,7 @@ pub async fn query_permission_log(
     agent_id: Option<String>,
     limit: Option<usize>,
 ) -> Result<Vec<serde_json::Value>, LunaError> {
-    state.audit.query(agent_id.as_deref(), limit.unwrap_or(50))
+    state.audit.query(agent_id.as_deref(), limit.unwrap_or(50)).await
 }
 
 /// Send a message with streaming response (token-by-token delivery).
@@ -353,7 +353,7 @@ pub async fn inject_context(
         &["context".into(), "drop".into()],
         "action",
         None,
-    ) {
+    ).await {
         warn!(error = %e, "Failed to record context drop in episodic memory");
     }
 
@@ -364,7 +364,7 @@ pub async fn inject_context(
         &key,
         &format!("{} ({}): {}", source_filename, context_type, summary),
         &tags,
-    );
+    ).await;
 
     // Push to working memory so conductor sees it in next prompt
     let preview = if content.len() > 500 {
@@ -422,7 +422,7 @@ pub async fn query_episodic_by_agent(
     agent_id: String,
     limit: Option<usize>,
 ) -> Result<Vec<serde_json::Value>, LunaError> {
-    state.memory.episodic.query_by_agent(&agent_id, limit.unwrap_or(50))
+    state.memory.episodic.query_by_agent(&agent_id, limit.unwrap_or(50)).await
 }
 
 /// Query episodic memory by time range.
@@ -433,7 +433,7 @@ pub async fn query_episodic_time_range(
     end_ms: i64,
     limit: Option<usize>,
 ) -> Result<Vec<serde_json::Value>, LunaError> {
-    state.memory.episodic.query_time_range(start_ms, end_ms, limit.unwrap_or(100))
+    state.memory.episodic.query_time_range(start_ms, end_ms, limit.unwrap_or(100)).await
 }
 
 /// Search semantic memory by tag.
@@ -442,7 +442,7 @@ pub async fn search_semantic_memory(
     state: State<'_, AppState>,
     tag: String,
 ) -> Result<Vec<(String, String)>, LunaError> {
-    state.memory.semantic.search_by_tag(&tag)
+    state.memory.semantic.search_by_tag(&tag).await
 }
 
 /// Delete a key from the legacy semantic KV store.
@@ -463,11 +463,11 @@ pub async fn delete_semantic_memory(
 pub async fn undo_last_action(
     state: State<'_, AppState>,
 ) -> Result<serde_json::Value, LunaError> {
-    let entries = state.undo_manager.get_recent(1)?;
+    let entries = state.undo_manager.get_recent(1).await?;
     match entries.into_iter().next() {
         Some(entry) => {
             let entry_json = serde_json::to_value(&entry)?;
-            state.undo_manager.mark_executed(&entry.id)?;
+            state.undo_manager.mark_executed(&entry.id).await?;
             Ok(serde_json::json!({
                 "undone": true,
                 "entry": entry_json,
@@ -486,7 +486,7 @@ pub async fn get_undo_history(
     state: State<'_, AppState>,
     limit: Option<usize>,
 ) -> Result<Vec<serde_json::Value>, LunaError> {
-    let entries = state.undo_manager.get_undo_stack(limit.unwrap_or(20))?;
+    let entries = state.undo_manager.get_undo_stack(limit.unwrap_or(20)).await?;
     entries
         .into_iter()
         .map(|e| serde_json::to_value(&e).map_err(LunaError::from))

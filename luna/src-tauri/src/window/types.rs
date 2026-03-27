@@ -61,6 +61,18 @@ pub enum WindowContentType {
     DynamicApp,
     Terminal,
     Scratchpad,
+    // Built-in app types
+    Spreadsheet,
+    Slides,
+    Email,
+    Calendar,
+    FileManager,
+    Kanban,
+    Notes,
+    Calculator,
+    Browser,
+    Music,
+    CodeEditor,
 }
 
 impl WindowState {

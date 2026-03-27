@@ -63,62 +63,44 @@ function App() {
       setHasConductor(status.has_conductor);
     });
 
-    // ── Agent response (non-streaming fallback) ─────────────────────────────
-    const unlistenResponse = listen<{ text?: string }>('agent-response', async (event) => {
-      const text = event.payload?.text || 'No response';
+    // ── Agent response → chat panel ─────────────────────────────────────────
+    const unlistenResponse = listen<{ text?: string }>('agent-response', (_event) => {
+      const text = _event.payload?.text || 'No response';
       setStatus('idle');
-
-      const windows = useWindowStore.getState().windows;
-      const existingResponse = windows.find(
-        (w) => w.content_type === 'response' && w.focused
-      );
-
-      if (existingResponse) {
-        const existing = useWindowStore.getState().windowContent.get(existingResponse.id) || '';
-        setWindowContent(existingResponse.id, existing ? existing + '\n\n---\n\n' + text : text);
-      } else {
-        await addWindow('Response', 'response', text);
-      }
+      useAgentStore.getState().addChatMessage('assistant', text);
     });
 
-    // ── Streaming: accumulate tokens into a response window ─────────────────
-    // H1: Use a Map to support multiple concurrent streams
-    const streamMap = new Map<string, { windowId: string | null; buffer: string }>();
-
-    const unlistenStreamToken = listen<{ token: string; stream_id?: string }>('agent-stream-token', async (event) => {
-      const token = event.payload?.token || '';
-      const streamId = event.payload?.stream_id || 'default';
-
-      if (!streamMap.has(streamId)) {
-        streamMap.set(streamId, { windowId: null, buffer: '' });
-      }
-      const stream = streamMap.get(streamId)!;
-      stream.buffer += token;
-
-      if (!stream.windowId) {
-        const win = await addWindow('Response', 'response', stream.buffer);
-        stream.windowId = win.id;
-      } else {
-        setWindowContent(stream.windowId, stream.buffer);
-      }
+    // ── Streaming: track status only ────────────────────────────────────────
+    // Raw tokens are the LLM's JSON action array — don't display them.
+    // Parsed actions (agent.response, window.create, etc.) are dispatched
+    // through the action system and handled by their own event listeners.
+    const unlistenStreamToken = listen<{ token: string; stream_id?: string }>('agent-stream-token', (_event) => {
+      // Just set status to streaming — actual content comes from dispatched actions
+      setStatus('streaming');
     });
 
-    const unlistenStreamDone = listen<{ stream_id?: string }>('agent-stream-done', (event) => {
-      const streamId = event.payload?.stream_id || 'default';
-      streamMap.delete(streamId);
-      // Only set idle if no more active streams
-      if (streamMap.size === 0) {
-        setStatus('idle');
-      }
+    const unlistenStreamDone = listen<{ stream_id?: string }>('agent-stream-done', (_event) => {
+      setStatus('idle');
     });
 
     // ── Agent window creation ────────────────────────────────────────────────
-    const unlistenWindowCreate = listen<{ title?: string; content_type?: string }>(
+    const windowCreateDedup = new Map<string, number>();
+    const DEDUP_MS = 2000;
+    const unlistenWindowCreate = listen<Record<string, unknown>>(
       'agent-window-create',
       async (event) => {
-        const title = event.payload?.title || 'New Window';
-        const contentType = event.payload?.content_type || 'panel';
-        await addWindow(title, contentType);
+        const p = event.payload || {};
+        const title = (p.title as string) || 'New Window';
+        const contentType = (p.content_type as string) || 'panel';
+        // Dedup guard: skip if same title+contentType was created within 2 seconds
+        const dedupKey = `${title}::${contentType}`;
+        const now = Date.now();
+        const lastTime = windowCreateDedup.get(dedupKey);
+        if (lastTime && now - lastTime < DEDUP_MS) return;
+        windowCreateDedup.set(dedupKey, now);
+        // LLM may use content, text, or body for the window content
+        const content = (p.content as string) || (p.text as string) || (p.body as string) || '';
+        await addWindow(title, contentType, content);
       }
     );
 

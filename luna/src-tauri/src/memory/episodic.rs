@@ -17,7 +17,7 @@ impl EpisodicMemory {
     }
 
     /// Record an event in episodic memory.
-    pub fn record(
+    pub async fn record(
         &self,
         session_id: &str,
         agent_id: &str,
@@ -28,7 +28,7 @@ impl EpisodicMemory {
         category: &str,
         duration_ms: Option<i64>,
     ) -> Result<(), LunaError> {
-        let db = self.db.blocking_lock();
+        let db = self.db.lock().await;
         let id = Uuid::new_v4().to_string();
         let payload_str = serde_json::to_string(payload)?;
         let result_str = serde_json::to_string(result)?;
@@ -38,35 +38,41 @@ impl EpisodicMemory {
     }
 
     /// Query the full timeline for a session.
-    pub fn query_session(&self, session_id: &str, limit: usize) -> Result<Vec<serde_json::Value>, LunaError> {
-        let db = self.db.blocking_lock();
+    pub async fn query_session(&self, session_id: &str, limit: usize) -> Result<Vec<serde_json::Value>, LunaError> {
+        let db = self.db.lock().await;
         db.episodic_query_session(session_id, limit)
     }
 
-    pub fn query_by_agent(&self, agent_id: &str, limit: usize) -> Result<Vec<serde_json::Value>, LunaError> {
-        let db = self.db.blocking_lock();
+    pub async fn query_by_agent(&self, agent_id: &str, limit: usize) -> Result<Vec<serde_json::Value>, LunaError> {
+        let db = self.db.lock().await;
         db.episodic_query_by_agent(agent_id, limit)
     }
 
-    pub fn query_time_range(&self, start_ms: i64, end_ms: i64, limit: usize) -> Result<Vec<serde_json::Value>, LunaError> {
-        let db = self.db.blocking_lock();
+    pub async fn query_time_range(&self, start_ms: i64, end_ms: i64, limit: usize) -> Result<Vec<serde_json::Value>, LunaError> {
+        let db = self.db.lock().await;
         db.episodic_query_time_range(start_ms, end_ms, limit)
     }
 
-    pub fn query_by_category(&self, category: &str, limit: usize) -> Result<Vec<serde_json::Value>, LunaError> {
-        let db = self.db.blocking_lock();
+    pub async fn query_by_category(&self, category: &str, limit: usize) -> Result<Vec<serde_json::Value>, LunaError> {
+        let db = self.db.lock().await;
         db.episodic_query_by_category(category, limit)
     }
 
     /// Purge events older than `days` days. Called once per session start.
-    pub fn purge_old(&self, days: i64) -> Result<usize, LunaError> {
+    pub async fn purge_old(&self, days: i64) -> Result<usize, LunaError> {
+        let db = self.db.lock().await;
+        db.episodic_purge_old(days)
+    }
+
+    /// Synchronous purge for use at startup (before tokio runtime is fully running).
+    pub fn purge_old_sync(&self, days: i64) -> Result<usize, LunaError> {
         let db = self.db.blocking_lock();
         db.episodic_purge_old(days)
     }
 
     /// Get a summary of recent episodic events for prompt injection.
-    pub fn recent_summary(&self, session_id: &str, limit: usize) -> String {
-        match self.query_session(session_id, limit) {
+    pub async fn recent_summary(&self, session_id: &str, limit: usize) -> String {
+        match self.query_session(session_id, limit).await {
             Ok(events) if !events.is_empty() => {
                 let lines: Vec<String> = events.iter().take(5).map(|e| {
                     format!("[{}] {}",

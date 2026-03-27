@@ -338,17 +338,17 @@ impl SignalCollector {
         // Update interaction style based on signal ratios
         if correction_count > 0 {
             let ratio = (correction_count as f64 / total).clamp(0.0, 1.0);
-            self.store.update_interaction_field("correction_frequency", ratio)?;
+            self.store.update_interaction_field("correction_frequency", ratio).await?;
         }
         if override_count > 0 {
             let ratio = (override_count as f64 / total).clamp(0.0, 1.0);
-            self.store.update_interaction_field("override_frequency", ratio)?;
+            self.store.update_interaction_field("override_frequency", ratio).await?;
         }
         if shortcut_count > 0 {
-            self.store.record_interaction("shortcut")?;
+            self.store.record_interaction("shortcut").await?;
         }
         if feedback_count > 0 {
-            self.store.record_interaction("feedback")?;
+            self.store.record_interaction("feedback").await?;
         }
 
         Ok(())
@@ -380,10 +380,10 @@ impl UserModelStore {
     }
 
     /// Load from DB or create a default model.
-    pub fn get_or_create(&self, user_id: &str) -> Result<UserModel, LunaError> {
+    pub async fn get_or_create(&self, user_id: &str) -> Result<UserModel, LunaError> {
         // Check cache first
         {
-            let cached = self.cache.blocking_read();
+            let cached = self.cache.read().await;
             if let Some(ref m) = *cached {
                 if m.user_id == user_id {
                     return Ok(m.clone());
@@ -392,7 +392,7 @@ impl UserModelStore {
         }
 
         let model = {
-            let db = self.db.blocking_lock();
+            let db = self.db.lock().await;
             let result: Option<String> = db
                 .conn()
                 .query_row(
@@ -416,29 +416,29 @@ impl UserModelStore {
             }
         };
         {
-            let mut cached = self.cache.blocking_write();
+            let mut cached = self.cache.write().await;
             *cached = Some(model.clone());
         }
         Ok(model)
     }
 
     /// Persist the model to DB.
-    pub fn save(&self, model: &UserModel) -> Result<(), LunaError> {
+    pub async fn save(&self, model: &UserModel) -> Result<(), LunaError> {
         let json = serde_json::to_string(model)?;
-        let db = self.db.blocking_lock();
+        let db = self.db.lock().await;
         db.conn().execute(
             "INSERT OR REPLACE INTO user_model (user_id, model_json, updated_at) VALUES (?1, ?2, ?3)",
             rusqlite::params![model.user_id, json, model.updated_at],
         )?;
         drop(db);
 
-        let mut cached = self.cache.blocking_write();
+        let mut cached = self.cache.write().await;
         *cached = Some(model.clone());
         Ok(())
     }
 
     /// Record an audit entry for a model update.
-    fn record_audit(&self, dimension: &str, field: &str, old_value: f64, new_value: f64, source: &str) {
+    async fn record_audit(&self, dimension: &str, field: &str, old_value: f64, new_value: f64, source: &str) {
         let entry = ModelAuditEntry {
             timestamp: chrono::Utc::now().timestamp(),
             dimension: dimension.to_string(),
@@ -447,7 +447,7 @@ impl UserModelStore {
             new_value,
             source: source.to_string(),
         };
-        let mut log = self.audit_log.blocking_write();
+        let mut log = self.audit_log.write().await;
         log.push(entry);
         // Keep last 500 entries
         if log.len() > 500 {
@@ -457,27 +457,27 @@ impl UserModelStore {
     }
 
     /// Get recent audit entries.
-    pub fn get_audit_log(&self, limit: usize) -> Vec<ModelAuditEntry> {
-        let log = self.audit_log.blocking_read();
+    pub async fn get_audit_log(&self, limit: usize) -> Vec<ModelAuditEntry> {
+        let log = self.audit_log.read().await;
         let start = if log.len() > limit { log.len() - limit } else { 0 };
         log[start..].to_vec()
     }
 
     /// Reset the user model to defaults (privacy: delete model).
-    pub fn reset_to_defaults(&self, user_id: &str) -> Result<(), LunaError> {
+    pub async fn reset_to_defaults(&self, user_id: &str) -> Result<(), LunaError> {
         let model = UserModel::default_for(user_id);
-        self.save(&model)?;
-        self.record_audit("all", "reset", 0.0, 0.0, "user_request");
+        self.save(&model).await?;
+        self.record_audit("all", "reset", 0.0, 0.0, "user_request").await;
         // Clear audit log on full reset
-        let mut log = self.audit_log.blocking_write();
+        let mut log = self.audit_log.write().await;
         log.clear();
         Ok(())
     }
 
     /// Bayesian-style update: blend prior expertise with new observation.
-    pub fn update_expertise(&self, domain: &str, delta: f64) -> Result<(), LunaError> {
+    pub async fn update_expertise(&self, domain: &str, delta: f64) -> Result<(), LunaError> {
         let mut model = {
-            let cached = self.cache.blocking_read();
+            let cached = self.cache.read().await;
             cached.clone().ok_or_else(|| LunaError::Database("No model loaded".to_string()))?
         };
 
@@ -496,14 +496,14 @@ impl UserModelStore {
 
         model.updated_at = chrono::Utc::now().timestamp();
 
-        self.record_audit("expertise", domain, current, updated, "bayesian_update");
-        self.save(&model)
+        self.record_audit("expertise", domain, current, updated, "bayesian_update").await;
+        self.save(&model).await
     }
 
     /// Rolling average update for a cognitive style field.
-    pub fn update_cognitive_style(&self, field: &str, observed_value: f64) -> Result<(), LunaError> {
+    pub async fn update_cognitive_style(&self, field: &str, observed_value: f64) -> Result<(), LunaError> {
         let mut model = {
-            let cached = self.cache.blocking_read();
+            let cached = self.cache.read().await;
             cached.clone().ok_or_else(|| LunaError::Database("No model loaded".to_string()))?
         };
 
@@ -513,43 +513,43 @@ impl UserModelStore {
                 let v = &mut model.cognitive_style.verbosity_preference;
                 let old = *v;
                 *v = (*v * (1.0 - alpha) + observed_value * alpha).clamp(0.0, 1.0);
-                self.record_audit("cognitive_style", field, old, *v, "rolling_average");
+                self.record_audit("cognitive_style", field, old, *v, "rolling_average").await;
             }
             "detail_orientation" => {
                 let v = &mut model.cognitive_style.detail_orientation;
                 let old = *v;
                 *v = (*v * (1.0 - alpha) + observed_value * alpha).clamp(0.0, 1.0);
-                self.record_audit("cognitive_style", field, old, *v, "rolling_average");
+                self.record_audit("cognitive_style", field, old, *v, "rolling_average").await;
             }
             "decision_speed" => {
                 let v = &mut model.cognitive_style.decision_speed;
                 let old = *v;
                 *v = (*v * (1.0 - alpha) + observed_value * alpha).clamp(0.0, 1.0);
-                self.record_audit("cognitive_style", field, old, *v, "rolling_average");
+                self.record_audit("cognitive_style", field, old, *v, "rolling_average").await;
             }
             "comfort_with_complexity" => {
                 let v = &mut model.cognitive_style.comfort_with_complexity;
                 let old = *v;
                 *v = (*v * (1.0 - alpha) + observed_value * alpha).clamp(0.0, 1.0);
-                self.record_audit("cognitive_style", field, old, *v, "rolling_average");
+                self.record_audit("cognitive_style", field, old, *v, "rolling_average").await;
             }
             "preference_for_examples" => {
                 let v = &mut model.cognitive_style.preference_for_examples;
                 let old = *v;
                 *v = (*v * (1.0 - alpha) + observed_value * alpha).clamp(0.0, 1.0);
-                self.record_audit("cognitive_style", field, old, *v, "rolling_average");
+                self.record_audit("cognitive_style", field, old, *v, "rolling_average").await;
             }
             "risk_tolerance" => {
                 let v = &mut model.cognitive_style.risk_tolerance;
                 let old = *v;
                 *v = (*v * (1.0 - alpha) + observed_value * alpha).clamp(0.0, 1.0);
-                self.record_audit("cognitive_style", field, old, *v, "rolling_average");
+                self.record_audit("cognitive_style", field, old, *v, "rolling_average").await;
             }
             "explanation_depth_wanted" => {
                 let v = &mut model.cognitive_style.explanation_depth_wanted;
                 let old = *v;
                 *v = (*v * (1.0 - alpha) + observed_value * alpha).clamp(0.0, 1.0);
-                self.record_audit("cognitive_style", field, old, *v, "rolling_average");
+                self.record_audit("cognitive_style", field, old, *v, "rolling_average").await;
             }
             _ => {
                 return Err(LunaError::Database(format!(
@@ -559,13 +559,13 @@ impl UserModelStore {
         }
 
         model.updated_at = chrono::Utc::now().timestamp();
-        self.save(&model)
+        self.save(&model).await
     }
 
     /// Track an interaction event (updates interaction style counters).
-    pub fn record_interaction(&self, interaction_type: &str) -> Result<(), LunaError> {
+    pub async fn record_interaction(&self, interaction_type: &str) -> Result<(), LunaError> {
         let mut model = {
-            let cached = self.cache.blocking_read();
+            let cached = self.cache.read().await;
             cached.clone().ok_or_else(|| LunaError::Database("No model loaded".to_string()))?
         };
 
@@ -575,37 +575,37 @@ impl UserModelStore {
                 let v = &mut model.interaction_style.shortcut_usage;
                 let old = *v;
                 *v = (*v * (1.0 - alpha) + 1.0 * alpha).clamp(0.0, 1.0);
-                self.record_audit("interaction_style", "shortcut_usage", old, *v, "interaction");
+                self.record_audit("interaction_style", "shortcut_usage", old, *v, "interaction").await;
             }
             "correction" => {
                 let v = &mut model.interaction_style.correction_frequency;
                 let old = *v;
                 *v = (*v * (1.0 - alpha) + 1.0 * alpha).clamp(0.0, 1.0);
-                self.record_audit("interaction_style", "correction_frequency", old, *v, "interaction");
+                self.record_audit("interaction_style", "correction_frequency", old, *v, "interaction").await;
             }
             "feedback" => {
                 let v = &mut model.interaction_style.feedback_tendency;
                 let old = *v;
                 *v = (*v * (1.0 - alpha) + 1.0 * alpha).clamp(0.0, 1.0);
-                self.record_audit("interaction_style", "feedback_tendency", old, *v, "interaction");
+                self.record_audit("interaction_style", "feedback_tendency", old, *v, "interaction").await;
             }
             "override" => {
                 let v = &mut model.interaction_style.override_frequency;
                 let old = *v;
                 *v = (*v * (1.0 - alpha) + 1.0 * alpha).clamp(0.0, 1.0);
-                self.record_audit("interaction_style", "override_frequency", old, *v, "interaction");
+                self.record_audit("interaction_style", "override_frequency", old, *v, "interaction").await;
             }
             _ => {} // ignore unknown types
         }
 
         model.updated_at = chrono::Utc::now().timestamp();
-        self.save(&model)
+        self.save(&model).await
     }
 
     /// Update an interaction style field directly with a rolling average.
-    pub fn update_interaction_field(&self, field: &str, observed_value: f64) -> Result<(), LunaError> {
+    pub async fn update_interaction_field(&self, field: &str, observed_value: f64) -> Result<(), LunaError> {
         let mut model = {
-            let cached = self.cache.blocking_read();
+            let cached = self.cache.read().await;
             cached.clone().ok_or_else(|| LunaError::Database("No model loaded".to_string()))?
         };
 
@@ -615,25 +615,25 @@ impl UserModelStore {
                 let v = &mut model.interaction_style.correction_frequency;
                 let old = *v;
                 *v = (*v * (1.0 - alpha) + observed_value * alpha).clamp(0.0, 1.0);
-                self.record_audit("interaction_style", field, old, *v, "signal_collector");
+                self.record_audit("interaction_style", field, old, *v, "signal_collector").await;
             }
             "override_frequency" => {
                 let v = &mut model.interaction_style.override_frequency;
                 let old = *v;
                 *v = (*v * (1.0 - alpha) + observed_value * alpha).clamp(0.0, 1.0);
-                self.record_audit("interaction_style", field, old, *v, "signal_collector");
+                self.record_audit("interaction_style", field, old, *v, "signal_collector").await;
             }
             "shortcut_usage" => {
                 let v = &mut model.interaction_style.shortcut_usage;
                 let old = *v;
                 *v = (*v * (1.0 - alpha) + observed_value * alpha).clamp(0.0, 1.0);
-                self.record_audit("interaction_style", field, old, *v, "signal_collector");
+                self.record_audit("interaction_style", field, old, *v, "signal_collector").await;
             }
             "feedback_tendency" => {
                 let v = &mut model.interaction_style.feedback_tendency;
                 let old = *v;
                 *v = (*v * (1.0 - alpha) + observed_value * alpha).clamp(0.0, 1.0);
-                self.record_audit("interaction_style", field, old, *v, "signal_collector");
+                self.record_audit("interaction_style", field, old, *v, "signal_collector").await;
             }
             _ => {
                 return Err(LunaError::Database(format!(
@@ -643,12 +643,12 @@ impl UserModelStore {
         }
 
         model.updated_at = chrono::Utc::now().timestamp();
-        self.save(&model)
+        self.save(&model).await
     }
 
     /// Convenience: get verbosity level from cache.
-    pub fn get_verbosity_level(&self) -> f64 {
-        let cached = self.cache.blocking_read();
+    pub async fn get_verbosity_level(&self) -> f64 {
+        let cached = self.cache.read().await;
         cached
             .as_ref()
             .map(|m| m.cognitive_style.verbosity_preference)
@@ -656,8 +656,8 @@ impl UserModelStore {
     }
 
     /// Convenience: get expertise for a domain from cache.
-    pub fn get_expertise_for(&self, domain: &str) -> f64 {
-        let cached = self.cache.blocking_read();
+    pub async fn get_expertise_for(&self, domain: &str) -> f64 {
+        let cached = self.cache.read().await;
         cached
             .as_ref()
             .and_then(|m| m.expertise.domains.get(domain).copied())
@@ -666,9 +666,9 @@ impl UserModelStore {
 
     /// Apply decay to the user model based on elapsed time since last update.
     /// Call this periodically (e.g., on session start) to let old signals fade.
-    pub fn decay_model(&self) -> Result<(), LunaError> {
+    pub async fn decay_model(&self) -> Result<(), LunaError> {
         let mut model = {
-            let cached = self.cache.blocking_read();
+            let cached = self.cache.read().await;
             cached.clone().ok_or_else(|| LunaError::Database("No model loaded".to_string()))?
         };
 
@@ -742,7 +742,7 @@ impl UserModelStore {
             decay_toward_default(model.contextual_state.urgency, hl);
 
         model.updated_at = now;
-        self.save(&model)
+        self.save(&model).await
     }
 
     /// Estimate cognitive load from system state.
@@ -790,39 +790,39 @@ mod tests {
         UserModelStore::new(db)
     }
 
-    #[test]
-    fn test_get_or_create_returns_default() {
+    #[tokio::test]
+    async fn test_get_or_create_returns_default() {
         let store = make_store();
-        let model = store.get_or_create("user-1").expect("get_or_create");
+        let model = store.get_or_create("user-1").await.expect("get_or_create");
         assert_eq!(model.user_id, "user-1");
         assert!((model.cognitive_style.verbosity_preference - 0.5).abs() < f64::EPSILON);
         assert!(model.expertise.domains.is_empty());
     }
 
-    #[test]
-    fn test_save_and_reload() {
+    #[tokio::test]
+    async fn test_save_and_reload() {
         let store = make_store();
-        let mut model = store.get_or_create("user-1").expect("create");
+        let mut model = store.get_or_create("user-1").await.expect("create");
         model.cognitive_style.verbosity_preference = 0.9;
-        store.save(&model).expect("save");
+        store.save(&model).await.expect("save");
 
         // Clear cache to force DB read
         {
-            let mut cached = store.cache.blocking_write();
+            let mut cached = store.cache.write().await;
             *cached = None;
         }
 
-        let reloaded = store.get_or_create("user-1").expect("reload");
+        let reloaded = store.get_or_create("user-1").await.expect("reload");
         assert!((reloaded.cognitive_style.verbosity_preference - 0.9).abs() < f64::EPSILON);
     }
 
-    #[test]
-    fn test_update_expertise_bayesian() {
+    #[tokio::test]
+    async fn test_update_expertise_bayesian() {
         let store = make_store();
-        store.get_or_create("user-1").expect("create");
+        store.get_or_create("user-1").await.expect("create");
 
-        store.update_expertise("rust", 0.3).expect("update");
-        let level = store.get_expertise_for("rust");
+        store.update_expertise("rust", 0.3).await.expect("update");
+        let level = store.get_expertise_for("rust").await;
         // Prior was 0.5 (default for new domain), delta 0.3
         // new_observation = clamp(0.5 + 0.3, 0, 1) = 0.8
         // updated = (0.5 * 0.7 + 0.8 * 0.3) = 0.35 + 0.24 = 0.59
@@ -830,16 +830,17 @@ mod tests {
         assert!(level < 1.0);
     }
 
-    #[test]
-    fn test_update_cognitive_style_rolling_average() {
+    #[tokio::test]
+    async fn test_update_cognitive_style_rolling_average() {
         let store = make_store();
-        store.get_or_create("user-1").expect("create");
+        store.get_or_create("user-1").await.expect("create");
 
         // Push verbosity toward 1.0
         store
             .update_cognitive_style("verbosity_preference", 1.0)
+            .await
             .expect("update");
-        let v = store.get_verbosity_level();
+        let v = store.get_verbosity_level().await;
         // 0.5 * 0.8 + 1.0 * 0.2 = 0.6
         assert!(
             (v - 0.6).abs() < 0.01,
@@ -847,67 +848,67 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_record_interaction_updates_style() {
+    #[tokio::test]
+    async fn test_record_interaction_updates_style() {
         let store = make_store();
-        store.get_or_create("user-1").expect("create");
+        store.get_or_create("user-1").await.expect("create");
         let initial = {
-            let c = store.cache.blocking_read();
+            let c = store.cache.read().await;
             c.as_ref().unwrap().interaction_style.shortcut_usage
         };
 
-        store.record_interaction("shortcut").expect("record");
+        store.record_interaction("shortcut").await.expect("record");
         let after = {
-            let c = store.cache.blocking_read();
+            let c = store.cache.read().await;
             c.as_ref().unwrap().interaction_style.shortcut_usage
         };
         assert!(after > initial, "shortcut_usage should increase");
     }
 
-    #[test]
-    fn test_unknown_cognitive_field_errors() {
+    #[tokio::test]
+    async fn test_unknown_cognitive_field_errors() {
         let store = make_store();
-        store.get_or_create("user-1").expect("create");
-        let result = store.update_cognitive_style("nonexistent", 0.5);
+        store.get_or_create("user-1").await.expect("create");
+        let result = store.update_cognitive_style("nonexistent", 0.5).await;
         assert!(result.is_err());
     }
 
-    #[test]
-    fn test_new_cognitive_style_fields_default() {
+    #[tokio::test]
+    async fn test_new_cognitive_style_fields_default() {
         let store = make_store();
-        let model = store.get_or_create("user-1").expect("create");
+        let model = store.get_or_create("user-1").await.expect("create");
         assert!((model.cognitive_style.comfort_with_complexity - 0.5).abs() < f64::EPSILON);
         assert!((model.cognitive_style.preference_for_examples - 0.5).abs() < f64::EPSILON);
         assert!((model.cognitive_style.risk_tolerance - 0.5).abs() < f64::EPSILON);
         assert!((model.cognitive_style.explanation_depth_wanted - 0.5).abs() < f64::EPSILON);
     }
 
-    #[test]
-    fn test_new_work_pattern_fields_default() {
+    #[tokio::test]
+    async fn test_new_work_pattern_fields_default() {
         let store = make_store();
-        let model = store.get_or_create("user-1").expect("create");
+        let model = store.get_or_create("user-1").await.expect("create");
         assert!((model.work_patterns.average_session_minutes - 60.0).abs() < f64::EPSILON);
         assert!((model.work_patterns.break_regularity - 0.5).abs() < f64::EPSILON);
     }
 
-    #[test]
-    fn test_override_frequency_default() {
+    #[tokio::test]
+    async fn test_override_frequency_default() {
         let store = make_store();
-        let model = store.get_or_create("user-1").expect("create");
+        let model = store.get_or_create("user-1").await.expect("create");
         assert!((model.interaction_style.override_frequency - 0.2).abs() < f64::EPSILON);
     }
 
-    #[test]
-    fn test_learning_trajectory_default() {
+    #[tokio::test]
+    async fn test_learning_trajectory_default() {
         let store = make_store();
-        let model = store.get_or_create("user-1").expect("create");
+        let model = store.get_or_create("user-1").await.expect("create");
         assert!((model.expertise.learning_trajectory - 0.0).abs() < f64::EPSILON);
     }
 
-    #[test]
-    fn test_cognitive_load_estimation() {
+    #[tokio::test]
+    async fn test_cognitive_load_estimation() {
         let store = make_store();
-        store.get_or_create("user-1").expect("create");
+        store.get_or_create("user-1").await.expect("create");
 
         // Low load: few windows, short session, no switches
         let load = store.estimate_cognitive_load(2, 30.0, 1);
@@ -933,40 +934,40 @@ mod tests {
         assert!((w - 0.25).abs() < 0.001);
     }
 
-    #[test]
-    fn test_audit_log() {
+    #[tokio::test]
+    async fn test_audit_log() {
         let store = make_store();
-        store.get_or_create("user-1").expect("create");
-        store.update_cognitive_style("verbosity_preference", 0.9).expect("update");
-        let log = store.get_audit_log(10);
+        store.get_or_create("user-1").await.expect("create");
+        store.update_cognitive_style("verbosity_preference", 0.9).await.expect("update");
+        let log = store.get_audit_log(10).await;
         assert!(!log.is_empty());
         assert_eq!(log[0].dimension, "cognitive_style");
         assert_eq!(log[0].field, "verbosity_preference");
     }
 
-    #[test]
-    fn test_reset_to_defaults() {
+    #[tokio::test]
+    async fn test_reset_to_defaults() {
         let store = make_store();
-        store.get_or_create("user-1").expect("create");
-        store.update_cognitive_style("verbosity_preference", 0.9).expect("update");
-        store.reset_to_defaults("user-1").expect("reset");
+        store.get_or_create("user-1").await.expect("create");
+        store.update_cognitive_style("verbosity_preference", 0.9).await.expect("update");
+        store.reset_to_defaults("user-1").await.expect("reset");
 
-        let model = store.get_or_create("user-1").expect("reload");
+        let model = store.get_or_create("user-1").await.expect("reload");
         assert!((model.cognitive_style.verbosity_preference - 0.5).abs() < f64::EPSILON);
     }
 
-    #[test]
-    fn test_update_new_cognitive_fields() {
+    #[tokio::test]
+    async fn test_update_new_cognitive_fields() {
         let store = make_store();
-        store.get_or_create("user-1").expect("create");
+        store.get_or_create("user-1").await.expect("create");
 
-        store.update_cognitive_style("comfort_with_complexity", 0.8).expect("update");
-        store.update_cognitive_style("risk_tolerance", 0.3).expect("update");
-        store.update_cognitive_style("preference_for_examples", 0.9).expect("update");
-        store.update_cognitive_style("explanation_depth_wanted", 0.1).expect("update");
+        store.update_cognitive_style("comfort_with_complexity", 0.8).await.expect("update");
+        store.update_cognitive_style("risk_tolerance", 0.3).await.expect("update");
+        store.update_cognitive_style("preference_for_examples", 0.9).await.expect("update");
+        store.update_cognitive_style("explanation_depth_wanted", 0.1).await.expect("update");
 
         let model = {
-            let c = store.cache.blocking_read();
+            let c = store.cache.read().await;
             c.clone().unwrap()
         };
         // comfort_with_complexity: 0.5 * 0.8 + 0.8 * 0.2 = 0.56
@@ -974,40 +975,40 @@ mod tests {
         assert!(model.cognitive_style.risk_tolerance < 0.5);
     }
 
-    #[test]
-    fn test_record_override_interaction() {
+    #[tokio::test]
+    async fn test_record_override_interaction() {
         let store = make_store();
-        store.get_or_create("user-1").expect("create");
+        store.get_or_create("user-1").await.expect("create");
         let initial = {
-            let c = store.cache.blocking_read();
+            let c = store.cache.read().await;
             c.as_ref().unwrap().interaction_style.override_frequency
         };
 
-        store.record_interaction("override").expect("record");
+        store.record_interaction("override").await.expect("record");
         let after = {
-            let c = store.cache.blocking_read();
+            let c = store.cache.read().await;
             c.as_ref().unwrap().interaction_style.override_frequency
         };
         assert!(after > initial, "override_frequency should increase");
     }
 
-    #[test]
-    fn test_expertise_learning_trajectory_updates() {
+    #[tokio::test]
+    async fn test_expertise_learning_trajectory_updates() {
         let store = make_store();
-        store.get_or_create("user-1").expect("create");
+        store.get_or_create("user-1").await.expect("create");
 
         // Positive delta should push trajectory positive
-        store.update_expertise("rust", 0.2).expect("update");
+        store.update_expertise("rust", 0.2).await.expect("update");
         let model = {
-            let c = store.cache.blocking_read();
+            let c = store.cache.read().await;
             c.clone().unwrap()
         };
         assert!(model.expertise.learning_trajectory > 0.0, "trajectory should be positive");
 
         // Negative delta should pull trajectory down
-        store.update_expertise("rust", -0.3).expect("update");
+        store.update_expertise("rust", -0.3).await.expect("update");
         let model = {
-            let c = store.cache.blocking_read();
+            let c = store.cache.read().await;
             c.clone().unwrap()
         };
         // After positive then negative, trajectory is mixed

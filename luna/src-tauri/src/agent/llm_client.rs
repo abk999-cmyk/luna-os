@@ -49,7 +49,7 @@ struct AnthropicRequest {
 #[derive(Debug, Serialize)]
 struct OpenAIRequest {
     model: String,
-    max_tokens: u32,
+    max_completion_tokens: u32,
     messages: Vec<OpenAIMessage>,
 }
 
@@ -132,7 +132,7 @@ impl LlmClient {
         Self {
             client: Client::new(),
             api_key,
-            model: "gpt-4o".to_string(),
+            model: "gpt-5.4".to_string(),
             provider: LlmProvider::OpenAI,
             health: Arc::new(Mutex::new(HealthState::default())),
         }
@@ -144,7 +144,7 @@ impl LlmClient {
     /// A provider is unhealthy when there have been more than 3 consecutive
     /// errors within the last 60 seconds.
     pub fn is_healthy(&self) -> bool {
-        let state = self.health.lock().unwrap();
+        let state = self.health.lock().unwrap_or_else(|e| e.into_inner());
         if state.consecutive_errors > 3 {
             if let Some(last) = state.last_error_time {
                 return last.elapsed().as_secs() >= 60;
@@ -155,21 +155,21 @@ impl LlmClient {
 
     /// Record a successful request (resets the error counter).
     fn record_success(&self) {
-        let mut state = self.health.lock().unwrap();
+        let mut state = self.health.lock().unwrap_or_else(|e| e.into_inner());
         state.consecutive_errors = 0;
         state.last_error_time = None;
     }
 
     /// Record a failed request.
     fn record_error(&self) {
-        let mut state = self.health.lock().unwrap();
+        let mut state = self.health.lock().unwrap_or_else(|e| e.into_inner());
         state.consecutive_errors += 1;
         state.last_error_time = Some(Instant::now());
     }
 
     /// Get the current consecutive error count (useful for diagnostics).
     pub fn consecutive_errors(&self) -> u32 {
-        self.health.lock().unwrap().consecutive_errors
+        self.health.lock().unwrap_or_else(|e| e.into_inner()).consecutive_errors
     }
 
     // -- Request methods ----------------------------------------------------
@@ -296,7 +296,7 @@ impl LlmClient {
 
         let request = OpenAIRequest {
             model: self.model.clone(),
-            max_tokens,
+            max_completion_tokens: max_tokens,
             messages: oai_messages,
         };
 

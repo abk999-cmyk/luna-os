@@ -52,7 +52,7 @@ impl TemplateRegistry {
     }
 
     /// Save a running app's current state as a template.
-    pub fn save_as_template(
+    pub async fn save_as_template(
         &self,
         name: &str,
         description: &str,
@@ -68,7 +68,7 @@ impl TemplateRegistry {
         let tags_json = serde_json::to_string(&tags)?;
         let descriptor_json = serde_json::to_string(descriptor)?;
 
-        let database = self.db.blocking_lock();
+        let database = self.db.lock().await;
         database.template_save(&id, name, description, category, &tags_json, &descriptor_json, created_at)?;
 
         Ok(AppTemplate {
@@ -84,41 +84,41 @@ impl TemplateRegistry {
     }
 
     /// Get a template by ID.
-    pub fn get_template(&self, id: &str) -> Result<Option<AppTemplate>, LunaError> {
-        let database = self.db.blocking_lock();
+    pub async fn get_template(&self, id: &str) -> Result<Option<AppTemplate>, LunaError> {
+        let database = self.db.lock().await;
         let row = database.template_get(id)?;
         Ok(row.as_ref().and_then(template_from_row))
     }
 
     /// List all templates.
-    pub fn list_templates(&self) -> Result<Vec<AppTemplate>, LunaError> {
-        let database = self.db.blocking_lock();
+    pub async fn list_templates(&self) -> Result<Vec<AppTemplate>, LunaError> {
+        let database = self.db.lock().await;
         let rows = database.template_list()?;
         Ok(rows.iter().filter_map(template_from_row).collect())
     }
 
     /// Search templates by name/description/tags.
-    pub fn search_templates(&self, query: &str) -> Result<Vec<AppTemplate>, LunaError> {
-        let database = self.db.blocking_lock();
+    pub async fn search_templates(&self, query: &str) -> Result<Vec<AppTemplate>, LunaError> {
+        let database = self.db.lock().await;
         let rows = database.template_search(query)?;
         Ok(rows.iter().filter_map(template_from_row).collect())
     }
 
     /// Delete a template.
-    pub fn delete_template(&self, id: &str) -> Result<(), LunaError> {
-        let database = self.db.blocking_lock();
+    pub async fn delete_template(&self, id: &str) -> Result<(), LunaError> {
+        let database = self.db.lock().await;
         database.template_delete(id)
     }
 
     /// Instantiate an app from a template.
     /// Returns a new AppDescriptor with a fresh ID and customized title.
-    pub fn instantiate(
+    pub async fn instantiate(
         &self,
         template_id: &str,
         new_app_id: &str,
         new_title: Option<&str>,
     ) -> Result<AppDescriptor, LunaError> {
-        let template = self.get_template(template_id)?.ok_or_else(|| {
+        let template = self.get_template(template_id).await?.ok_or_else(|| {
             LunaError::Dispatch(format!("Template not found: {}", template_id))
         })?;
 
@@ -130,7 +130,7 @@ impl TemplateRegistry {
 
         // Increment use count
         {
-            let database = self.db.blocking_lock();
+            let database = self.db.lock().await;
             database.template_increment_use(template_id)?;
         }
 
@@ -177,101 +177,111 @@ mod tests {
         TemplateRegistry::new(db)
     }
 
-    #[test]
-    fn test_save_and_retrieve_template() {
+    #[tokio::test]
+    async fn test_save_and_retrieve_template() {
         let registry = make_registry();
         let desc = make_descriptor("app_1", "My App");
         let template = registry
             .save_as_template("My Template", "A test template", "productivity", vec!["test".to_string()], &desc)
+            .await
             .unwrap();
         assert_eq!(template.name, "My Template");
         assert_eq!(template.category, "productivity");
 
-        let retrieved = registry.get_template(&template.id).unwrap().unwrap();
+        let retrieved = registry.get_template(&template.id).await.unwrap().unwrap();
         assert_eq!(retrieved.name, "My Template");
         assert_eq!(retrieved.descriptor.title, "My App");
     }
 
-    #[test]
-    fn test_list_templates() {
+    #[tokio::test]
+    async fn test_list_templates() {
         let registry = make_registry();
         let desc1 = make_descriptor("app_1", "App One");
         let desc2 = make_descriptor("app_2", "App Two");
         registry
             .save_as_template("Template 1", "First", "productivity", vec![], &desc1)
+            .await
             .unwrap();
         registry
             .save_as_template("Template 2", "Second", "data", vec![], &desc2)
+            .await
             .unwrap();
 
-        let list = registry.list_templates().unwrap();
+        let list = registry.list_templates().await.unwrap();
         assert_eq!(list.len(), 2);
     }
 
-    #[test]
-    fn test_search_by_name() {
+    #[tokio::test]
+    async fn test_search_by_name() {
         let registry = make_registry();
         let desc = make_descriptor("app_1", "My App");
         registry
             .save_as_template("Calculator Template", "A calculator", "utility", vec!["math".to_string()], &desc)
+            .await
             .unwrap();
         registry
             .save_as_template("Notes App", "A notes app", "productivity", vec!["notes".to_string()], &desc)
+            .await
             .unwrap();
 
-        let results = registry.search_templates("Calculator").unwrap();
+        let results = registry.search_templates("Calculator").await.unwrap();
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].name, "Calculator Template");
 
         // Search by tag
-        let results = registry.search_templates("notes").unwrap();
+        let results = registry.search_templates("notes").await.unwrap();
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].name, "Notes App");
     }
 
-    #[test]
-    fn test_instantiate_creates_new_descriptor() {
+    #[tokio::test]
+    async fn test_instantiate_creates_new_descriptor() {
         let registry = make_registry();
         let desc = make_descriptor("original_id", "Original Title");
         let template = registry
             .save_as_template("My Template", "desc", "general", vec![], &desc)
+            .await
             .unwrap();
 
         let new_desc = registry
             .instantiate(&template.id, "new_app_id", Some("New Title"))
+            .await
             .unwrap();
         assert_eq!(new_desc.id, "new_app_id");
         assert_eq!(new_desc.title, "New Title");
 
         // Verify use count incremented
-        let updated = registry.get_template(&template.id).unwrap().unwrap();
+        let updated = registry.get_template(&template.id).await.unwrap().unwrap();
         assert_eq!(updated.use_count, 1);
     }
 
-    #[test]
-    fn test_delete_template() {
+    #[tokio::test]
+    async fn test_delete_template() {
         let registry = make_registry();
         let desc = make_descriptor("app_1", "My App");
         let template = registry
             .save_as_template("To Delete", "will be deleted", "general", vec![], &desc)
+            .await
             .unwrap();
 
-        registry.delete_template(&template.id).unwrap();
+        registry.delete_template(&template.id).await.unwrap();
 
-        let result = registry.get_template(&template.id).unwrap();
+        let result = registry.get_template(&template.id).await.unwrap();
         assert!(result.is_none());
     }
 
-    #[test]
-    fn test_instantiate_without_new_title_keeps_original() {
+    #[tokio::test]
+    async fn test_instantiate_without_new_title_keeps_original() {
         let registry = make_registry();
         let desc = make_descriptor("original_id", "Original Title");
         let template = registry
             .save_as_template("My Template", "desc", "general", vec![], &desc)
+            .await
             .unwrap();
 
         let new_desc = registry
             .instantiate(&template.id, "new_app_id", None)
+            .await
             .unwrap();
         assert_eq!(new_desc.id, "new_app_id");
         assert_eq!(new_desc.title, "Original Title");

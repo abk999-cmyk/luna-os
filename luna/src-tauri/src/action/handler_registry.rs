@@ -196,6 +196,24 @@ pub fn register_core_handlers(registry: &ActionHandlerRegistry) {
         }),
     );
 
+    // user.text_input → no-op (actual handling is in send_message/send_message_streaming)
+    registry.register(
+        "user.text_input",
+        Arc::new(|_action, _handle, _state| {
+            Box::pin(async move { Ok(()) })
+        }),
+    );
+
+    // system.startup/shutdown/session_start/session_end → no-op (lifecycle events)
+    for event_type in &["system.startup", "system.shutdown", "system.session_start", "system.session_end"] {
+        registry.register(
+            event_type,
+            Arc::new(|_action, _handle, _state| {
+                Box::pin(async move { Ok(()) })
+            }),
+        );
+    }
+
     // agent.delegate → route to workspace orchestrator
     registry.register(
         "agent.delegate",
@@ -268,7 +286,7 @@ pub fn register_core_handlers(registry: &ActionHandlerRegistry) {
                 };
 
                 // Register in AppManager — rollback window on failure (H3)
-                if let Err(e) = state.app_manager.create_app(descriptor.clone(), window_id.clone(), agent_id) {
+                if let Err(e) = state.app_manager.create_app(descriptor.clone(), window_id.clone(), agent_id).await {
                     // Rollback: remove the orphaned window
                     let mut wm = state.window_manager.write().await;
                     let _ = wm.close_window(&window_id);
@@ -307,7 +325,7 @@ pub fn register_core_handlers(registry: &ActionHandlerRegistry) {
 
                 // Update data context if provided
                 if let Some(data) = action.payload.get("data").cloned() {
-                    state.app_manager.update_data(&app_id, data)?;
+                    state.app_manager.update_data(&app_id, data).await?;
                 }
 
                 // Update components (full spec replacement) if provided
@@ -317,7 +335,7 @@ pub fn register_core_handlers(registry: &ActionHandlerRegistry) {
                         if let Ok(comps) = serde_json::from_value(components.clone()) {
                             new_desc.components = comps;
                         }
-                        state.app_manager.update_spec(&app_id, new_desc)?;
+                        state.app_manager.update_spec(&app_id, new_desc).await?;
                     }
                 }
 
@@ -353,7 +371,7 @@ pub fn register_core_handlers(registry: &ActionHandlerRegistry) {
                     .ok_or_else(|| LunaError::Dispatch("app.destroy requires app_id".into()))?
                     .to_string();
 
-                let app = state.app_manager.destroy_app(&app_id)?;
+                let app = state.app_manager.destroy_app(&app_id).await?;
 
                 // Deregister any app-specific handlers
                 state.handler_registry.deregister_app_handlers(&app_id);
@@ -432,7 +450,7 @@ pub fn register_core_handlers(registry: &ActionHandlerRegistry) {
                                 .collect()
                         })
                         .unwrap_or_default();
-                    let _ = state.memory.semantic.store(key, val, &tags);
+                    let _ = state.memory.semantic.store(key, val, &tags).await;
                     tracing::debug!(key = %key, "Stored value in semantic memory");
                 }
                 Ok(())
@@ -451,7 +469,7 @@ pub fn register_core_handlers(registry: &ActionHandlerRegistry) {
                     .and_then(|v| v.as_str())
                     .ok_or_else(|| LunaError::Dispatch("memory.search requires 'tag'".into()))?
                     .to_string();
-                let results = state.memory.semantic.search_by_tag(&tag)?;
+                let results: Vec<(String, String)> = state.memory.semantic.search_by_tag(&tag).await?;
                 let results_json: Vec<serde_json::Value> = results
                     .into_iter()
                     .map(|(k, v)| serde_json::json!({"key": k, "value": v}))
@@ -478,7 +496,7 @@ pub fn register_core_handlers(registry: &ActionHandlerRegistry) {
                     .and_then(|v| v.as_str())
                     .ok_or_else(|| LunaError::Dispatch("memory.delete requires 'key'".into()))?
                     .to_string();
-                let _ = state.memory.semantic.delete(&key)?;
+                let _: bool = state.memory.semantic.delete(&key).await?;
                 tracing::debug!(key = %key, "Deleted value from semantic memory");
                 Ok(())
             })
@@ -697,6 +715,32 @@ pub fn register_core_handlers(registry: &ActionHandlerRegistry) {
         }),
     );
 
+    // window.resize → emit to frontend
+    registry.register(
+        "window.resize",
+        Arc::new(|action, handle, _state| {
+            Box::pin(async move {
+                if let Err(e) = handle.emit("agent-window-resize", &action.payload) {
+                    tracing::debug!(error = %e, "Failed to emit agent-window-resize");
+                }
+                Ok(())
+            })
+        }),
+    );
+
+    // window.move → emit to frontend
+    registry.register(
+        "window.move",
+        Arc::new(|action, handle, _state| {
+            Box::pin(async move {
+                if let Err(e) = handle.emit("agent-window-move", &action.payload) {
+                    tracing::debug!(error = %e, "Failed to emit agent-window-move");
+                }
+                Ok(())
+            })
+        }),
+    );
+
     // window.maximize → emit to frontend
     registry.register(
         "window.maximize",
@@ -802,7 +846,7 @@ pub fn register_core_handlers(registry: &ActionHandlerRegistry) {
                     .ok_or_else(|| LunaError::Dispatch("config.get requires 'key'".into()))?
                     .to_string();
                 let config_key = format!("config:{}", key);
-                let value = state.memory.semantic.get(&config_key)?;
+                let value: Option<String> = state.memory.semantic.get(&config_key).await?;
                 if let Err(e) = handle.emit(
                     "config-get-result",
                     serde_json::json!({"key": key, "value": value}),
@@ -835,7 +879,7 @@ pub fn register_core_handlers(registry: &ActionHandlerRegistry) {
                     serde_json::Value::String(s) => s.clone(),
                     other => other.to_string(),
                 };
-                state.memory.semantic.store(&config_key, &value_str, &["config".to_string()])?;
+                state.memory.semantic.store(&config_key, &value_str, &["config".to_string()]).await?;
                 if let Err(e) = handle.emit(
                     "config-set-result",
                     serde_json::json!({"key": key, "value": value, "success": true}),

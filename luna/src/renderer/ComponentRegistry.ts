@@ -7,6 +7,7 @@ import {
   Stat, Timeline, Tabs, Modal,
   Chat, Chart, Gauge, Breadcrumbs,
   CodeEditor, Terminal,
+  Button,
 } from '../components/primitives';
 
 type PrimitiveComponent = ComponentType<PrimitiveProps>;
@@ -54,4 +55,5 @@ export function registerBuiltinComponents() {
   registerComponent('Breadcrumbs', Breadcrumbs);
   registerComponent('CodeEditor', CodeEditor);
   registerComponent('Terminal', Terminal);
+  registerComponent('Button', Button);
 }
