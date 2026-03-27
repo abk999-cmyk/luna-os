@@ -19,7 +19,8 @@ body {
   line-height: 1.5;
   color: var(--text-primary);
   background: var(--canvas-bg);
-  user-select: none;
+  /* Allow text selection in content areas; chrome elements opt out individually */
+  user-select: auto;
 }
 
 input, textarea, button {

@@ -81,3 +81,60 @@ pub enum ActionStatus {
     Completed,
     Failed(String),
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_action_new_defaults() {
+        let action = Action::new(
+            "window.create".to_string(),
+            serde_json::json!({"title": "Hello"}),
+            ActionSource::User,
+        );
+        assert_eq!(action.action_type, "window.create");
+        assert_eq!(action.priority, Priority::Normal);
+        assert_eq!(action.retry_count, 0);
+        assert_eq!(action.status, ActionStatus::Pending);
+        assert!(action.target_agent_id.is_none());
+    }
+
+    #[test]
+    fn test_action_for_agent_sets_target() {
+        let action = Action::new(
+            "agent.response".to_string(),
+            serde_json::Value::Null,
+            ActionSource::User,
+        )
+        .for_agent("orchestrator_1");
+        assert_eq!(action.target_agent_id, Some("orchestrator_1".to_string()));
+    }
+
+    #[test]
+    fn test_action_system_constructor() {
+        let action = Action::system("system.startup");
+        assert_eq!(action.action_type, "system.startup");
+        assert_eq!(action.source, ActionSource::System);
+        assert_eq!(action.payload, serde_json::Value::Null);
+    }
+
+    #[test]
+    fn test_action_status_variants() {
+        let pending = ActionStatus::Pending;
+        let completed = ActionStatus::Completed;
+        let failed = ActionStatus::Failed("oops".to_string());
+        assert_eq!(pending, ActionStatus::Pending);
+        assert_eq!(completed, ActionStatus::Completed);
+        assert_eq!(failed, ActionStatus::Failed("oops".to_string()));
+        assert_ne!(pending, completed);
+    }
+
+    #[test]
+    fn test_priority_variants_are_distinct() {
+        assert_ne!(Priority::Low, Priority::Normal);
+        assert_ne!(Priority::Normal, Priority::High);
+        assert_ne!(Priority::High, Priority::Critical);
+        assert_eq!(Priority::Low, Priority::Low);
+    }
+}

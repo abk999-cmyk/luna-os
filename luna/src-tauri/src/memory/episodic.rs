@@ -1,4 +1,5 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 use uuid::Uuid;
 
 use crate::error::LunaError;
@@ -7,11 +8,11 @@ use crate::persistence::db::Database;
 /// Episodic memory — a timeline of events per agent/session.
 /// Backed by SQLite for durability.
 pub struct EpisodicMemory {
-    db: Arc<Mutex<Option<Database>>>,
+    db: Arc<Mutex<Database>>,
 }
 
 impl EpisodicMemory {
-    pub fn new(db: Arc<Mutex<Option<Database>>>) -> Self {
+    pub fn new(db: Arc<Mutex<Database>>) -> Self {
         Self { db }
     }
 
@@ -24,34 +25,43 @@ impl EpisodicMemory {
         payload: &serde_json::Value,
         result: &serde_json::Value,
         tags: &[String],
+        category: &str,
+        duration_ms: Option<i64>,
     ) -> Result<(), LunaError> {
-        let db_guard = self.db.lock().unwrap();
-        if let Some(ref db) = *db_guard {
-            let id = Uuid::new_v4().to_string();
-            let payload_str = serde_json::to_string(payload)?;
-            let result_str = serde_json::to_string(result)?;
-            let tags_str = serde_json::to_string(&tags)?;
-            db.episodic_record(&id, session_id, agent_id, action_type, &payload_str, &result_str, &tags_str)?;
-        }
+        let db = self.db.blocking_lock();
+        let id = Uuid::new_v4().to_string();
+        let payload_str = serde_json::to_string(payload)?;
+        let result_str = serde_json::to_string(result)?;
+        let tags_str = serde_json::to_string(&tags)?;
+        db.episodic_record(&id, session_id, agent_id, action_type, &payload_str, &result_str, &tags_str, category, duration_ms)?;
         Ok(())
     }
 
     /// Query the full timeline for a session.
     pub fn query_session(&self, session_id: &str, limit: usize) -> Result<Vec<serde_json::Value>, LunaError> {
-        let db_guard = self.db.lock().unwrap();
-        if let Some(ref db) = *db_guard {
-            return db.episodic_query_session(session_id, limit);
-        }
-        Ok(Vec::new())
+        let db = self.db.blocking_lock();
+        db.episodic_query_session(session_id, limit)
+    }
+
+    pub fn query_by_agent(&self, agent_id: &str, limit: usize) -> Result<Vec<serde_json::Value>, LunaError> {
+        let db = self.db.blocking_lock();
+        db.episodic_query_by_agent(agent_id, limit)
+    }
+
+    pub fn query_time_range(&self, start_ms: i64, end_ms: i64, limit: usize) -> Result<Vec<serde_json::Value>, LunaError> {
+        let db = self.db.blocking_lock();
+        db.episodic_query_time_range(start_ms, end_ms, limit)
+    }
+
+    pub fn query_by_category(&self, category: &str, limit: usize) -> Result<Vec<serde_json::Value>, LunaError> {
+        let db = self.db.blocking_lock();
+        db.episodic_query_by_category(category, limit)
     }
 
     /// Purge events older than `days` days. Called once per session start.
     pub fn purge_old(&self, days: i64) -> Result<usize, LunaError> {
-        let db_guard = self.db.lock().unwrap();
-        if let Some(ref db) = *db_guard {
-            return db.episodic_purge_old(days);
-        }
-        Ok(0)
+        let db = self.db.blocking_lock();
+        db.episodic_purge_old(days)
     }
 
     /// Get a summary of recent episodic events for prompt injection.

@@ -36,7 +36,7 @@ impl ActionHandlerRegistry {
 
     /// Register a handler for a given action type.
     pub fn register(&self, action_type: &str, handler: ActionHandlerFn) {
-        let mut handlers = self.handlers.write().unwrap();
+        let mut handlers = self.handlers.write().unwrap_or_else(|e| e.into_inner());
         handlers.insert(action_type.to_string(), handler);
     }
 
@@ -48,7 +48,7 @@ impl ActionHandlerRegistry {
         handler: ActionHandlerFn,
     ) {
         self.register(action_type, handler);
-        let mut app_handlers = self.app_handlers.write().unwrap();
+        let mut app_handlers = self.app_handlers.write().unwrap_or_else(|e| e.into_inner());
         app_handlers
             .entry(app_id.to_string())
             .or_default()
@@ -57,9 +57,9 @@ impl ActionHandlerRegistry {
 
     /// Remove all handlers registered by a specific app.
     pub fn deregister_app_handlers(&self, app_id: &str) {
-        let mut app_handlers = self.app_handlers.write().unwrap();
+        let mut app_handlers = self.app_handlers.write().unwrap_or_else(|e| e.into_inner());
         if let Some(types) = app_handlers.remove(app_id) {
-            let mut handlers = self.handlers.write().unwrap();
+            let mut handlers = self.handlers.write().unwrap_or_else(|e| e.into_inner());
             for action_type in types {
                 handlers.remove(&action_type);
             }
@@ -75,7 +75,7 @@ impl ActionHandlerRegistry {
         app_state: &Arc<AppState>,
     ) -> Result<bool, LunaError> {
         let handler = {
-            let handlers = self.handlers.read().unwrap();
+            let handlers = self.handlers.read().unwrap_or_else(|e| e.into_inner());
             handlers.get(&action.action_type).cloned()
         };
 
@@ -96,7 +96,7 @@ impl ActionHandlerRegistry {
 
     /// Check if a handler is registered for the given action type.
     pub fn has_handler(&self, action_type: &str) -> bool {
-        let handlers = self.handlers.read().unwrap();
+        let handlers = self.handlers.read().unwrap_or_else(|e| e.into_inner());
         handlers.contains_key(action_type)
     }
 }
@@ -434,6 +434,534 @@ pub fn register_core_handlers(registry: &ActionHandlerRegistry) {
                         .unwrap_or_default();
                     let _ = state.memory.semantic.store(key, val, &tags);
                     tracing::debug!(key = %key, "Stored value in semantic memory");
+                }
+                Ok(())
+            })
+        }),
+    );
+
+    // memory.search → search semantic memory by tag
+    registry.register(
+        "memory.search",
+        Arc::new(|action, handle, state| {
+            Box::pin(async move {
+                let tag = action
+                    .payload
+                    .get("tag")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| LunaError::Dispatch("memory.search requires 'tag'".into()))?
+                    .to_string();
+                let results = state.memory.semantic.search_by_tag(&tag)?;
+                let results_json: Vec<serde_json::Value> = results
+                    .into_iter()
+                    .map(|(k, v)| serde_json::json!({"key": k, "value": v}))
+                    .collect();
+                if let Err(e) = handle.emit(
+                    "memory-search-result",
+                    serde_json::json!({"tag": tag, "results": results_json}),
+                ) {
+                    tracing::debug!(error = %e, "Failed to emit memory-search-result");
+                }
+                Ok(())
+            })
+        }),
+    );
+
+    // memory.delete → delete from semantic memory
+    registry.register(
+        "memory.delete",
+        Arc::new(|action, _handle, state| {
+            Box::pin(async move {
+                let key = action
+                    .payload
+                    .get("key")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| LunaError::Dispatch("memory.delete requires 'key'".into()))?
+                    .to_string();
+                let _ = state.memory.semantic.delete(&key)?;
+                tracing::debug!(key = %key, "Deleted value from semantic memory");
+                Ok(())
+            })
+        }),
+    );
+
+    // fs.read → read file contents with sandbox validation
+    registry.register(
+        "fs.read",
+        Arc::new(|action, handle, state| {
+            Box::pin(async move {
+                let path_str = action
+                    .payload
+                    .get("path")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| LunaError::Dispatch("fs.read requires 'path'".into()))?
+                    .to_string();
+                let path = std::path::Path::new(&path_str);
+                let agent_id = match &action.source {
+                    crate::action::types::ActionSource::Agent(id) => id.clone(),
+                    _ => "system".to_string(),
+                };
+                state.sandbox_manager.check_read(&agent_id, path).await?;
+                let content = tokio::fs::read_to_string(path).await.map_err(|e| {
+                    LunaError::Dispatch(format!("Failed to read file '{}': {}", path_str, e))
+                })?;
+                if let Err(e) = handle.emit(
+                    "fs-read-result",
+                    serde_json::json!({"path": path_str, "content": content}),
+                ) {
+                    tracing::debug!(error = %e, "Failed to emit fs-read-result");
+                }
+                Ok(())
+            })
+        }),
+    );
+
+    // fs.write → write file with sandbox validation
+    registry.register(
+        "fs.write",
+        Arc::new(|action, handle, state| {
+            Box::pin(async move {
+                let path_str = action
+                    .payload
+                    .get("path")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| LunaError::Dispatch("fs.write requires 'path'".into()))?
+                    .to_string();
+                let content = action
+                    .payload
+                    .get("content")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| LunaError::Dispatch("fs.write requires 'content'".into()))?
+                    .to_string();
+                let path = std::path::Path::new(&path_str);
+                let agent_id = match &action.source {
+                    crate::action::types::ActionSource::Agent(id) => id.clone(),
+                    _ => "system".to_string(),
+                };
+                state.sandbox_manager.check_write(&agent_id, path).await?;
+                tokio::fs::write(path, &content).await.map_err(|e| {
+                    LunaError::Dispatch(format!("Failed to write file '{}': {}", path_str, e))
+                })?;
+                if let Err(e) = handle.emit(
+                    "fs-write-result",
+                    serde_json::json!({"path": path_str, "success": true}),
+                ) {
+                    tracing::debug!(error = %e, "Failed to emit fs-write-result");
+                }
+                Ok(())
+            })
+        }),
+    );
+
+    // fs.delete → delete file with sandbox validation
+    registry.register(
+        "fs.delete",
+        Arc::new(|action, handle, state| {
+            Box::pin(async move {
+                let path_str = action
+                    .payload
+                    .get("path")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| LunaError::Dispatch("fs.delete requires 'path'".into()))?
+                    .to_string();
+                let path = std::path::Path::new(&path_str);
+                let agent_id = match &action.source {
+                    crate::action::types::ActionSource::Agent(id) => id.clone(),
+                    _ => "system".to_string(),
+                };
+                state.sandbox_manager.check_write(&agent_id, path).await?;
+                tokio::fs::remove_file(path).await.map_err(|e| {
+                    LunaError::Dispatch(format!("Failed to delete file '{}': {}", path_str, e))
+                })?;
+                if let Err(e) = handle.emit(
+                    "fs-delete-result",
+                    serde_json::json!({"path": path_str, "success": true}),
+                ) {
+                    tracing::debug!(error = %e, "Failed to emit fs-delete-result");
+                }
+                Ok(())
+            })
+        }),
+    );
+
+    // fs.list → list directory contents with sandbox validation
+    registry.register(
+        "fs.list",
+        Arc::new(|action, handle, state| {
+            Box::pin(async move {
+                let path_str = action
+                    .payload
+                    .get("path")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| LunaError::Dispatch("fs.list requires 'path'".into()))?
+                    .to_string();
+                let path = std::path::Path::new(&path_str);
+                let agent_id = match &action.source {
+                    crate::action::types::ActionSource::Agent(id) => id.clone(),
+                    _ => "system".to_string(),
+                };
+                state.sandbox_manager.check_read(&agent_id, path).await?;
+                let mut entries = Vec::new();
+                let mut read_dir = tokio::fs::read_dir(path).await.map_err(|e| {
+                    LunaError::Dispatch(format!("Failed to list directory '{}': {}", path_str, e))
+                })?;
+                while let Some(entry) = read_dir.next_entry().await.map_err(|e| {
+                    LunaError::Dispatch(format!("Failed to read directory entry: {}", e))
+                })? {
+                    let file_type = entry.file_type().await.ok();
+                    entries.push(serde_json::json!({
+                        "name": entry.file_name().to_string_lossy().to_string(),
+                        "is_dir": file_type.map(|ft| ft.is_dir()).unwrap_or(false),
+                    }));
+                }
+                if let Err(e) = handle.emit(
+                    "fs-list-result",
+                    serde_json::json!({"path": path_str, "entries": entries}),
+                ) {
+                    tracing::debug!(error = %e, "Failed to emit fs-list-result");
+                }
+                Ok(())
+            })
+        }),
+    );
+
+    // fs.move → move/rename file with sandbox validation
+    registry.register(
+        "fs.move",
+        Arc::new(|action, handle, state| {
+            Box::pin(async move {
+                let source_str = action
+                    .payload
+                    .get("source")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| LunaError::Dispatch("fs.move requires 'source'".into()))?
+                    .to_string();
+                let dest_str = action
+                    .payload
+                    .get("destination")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| LunaError::Dispatch("fs.move requires 'destination'".into()))?
+                    .to_string();
+                let agent_id = match &action.source {
+                    crate::action::types::ActionSource::Agent(id) => id.clone(),
+                    _ => "system".to_string(),
+                };
+                let source_path = std::path::Path::new(&source_str);
+                let dest_path = std::path::Path::new(&dest_str);
+                state.sandbox_manager.check_read(&agent_id, source_path).await?;
+                state.sandbox_manager.check_write(&agent_id, dest_path).await?;
+                tokio::fs::rename(source_path, dest_path).await.map_err(|e| {
+                    LunaError::Dispatch(format!(
+                        "Failed to move '{}' to '{}': {}", source_str, dest_str, e
+                    ))
+                })?;
+                if let Err(e) = handle.emit(
+                    "fs-move-result",
+                    serde_json::json!({"source": source_str, "destination": dest_str, "success": true}),
+                ) {
+                    tracing::debug!(error = %e, "Failed to emit fs-move-result");
+                }
+                Ok(())
+            })
+        }),
+    );
+
+    // fs.mkdir → create directory with sandbox validation
+    registry.register(
+        "fs.mkdir",
+        Arc::new(|action, handle, state| {
+            Box::pin(async move {
+                let path_str = action
+                    .payload
+                    .get("path")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| LunaError::Dispatch("fs.mkdir requires 'path'".into()))?
+                    .to_string();
+                let path = std::path::Path::new(&path_str);
+                let agent_id = match &action.source {
+                    crate::action::types::ActionSource::Agent(id) => id.clone(),
+                    _ => "system".to_string(),
+                };
+                state.sandbox_manager.check_write(&agent_id, path).await?;
+                tokio::fs::create_dir_all(path).await.map_err(|e| {
+                    LunaError::Dispatch(format!("Failed to create directory '{}': {}", path_str, e))
+                })?;
+                if let Err(e) = handle.emit(
+                    "fs-mkdir-result",
+                    serde_json::json!({"path": path_str, "success": true}),
+                ) {
+                    tracing::debug!(error = %e, "Failed to emit fs-mkdir-result");
+                }
+                Ok(())
+            })
+        }),
+    );
+
+    // window.maximize → emit to frontend
+    registry.register(
+        "window.maximize",
+        Arc::new(|action, handle, _state| {
+            Box::pin(async move {
+                if let Err(e) = handle.emit("agent-window-maximize", &action.payload) {
+                    tracing::debug!(error = %e, "Failed to emit agent-window-maximize");
+                }
+                Ok(())
+            })
+        }),
+    );
+
+    // window.stack → emit to frontend
+    registry.register(
+        "window.stack",
+        Arc::new(|action, handle, _state| {
+            Box::pin(async move {
+                if let Err(e) = handle.emit("agent-window-stack", &action.payload) {
+                    tracing::debug!(error = %e, "Failed to emit agent-window-stack");
+                }
+                Ok(())
+            })
+        }),
+    );
+
+    // agent.spawn → spawn a new leaf agent
+    registry.register(
+        "agent.spawn",
+        Arc::new(|action, handle, state| {
+            Box::pin(async move {
+                let agent_type = action
+                    .payload
+                    .get("agent_type")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| LunaError::Dispatch("agent.spawn requires 'agent_type'".into()))?
+                    .to_string();
+                let workspace_id = action
+                    .payload
+                    .get("workspace_id")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("workspace_default")
+                    .to_string();
+                let capabilities: Vec<String> = action
+                    .payload
+                    .get("capabilities")
+                    .and_then(|v| v.as_array())
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|v| v.as_str().map(String::from))
+                            .collect()
+                    })
+                    .unwrap_or_else(|| vec![agent_type.clone()]);
+                let agent_id = state
+                    .agent_registry
+                    .spawn_leaf(&workspace_id, capabilities)
+                    .await;
+                if let Err(e) = handle.emit(
+                    "agent-spawned",
+                    serde_json::json!({"agent_id": agent_id, "agent_type": agent_type, "workspace_id": workspace_id}),
+                ) {
+                    tracing::debug!(error = %e, "Failed to emit agent-spawned");
+                }
+                tracing::info!(agent_id = %agent_id, agent_type = %agent_type, "Spawned new leaf agent");
+                Ok(())
+            })
+        }),
+    );
+
+    // agent.kill → kill/deactivate an agent
+    registry.register(
+        "agent.kill",
+        Arc::new(|action, handle, state| {
+            Box::pin(async move {
+                let agent_id = action
+                    .payload
+                    .get("agent_id")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| LunaError::Dispatch("agent.kill requires 'agent_id'".into()))?
+                    .to_string();
+                state.agent_registry.kill_agent(&agent_id).await?;
+                if let Err(e) = handle.emit(
+                    "agent-killed",
+                    serde_json::json!({"agent_id": agent_id}),
+                ) {
+                    tracing::debug!(error = %e, "Failed to emit agent-killed");
+                }
+                tracing::info!(agent_id = %agent_id, "Killed agent");
+                Ok(())
+            })
+        }),
+    );
+
+    // config.get → read configuration value from semantic memory
+    registry.register(
+        "config.get",
+        Arc::new(|action, handle, state| {
+            Box::pin(async move {
+                let key = action
+                    .payload
+                    .get("key")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| LunaError::Dispatch("config.get requires 'key'".into()))?
+                    .to_string();
+                let config_key = format!("config:{}", key);
+                let value = state.memory.semantic.get(&config_key)?;
+                if let Err(e) = handle.emit(
+                    "config-get-result",
+                    serde_json::json!({"key": key, "value": value}),
+                ) {
+                    tracing::debug!(error = %e, "Failed to emit config-get-result");
+                }
+                Ok(())
+            })
+        }),
+    );
+
+    // config.set → update configuration value in semantic memory
+    registry.register(
+        "config.set",
+        Arc::new(|action, handle, state| {
+            Box::pin(async move {
+                let key = action
+                    .payload
+                    .get("key")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| LunaError::Dispatch("config.set requires 'key'".into()))?
+                    .to_string();
+                let value = action
+                    .payload
+                    .get("value")
+                    .cloned()
+                    .ok_or_else(|| LunaError::Dispatch("config.set requires 'value'".into()))?;
+                let config_key = format!("config:{}", key);
+                let value_str = match &value {
+                    serde_json::Value::String(s) => s.clone(),
+                    other => other.to_string(),
+                };
+                state.memory.semantic.store(&config_key, &value_str, &["config".to_string()])?;
+                if let Err(e) = handle.emit(
+                    "config-set-result",
+                    serde_json::json!({"key": key, "value": value, "success": true}),
+                ) {
+                    tracing::debug!(error = %e, "Failed to emit config-set-result");
+                }
+                Ok(())
+            })
+        }),
+    );
+
+    // plan.create → emit plan-created event
+    registry.register(
+        "plan.create",
+        Arc::new(|action, handle, _state| {
+            Box::pin(async move {
+                if let Err(e) = handle.emit("plan-created", &action.payload) {
+                    tracing::debug!(error = %e, "Failed to emit plan-created");
+                }
+                Ok(())
+            })
+        }),
+    );
+
+    // plan.update → emit plan-updated event
+    registry.register(
+        "plan.update",
+        Arc::new(|action, handle, _state| {
+            Box::pin(async move {
+                if let Err(e) = handle.emit("plan-updated", &action.payload) {
+                    tracing::debug!(error = %e, "Failed to emit plan-updated");
+                }
+                Ok(())
+            })
+        }),
+    );
+
+    // workspace.create → create workspace via WorkspaceManager
+    registry.register(
+        "workspace.create",
+        Arc::new(|action, handle, state| {
+            Box::pin(async move {
+                let name = action
+                    .payload
+                    .get("name")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| LunaError::Dispatch("workspace.create requires 'name'".into()))?
+                    .to_string();
+                let goal = action
+                    .payload
+                    .get("goal")
+                    .and_then(|v| v.as_str())
+                    .map(String::from);
+                let workspace = state
+                    .workspace_manager
+                    .create_workspace(&name, goal, "standard")
+                    .await?;
+                if let Err(e) = handle.emit(
+                    "workspace-created",
+                    serde_json::json!({"workspace_id": workspace.id, "name": workspace.name}),
+                ) {
+                    tracing::debug!(error = %e, "Failed to emit workspace-created");
+                }
+                tracing::info!(workspace_id = %workspace.id, name = %name, "Created workspace");
+                Ok(())
+            })
+        }),
+    );
+
+    // workspace.switch → switch workspace via WorkspaceManager
+    registry.register(
+        "workspace.switch",
+        Arc::new(|action, handle, state| {
+            Box::pin(async move {
+                let workspace_id = action
+                    .payload
+                    .get("workspace_id")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| LunaError::Dispatch("workspace.switch requires 'workspace_id'".into()))?
+                    .to_string();
+                state.workspace_manager.switch_workspace(&workspace_id).await?;
+                if let Err(e) = handle.emit(
+                    "workspace-switched",
+                    serde_json::json!({"workspace_id": workspace_id}),
+                ) {
+                    tracing::debug!(error = %e, "Failed to emit workspace-switched");
+                }
+                tracing::info!(workspace_id = %workspace_id, "Switched workspace");
+                Ok(())
+            })
+        }),
+    );
+
+    // workspace.close → close workspace via WorkspaceManager
+    registry.register(
+        "workspace.close",
+        Arc::new(|action, handle, state| {
+            Box::pin(async move {
+                let workspace_id = action
+                    .payload
+                    .get("workspace_id")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| LunaError::Dispatch("workspace.close requires 'workspace_id'".into()))?
+                    .to_string();
+                state.workspace_manager.delete_workspace(&workspace_id).await?;
+                if let Err(e) = handle.emit(
+                    "workspace-closed",
+                    serde_json::json!({"workspace_id": workspace_id}),
+                ) {
+                    tracing::debug!(error = %e, "Failed to emit workspace-closed");
+                }
+                tracing::info!(workspace_id = %workspace_id, "Closed workspace");
+                Ok(())
+            })
+        }),
+    );
+
+    // system.undo → undo the last undoable action
+    registry.register(
+        "system.undo",
+        Arc::new(|action, handle, _state| {
+            Box::pin(async move {
+                // Emit an undo-requested event; the undo manager logic is handled
+                // by the dispatcher/undo subsystem which listens for this event.
+                if let Err(e) = handle.emit("system-undo-requested", &action.payload) {
+                    tracing::debug!(error = %e, "Failed to emit system-undo-requested");
                 }
                 Ok(())
             })

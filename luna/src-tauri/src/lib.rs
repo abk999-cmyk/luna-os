@@ -1,18 +1,23 @@
 pub mod action;
 pub mod agent;
 pub mod app;
+pub mod collaboration;
 pub mod commands;
 pub mod config;
 pub mod error;
+pub mod intelligence;
 pub mod logging;
 pub mod memory;
+pub mod migration;
 pub mod persistence;
 pub mod security;
 pub mod state;
 pub mod sync;
+pub mod telemetry;
 pub mod window;
+pub mod workspace;
 
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
 use tracing::info;
@@ -31,14 +36,18 @@ use agent::scratchpad::Scratchpad;
 use config::LunaConfig;
 use memory::MemorySystem;
 use persistence::db::Database;
-use security::{AuditLog, PermissionMatrix};
+use security::{AuditLog, PermissionMatrix, SandboxManager};
 use agent::task_graph::TaskGraph;
 use app::lifecycle::AppManager;
+use app::template_registry::TemplateRegistry;
 use state::AppState;
+use workspace::manager::WorkspaceManager;
 use sync::batcher::UpdateBatcher;
+use telemetry::metrics::MetricsCollector;
+use telemetry::latency::LatencyTracker;
 use sync::topic::TopicManager;
 use window::manager::WindowManager;
-
+use action::undo::UndoManager;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Load config first (before logging)
@@ -55,17 +64,9 @@ pub fn run() {
     let (queue, receiver) = ActionQueue::new();
 
     // ── Database ──────────────────────────────────────────────────────────────
-    let db = match Database::new(&config.db_path) {
-        Ok(db) => {
-            info!("Database initialized at {}", config.db_path);
-            Some(db)
-        }
-        Err(e) => {
-            tracing::error!("Failed to initialize database: {}", e);
-            None
-        }
-    };
-    let db = Arc::new(Mutex::new(db));
+    let db = Database::new(&config.db_path).expect("Failed to initialize database");
+    info!("Database initialized at {}", config.db_path);
+    let db = Arc::new(tokio::sync::Mutex::new(db));
 
     // ── Memory system ─────────────────────────────────────────────────────────
     let memory = Arc::new(MemorySystem::new(db.clone()));
@@ -76,14 +77,13 @@ pub fn run() {
     // ── Security: permissions + audit ─────────────────────────────────────────
     let permissions = {
         let mut perm_matrix = PermissionMatrix::new_with_defaults(db.clone());
-        // M2: Reload persisted permanent grants from agent_state
+        // M2: Reload persisted permanent grants from all agents in agent_state table
         {
-            let db_guard = db.lock().unwrap();
-            if let Some(ref database) = *db_guard {
-                for agent_id in &["conductor", "orchestrator_default"] {
-                    if let Ok(Some(state)) = database.agent_state_load(agent_id) {
-                        perm_matrix.load_from_agent_state(agent_id, &state);
-                    }
+            let database = db.blocking_lock();
+            let agent_ids = database.get_all_agent_ids().unwrap_or_default();
+            for agent_id in &agent_ids {
+                if let Ok(Some(state)) = database.agent_state_load(agent_id) {
+                    perm_matrix.load_from_agent_state(agent_id, &state);
                 }
             }
         }
@@ -104,16 +104,14 @@ pub fn run() {
     // ── Window manager ────────────────────────────────────────────────────────
     let mut window_manager = WindowManager::new();
     {
-        let db_guard = db.lock().unwrap();
-        if let Some(ref database) = *db_guard {
-            if let Ok(Some(latest_session)) = database.get_latest_session_id() {
-                match database.load_window_states(&latest_session) {
-                    Ok(windows) if !windows.is_empty() => {
-                        info!(count = windows.len(), "Restoring window states");
-                        window_manager.restore_windows(windows);
-                    }
-                    _ => {}
+        let database = db.blocking_lock();
+        if let Ok(Some(latest_session)) = database.get_latest_session_id() {
+            match database.load_window_states(&latest_session) {
+                Ok(windows) if !windows.is_empty() => {
+                    info!(count = windows.len(), "Restoring window states");
+                    window_manager.restore_windows(windows);
                 }
+                _ => {}
             }
         }
     }
@@ -130,25 +128,44 @@ pub fn run() {
         tracing::warn!("No API key found. Set ANTHROPIC_API_KEY or OPENAI_API_KEY.");
         None
     };
-    let conductor = Arc::new(RwLock::new(conductor));
+    let conductor = Arc::new(conductor);
 
     // ── Agent hierarchy ───────────────────────────────────────────────────────
     let agent_registry = Arc::new(AgentRegistry::new());
     let message_bus = Arc::new(MessageBus::new());
     let scratchpad = Arc::new(Scratchpad::new());
-    let app_manager = Arc::new(AppManager::new());
+    let app_manager = Arc::new(AppManager::new(db.clone()));
+    app_manager.load_from_db();
     let topic_manager = Arc::new(TopicManager::new());
     let update_batcher = Arc::new(UpdateBatcher::new());
     let task_graph = Arc::new(TaskGraph::new());
+    let template_registry = Arc::new(TemplateRegistry::new(db.clone()));
+    let workspace_manager = Arc::new(WorkspaceManager::new(db.clone()));
+
+    // ── Telemetry ────────────────────────────────────────────────────────────
+    let metrics = Arc::new(MetricsCollector::new());
+    let latency = Arc::new(LatencyTracker::new());
+
+    // ── Intelligence & collaboration ─────────────────────────────────────────
+    let user_model_store = Arc::new(intelligence::user_model::UserModelStore::new(db.clone()));
+    let learning_engine = Arc::new(intelligence::learning::LearningEngine::new(db.clone()));
+    let identity_manager = Arc::new(collaboration::identity::IdentityManager::new(db.clone()));
+    let rbac_manager = Arc::new(collaboration::rbac::RbacManager::new(db.clone()));
+    let presence_manager = Arc::new(collaboration::presence::PresenceManager::new());
+
+    // Load persisted workspaces from DB
+    tauri::async_runtime::block_on(async {
+        if let Err(e) = workspace_manager.load_from_db().await {
+            tracing::warn!(error = %e, "Failed to load workspaces from DB");
+        }
+    });
 
     // ── Session ───────────────────────────────────────────────────────────────
     let session_id = Uuid::new_v4().to_string();
     {
-        let db_guard = db.lock().unwrap();
-        if let Some(ref database) = *db_guard {
-            let now = chrono::Utc::now().to_rfc3339();
-            database.insert_session(&session_id, &now).ok();
-        }
+        let database = db.blocking_lock();
+        let now = chrono::Utc::now().to_rfc3339();
+        database.insert_session(&session_id, &now).ok();
     }
 
     // Set session ID on dispatcher
@@ -179,22 +196,30 @@ pub fn run() {
     }
 
     // ── Register conductor on message bus ──────────────────────────────────
-    {
+    let conductor_rx = {
         let bus = message_bus.clone();
         tauri::async_runtime::block_on(async {
-            let mut rx = bus.register("conductor").await;
-            tauri::async_runtime::spawn(async move {
-                while let Some(msg) = rx.recv().await {
-                    tracing::info!(msg = ?msg, "Conductor received message on bus");
-                }
-                tracing::warn!("Conductor message bus listener ended");
-            });
-        });
-    }
+            bus.register("conductor").await
+        })
+    };
 
     // ── Spawn workspace orchestrator ──────────────────────────────────────────
     {
-        let orchestrator = Arc::new(WorkspaceOrchestrator::new("workspace_default"));
+        // Reuse the same LLM client config as the conductor for orchestrator decomposition
+        let orchestrator_llm = if let Some(ref key) = config.anthropic_api_key {
+            Some(LlmClient::new_anthropic(key.clone()))
+        } else if let Some(ref key) = config.openai_api_key {
+            Some(LlmClient::new_openai(key.clone()))
+        } else {
+            None
+        };
+
+        let workspace_root = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+        let orchestrator = Arc::new(WorkspaceOrchestrator::new(
+            "workspace_default",
+            orchestrator_llm,
+            workspace_root,
+        ));
         let meta = orchestrator.agent_metadata();
 
         let reg_ref = agent_registry.clone();
@@ -208,6 +233,7 @@ pub fn run() {
             agent_registry.clone(),
             scratchpad.clone(),
             memory.clone(),
+            task_graph.clone(),
         );
     }
 
@@ -239,6 +265,12 @@ pub fn run() {
     let handler_registry = Arc::new(ActionHandlerRegistry::new());
     action::handler_registry::register_core_handlers(&handler_registry);
 
+    // ── Sandbox manager ────────────────────────────────────────────────────────
+    let sandbox_manager = Arc::new(SandboxManager::new());
+
+    // ── Undo manager ─────────────────────────────────────────────────────────
+    let undo_manager = Arc::new(UndoManager::new(db.clone()));
+
     // ── Create app state ──────────────────────────────────────────────────────
     let app_state = AppState::new(
         dispatcher.clone(),
@@ -257,6 +289,17 @@ pub fn run() {
         topic_manager.clone(),
         update_batcher.clone(),
         task_graph.clone(),
+        template_registry.clone(),
+        workspace_manager.clone(),
+        metrics.clone(),
+        latency.clone(),
+        user_model_store.clone(),
+        learning_engine.clone(),
+        identity_manager.clone(),
+        rbac_manager.clone(),
+        presence_manager.clone(),
+        sandbox_manager.clone(),
+        undo_manager.clone(),
     );
 
     info!(session_id = %session_id, "Luna session started");
@@ -268,6 +311,11 @@ pub fn run() {
     let queue_state = Arc::new(app_state.clone());
     let queue_handler_registry = handler_registry.clone();
     let queue_history = history.clone();
+    let queue_latency = latency.clone();
+
+    // For conductor bus processing (Phase 2D)
+    let conductor_task_graph = task_graph.clone();
+    let conductor_dispatcher = dispatcher.clone();
 
     // ── Build and run Tauri app ───────────────────────────────────────────────
     tauri::Builder::default()
@@ -283,6 +331,7 @@ pub fn run() {
             // ── Action queue processor ────────────────────────────────────────
             // Central event loop: dispatches actions through the handler registry.
             let queue_handle = handle.clone();
+            let proc_latency = queue_latency;
             tauri::async_runtime::spawn(async move {
                 while let Some(action) = recv.recv().await {
                     tracing::trace!(
@@ -291,28 +340,136 @@ pub fn run() {
                         "Processing action from queue"
                     );
 
+                    let start = std::time::Instant::now();
                     let result = proc_handler_registry.dispatch(&action, &queue_handle, &proc_state).await;
-                    let new_status = if result.is_ok() {
-                        crate::action::types::ActionStatus::Completed
-                    } else {
-                        crate::action::types::ActionStatus::Failed(
-                            result.as_ref().err().map(|e| e.to_string()).unwrap_or_default()
-                        )
+                    let elapsed = start.elapsed();
+                    proc_latency.record(&action.action_type, elapsed);
+                    proc_latency.record("action_dispatch", elapsed);
+                    let new_status = match &result {
+                        Ok(true) => crate::action::types::ActionStatus::Completed,
+                        Ok(false) => crate::action::types::ActionStatus::Failed(
+                            format!("no handler registered for '{}'", action.action_type)
+                        ),
+                        Err(e) => crate::action::types::ActionStatus::Failed(e.to_string()),
                     };
                     {
                         let mut history = proc_history.write().await;
-                        history.update_status(&action.id, new_status);
+                        history.update_status(&action.id, new_status.clone());
                     }
-                    if let Err(e) = result {
-                        tracing::warn!(
-                            action_type = %action.action_type,
-                            error = %e,
-                            "Handler error processing action"
-                        );
+
+                    // Auto-record undo entry for undoable actions
+                    if matches!(new_status, crate::action::types::ActionStatus::Completed) {
+                        if action.action_type.starts_with("file.") || action.action_type.starts_with("window.") || action.action_type == "memory.store" {
+                            let agent_id = match &action.source {
+                                crate::action::types::ActionSource::Agent(id) => id.clone(),
+                                crate::action::types::ActionSource::User => "user".to_string(),
+                                crate::action::types::ActionSource::System => "system".to_string(),
+                            };
+                            if let Err(e) = proc_state.undo_manager.create_entry_from_action(&action, &agent_id) {
+                                tracing::debug!(error = %e, "Could not create undo entry");
+                            }
+                        }
+                    }
+
+                    match &result {
+                        Ok(false) => {
+                            tracing::warn!(
+                                action_type = %action.action_type,
+                                "No handler registered for action type"
+                            );
+                        }
+                        Err(e) => {
+                            tracing::warn!(
+                                action_type = %action.action_type,
+                                error = %e,
+                                "Handler error processing action"
+                            );
+                        }
+                        _ => {}
                     }
                 }
                 tracing::warn!("Action queue channel closed — processor stopping");
             });
+
+            // ── Conductor bus processing (Phase 2D) ─────────────────────────────
+            {
+                use tauri::Emitter;
+                let mut conductor_rx = conductor_rx;
+                let tg = conductor_task_graph;
+                let cond_handle = handle.clone();
+                let cond_dispatcher = conductor_dispatcher;
+                tauri::async_runtime::spawn(async move {
+                    while let Some(envelope) = conductor_rx.recv().await {
+                        tracing::info!(
+                            message_id = %envelope.message_id,
+                            source = %envelope.source_agent_id,
+                            priority = ?envelope.priority,
+                            "Conductor received message on bus"
+                        );
+
+                        match &envelope.message {
+                            crate::agent::messaging::AgentMessage::Complete { task_id, result } => {
+                                tracing::info!(
+                                    task_id = %task_id,
+                                    "Task completed — updating task graph"
+                                );
+                                tg.complete_task(task_id, Some(result.clone()));
+                            }
+
+                            crate::agent::messaging::AgentMessage::Escalate { task_id, from_agent, reason } => {
+                                tracing::warn!(
+                                    task_id = %task_id,
+                                    from_agent = %from_agent,
+                                    reason = %reason,
+                                    "Escalation received at conductor"
+                                );
+                                tg.fail_task(task_id, reason);
+
+                                // Emit system notification to frontend
+                                let _ = cond_handle.emit(
+                                    "system-notification",
+                                    serde_json::json!({
+                                        "level": "warning",
+                                        "title": "Task Escalation",
+                                        "message": format!(
+                                            "Agent '{}' escalated task {}: {}",
+                                            from_agent, task_id, reason
+                                        ),
+                                        "task_id": task_id,
+                                        "from_agent": from_agent,
+                                    }),
+                                );
+                            }
+
+                            crate::agent::messaging::AgentMessage::Event { app_id, payload } => {
+                                tracing::info!(
+                                    app_id = %app_id,
+                                    "Event message received at conductor — dispatching as action"
+                                );
+                                // Build an action from the event payload and dispatch it
+                                if let Some(action_type) = payload.get("action_type").and_then(|v| v.as_str()) {
+                                    let action_payload = payload.get("payload").cloned().unwrap_or(payload.clone());
+                                    let action = crate::action::types::Action::new(
+                                        action_type.to_string(),
+                                        action_payload,
+                                        crate::action::types::ActionSource::Agent("conductor".to_string()),
+                                    );
+                                    if let Err(e) = cond_dispatcher.dispatch(action).await {
+                                        tracing::warn!(error = %e, "Failed to dispatch event as action");
+                                    }
+                                } else {
+                                    tracing::debug!(app_id = %app_id, "Event has no action_type — ignoring");
+                                }
+                            }
+
+                            other => {
+                                tracing::debug!(msg = ?other, "Conductor received unhandled message type");
+                            }
+                        }
+                    }
+                    tracing::warn!("Conductor message bus listener ended");
+                });
+            }
 
             // ── Pending actions cleanup (every 60s, remove actions older than 5min) ──
             {
@@ -374,6 +531,14 @@ pub fn run() {
             commands::transcribe_audio,
             commands::inject_context,
             commands::get_task_graph,
+            commands::query_episodic_by_agent,
+            commands::query_episodic_time_range,
+            commands::search_semantic_memory,
+            commands::delete_semantic_memory,
+            commands::create_plan,
+            commands::get_plan,
+            commands::list_active_plans,
+            commands::update_plan,
             window::commands::create_window,
             window::commands::close_window,
             window::commands::resize_window,
@@ -383,6 +548,40 @@ pub fn run() {
             window::commands::focus_window,
             window::commands::get_windows,
             app::commands::dispatch_app_event,
+            app::commands::save_as_template,
+            app::commands::list_templates,
+            app::commands::instantiate_from_template,
+            app::commands::delete_template,
+            app::commands::validate_manifest,
+            workspace::commands::create_workspace,
+            workspace::commands::list_workspaces,
+            workspace::commands::switch_workspace,
+            workspace::commands::get_active_workspace,
+            workspace::commands::delete_workspace,
+            workspace::commands::snap_window,
+            workspace::commands::get_layout,
+            workspace::commands::update_workspace,
+            workspace::commands::add_window_to_workspace,
+            workspace::commands::remove_window_from_workspace,
+            telemetry::commands::get_metrics,
+            telemetry::commands::get_latency_report,
+            migration::commands::import_file,
+            migration::commands::detect_project,
+            migration::commands::export_workspace_state,
+            intelligence::commands::get_user_model,
+            intelligence::commands::update_user_expertise,
+            intelligence::commands::record_learning_observation,
+            intelligence::commands::get_automation_proposals,
+            intelligence::commands::respond_to_proposal,
+            intelligence::commands::inspect_user_model,
+            intelligence::commands::delete_user_model,
+            intelligence::commands::get_user_model_audit,
+            collaboration::commands::create_user,
+            collaboration::commands::get_current_user,
+            collaboration::commands::grant_workspace_access,
+            collaboration::commands::get_workspace_presence,
+            commands::undo_last_action,
+            commands::get_undo_history,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
@@ -398,12 +597,10 @@ pub fn run() {
                     let manager = wm.read().await;
                     let windows = manager.get_all_windows_owned();
 
-                    let db_guard = db_ref.lock().unwrap();
-                    if let Some(ref database) = *db_guard {
-                        database.save_window_states(&sid, &windows).ok();
-                        let now = chrono::Utc::now().to_rfc3339();
-                        database.close_session(&sid, &now).ok();
-                    }
+                    let database = db_ref.lock().await;
+                    database.save_window_states(&sid, &windows).ok();
+                    let now = chrono::Utc::now().to_rfc3339();
+                    database.close_session(&sid, &now).ok();
                 });
 
                 info!("Luna shutdown complete");

@@ -120,3 +120,59 @@ impl WorkingMemory {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::action::types::{Action, ActionSource};
+
+    fn make_action(action_type: &str) -> Action {
+        Action::new(action_type.to_string(), serde_json::Value::Null, ActionSource::System)
+    }
+
+    #[tokio::test]
+    async fn test_push_action_adds_to_slot() {
+        let wm = WorkingMemory::new();
+        wm.push_action("agent_a", make_action("test.action")).await;
+        let summary = wm.get_summary("agent_a").await;
+        assert!(summary.is_some());
+        assert!(summary.unwrap().contains("test.action"));
+    }
+
+    #[tokio::test]
+    async fn test_push_observation_adds_to_slot() {
+        let wm = WorkingMemory::new();
+        wm.push_observation("agent_b", "User is happy".to_string()).await;
+        let summary = wm.get_summary("agent_b").await;
+        assert!(summary.is_some());
+        assert!(summary.unwrap().contains("User is happy"));
+    }
+
+    #[tokio::test]
+    async fn test_get_summary_returns_formatted_text() {
+        let wm = WorkingMemory::new();
+        wm.push_action("agent_c", make_action("window.create")).await;
+        wm.push_observation("agent_c", "Window opened".to_string()).await;
+        let summary = wm.get_summary("agent_c").await.unwrap();
+        assert!(summary.contains("Recent actions:"));
+        assert!(summary.contains("Observations:"));
+    }
+
+    #[tokio::test]
+    async fn test_max_actions_per_slot_is_20() {
+        let wm = WorkingMemory::new();
+        for i in 0..25 {
+            wm.push_action("agent_d", make_action(&format!("action.{}", i))).await;
+        }
+        // Check that the slot has at most 20 actions
+        let slots = wm.slots.read().await;
+        let slot = slots.get("agent_d").unwrap();
+        assert_eq!(slot.recent_actions.len(), 20);
+    }
+
+    #[tokio::test]
+    async fn test_get_summary_returns_none_for_unknown_agent() {
+        let wm = WorkingMemory::new();
+        assert!(wm.get_summary("nonexistent").await.is_none());
+    }
+}

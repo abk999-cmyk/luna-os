@@ -29,6 +29,9 @@ pub async fn create_window(
             "editor" => super::types::WindowContentType::Editor,
             "panel" => super::types::WindowContentType::Panel,
             "canvas" => super::types::WindowContentType::Canvas,
+            "dynamic_app" => super::types::WindowContentType::DynamicApp,
+            "terminal" => super::types::WindowContentType::Terminal,
+            "scratchpad" => super::types::WindowContentType::Scratchpad,
             _ => super::types::WindowContentType::Empty,
         };
         // Update in manager too

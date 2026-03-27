@@ -23,8 +23,14 @@ pub enum LunaError {
     #[error("Config error: {0}")]
     Config(String),
 
+    #[error("Permission denied: {0}")]
+    Permission(String),
+
     #[error("Pending approval: action {0} requires user approval")]
     PendingApproval(String),
+
+    #[error("Migration error: {0}")]
+    Migration(String),
 }
 
 impl From<serde_json::Error> for LunaError {

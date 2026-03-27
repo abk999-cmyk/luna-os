@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use tracing::{info, debug};
 
@@ -18,11 +18,11 @@ pub enum PermissionState {
 pub struct PermissionMatrix {
     /// In-memory permission cache
     entries: HashMap<(String, String), PermissionState>,
-    db: Arc<Mutex<Option<Database>>>,
+    db: Arc<tokio::sync::Mutex<Database>>,
 }
 
 impl PermissionMatrix {
-    pub fn new_with_defaults(db: Arc<Mutex<Option<Database>>>) -> Self {
+    pub fn new_with_defaults(db: Arc<tokio::sync::Mutex<Database>>) -> Self {
         let mut matrix = Self {
             entries: HashMap::new(),
             db,
@@ -131,9 +131,73 @@ impl PermissionMatrix {
     }
 
     pub fn log_decision(&self, agent_id: &str, action_type: &str, decision: &str) {
-        let db_guard = self.db.lock().unwrap();
-        if let Some(ref db) = *db_guard {
-            let _ = db.permission_log_insert(agent_id, action_type, decision);
-        }
+        let db = self.db.blocking_lock();
+        let _ = db.permission_log_insert(agent_id, action_type, decision);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::persistence::db::Database;
+
+    fn make_matrix() -> PermissionMatrix {
+        let db = Database::new(":memory:").unwrap();
+        let db = Arc::new(tokio::sync::Mutex::new(db));
+        PermissionMatrix::new_with_defaults(db)
+    }
+
+    #[test]
+    fn test_check_allowed_for_conductor_window_actions() {
+        let matrix = make_matrix();
+        assert_eq!(matrix.check("conductor", "window.create"), PermissionState::Allowed);
+        assert_eq!(matrix.check("conductor", "window.close"), PermissionState::Allowed);
+    }
+
+    #[test]
+    fn test_check_pending_for_unknown_agent() {
+        let matrix = make_matrix();
+        assert_eq!(matrix.check("rogue_agent", "window.create"), PermissionState::PendingApproval);
+    }
+
+    #[test]
+    fn test_grant_changes_state_to_allowed() {
+        let mut matrix = make_matrix();
+        assert_eq!(matrix.check("leaf_1", "memory.store"), PermissionState::PendingApproval);
+        matrix.grant("leaf_1", "memory.store", false).unwrap();
+        assert_eq!(matrix.check("leaf_1", "memory.store"), PermissionState::Allowed);
+    }
+
+    #[test]
+    fn test_deny_changes_state_to_denied() {
+        let mut matrix = make_matrix();
+        matrix.deny("leaf_1", "window.create").unwrap();
+        assert_eq!(matrix.check("leaf_1", "window.create"), PermissionState::Denied);
+    }
+
+    #[test]
+    fn test_system_actions_auto_allowed_for_system_agent() {
+        let matrix = make_matrix();
+        assert_eq!(matrix.check("system", "system.startup"), PermissionState::Allowed);
+        assert_eq!(matrix.check("system", "system.notify"), PermissionState::Allowed);
+    }
+
+    #[test]
+    fn test_system_actions_not_auto_allowed_for_regular_agent() {
+        let matrix = make_matrix();
+        // A non-system, non-conductor agent asking for system.* gets PendingApproval
+        assert_eq!(matrix.check("leaf_agent", "system.startup"), PermissionState::PendingApproval);
+    }
+
+    #[test]
+    fn test_serialize_grants_returns_correct_list() {
+        let mut matrix = make_matrix();
+        matrix.grant("test_agent", "window.create", false).unwrap();
+        matrix.grant("test_agent", "memory.store", false).unwrap();
+        matrix.deny("test_agent", "window.close").unwrap();
+        let grants = matrix.serialize_grants("test_agent");
+        assert!(grants.contains(&"window.create".to_string()));
+        assert!(grants.contains(&"memory.store".to_string()));
+        assert!(!grants.contains(&"window.close".to_string()));
     }
 }

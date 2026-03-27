@@ -1,0 +1,116 @@
+/*
+ * Phase 10B: Dark Mode — complete dark theme for the warm organic palette.
+ * Activated via OS preference or .dark class on :root.
+ */
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Warm organic palette — dark overrides */
+    --color-sand: #1a1a1a;
+    --color-sand-light: #242424;
+    --color-sand-dark: #111111;
+
+    --color-charcoal: #e8e0d4;
+    --color-charcoal-light: #bbbbbb;
+    --color-charcoal-lighter: #888888;
+
+    /* Surface hierarchy */
+    --surface-base: #1a1a1a;
+    --surface-raised: #242424;
+    --surface-overlay: rgba(30,30,30,0.95);
+    --surface-sunken: #111111;
+
+    --surface-primary: #1a1410;
+    --surface-secondary: #231c14;
+    --surface-tertiary: #2a2218;
+    --surface-elevated: #332a1e;
+    --canvas-bg: #1a1410;
+
+    /* Border system */
+    --border-subtle: #3d3228;
+    --border-default: #4d4030;
+    --border-strong: #6b5735;
+    --border-active: var(--color-amber-500);
+    --border-focus: var(--color-amber-400);
+
+    /* Text system */
+    --text-primary: var(--color-sand-100);
+    --text-secondary: var(--color-sand-300);
+    --text-tertiary: var(--color-sand-500);
+    --text-inverse: var(--color-gray-900);
+    --text-accent: var(--color-amber-300);
+    --text-link: var(--color-teal-300);
+
+    /* State colors */
+    --color-state-working: #f59e0b;
+
+    /* Shadows — deeper for dark backgrounds */
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.2);
+    --shadow-md: 0 4px 6px rgba(0,0,0,0.3);
+    --shadow-lg: 0 10px 15px rgba(0,0,0,0.35);
+    --shadow-xl: 0 20px 25px rgba(0,0,0,0.4);
+    --shadow-focus: 0 0 0 3px rgba(250, 159, 52, 0.4);
+    --shadow-window: 0 4px 24px rgba(0, 0, 0, 0.35);
+    --shadow-window-focused: 0 8px 32px rgba(0, 0, 0, 0.45);
+
+    /* Status backgrounds — darkened variants */
+    --color-error-bg: #2d1515;
+    --color-error-text: #f5a5a5;
+    --color-success-bg: #152d1a;
+    --color-success-text: #86e29b;
+    --color-warning-bg: #2d2615;
+    --color-warning-text: #f5d98a;
+  }
+}
+
+/* Class-based override for manual dark mode toggle */
+:root.dark {
+  --color-sand: #1a1a1a;
+  --color-sand-light: #242424;
+  --color-sand-dark: #111111;
+
+  --color-charcoal: #e8e0d4;
+  --color-charcoal-light: #bbbbbb;
+  --color-charcoal-lighter: #888888;
+
+  --surface-base: #1a1a1a;
+  --surface-raised: #242424;
+  --surface-overlay: rgba(30,30,30,0.95);
+  --surface-sunken: #111111;
+
+  --surface-primary: #1a1410;
+  --surface-secondary: #231c14;
+  --surface-tertiary: #2a2218;
+  --surface-elevated: #332a1e;
+  --canvas-bg: #1a1410;
+
+  --border-subtle: #3d3228;
+  --border-default: #4d4030;
+  --border-strong: #6b5735;
+  --border-active: var(--color-amber-500);
+  --border-focus: var(--color-amber-400);
+
+  --text-primary: var(--color-sand-100);
+  --text-secondary: var(--color-sand-300);
+  --text-tertiary: var(--color-sand-500);
+  --text-inverse: var(--color-gray-900);
+  --text-accent: var(--color-amber-300);
+  --text-link: var(--color-teal-300);
+
+  --color-state-working: #f59e0b;
+
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.2);
+  --shadow-md: 0 4px 6px rgba(0,0,0,0.3);
+  --shadow-lg: 0 10px 15px rgba(0,0,0,0.35);
+  --shadow-xl: 0 20px 25px rgba(0,0,0,0.4);
+  --shadow-focus: 0 0 0 3px rgba(250, 159, 52, 0.4);
+  --shadow-window: 0 4px 24px rgba(0, 0, 0, 0.35);
+  --shadow-window-focused: 0 8px 32px rgba(0, 0, 0, 0.45);
+
+  --color-error-bg: #2d1515;
+  --color-error-text: #f5a5a5;
+  --color-success-bg: #152d1a;
+  --color-success-text: #86e29b;
+  --color-warning-bg: #2d2615;
+  --color-warning-text: #f5d98a;
+}

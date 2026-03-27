@@ -145,3 +145,52 @@ fn try_parse_single_json(text: &str, source: &ActionSource) -> Option<Action> {
         source.clone(),
     ))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_response_with_json_array() {
+        let input = r#"[{"action_type": "window.create", "payload": {"title": "Hello"}}, {"action_type": "agent.response", "payload": {"text": "Hi"}}]"#;
+        let actions = parse_response(input);
+        assert_eq!(actions.len(), 2);
+        assert_eq!(actions[0].action_type, "window.create");
+        assert_eq!(actions[1].action_type, "agent.response");
+    }
+
+    #[test]
+    fn test_parse_response_with_code_block() {
+        let input = "Here is my response:\n```json\n[{\"action_type\": \"agent.response\", \"payload\": {\"text\": \"done\"}}]\n```";
+        let actions = parse_response(input);
+        assert_eq!(actions.len(), 1);
+        assert_eq!(actions[0].action_type, "agent.response");
+    }
+
+    #[test]
+    fn test_parse_response_with_single_json_object() {
+        let input = r#"{"action_type": "window.create", "payload": {"title": "Test"}}"#;
+        let actions = parse_response(input);
+        assert_eq!(actions.len(), 1);
+        assert_eq!(actions[0].action_type, "window.create");
+    }
+
+    #[test]
+    fn test_parse_response_fallback_to_agent_response() {
+        let input = "Hello, how can I help you today?";
+        let actions = parse_response(input);
+        assert_eq!(actions.len(), 1);
+        assert_eq!(actions[0].action_type, "agent.response");
+        let text = actions[0].payload.get("text").unwrap().as_str().unwrap();
+        assert_eq!(text, "Hello, how can I help you today?");
+    }
+
+    #[test]
+    fn test_parse_response_with_malformed_input() {
+        let input = "{this is not valid json at all";
+        let actions = parse_response(input);
+        // Should fallback to agent.response
+        assert_eq!(actions.len(), 1);
+        assert_eq!(actions[0].action_type, "agent.response");
+    }
+}

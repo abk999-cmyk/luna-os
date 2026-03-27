@@ -57,12 +57,32 @@
   --color-black: #1a1a1a;
   --color-white: #ffffff;
 
+  /* === Warm Organic Palette (Phase 10) === */
+  --color-sand: #f5f0e8;
+  --color-sand-light: #faf8f4;
+  --color-sand-dark: #e8e0d4;
+  --color-amber: #d4a574;
+  --color-amber-light: #e8c9a8;
+  --color-amber-dark: #b88a5c;
+  --color-teal: #2d8a7e;
+  --color-teal-light: #3da89a;
+  --color-teal-dark: #1f6b62;
+  --color-charcoal: #2c2c2c;
+  --color-charcoal-light: #555555;
+  --color-charcoal-lighter: #888888;
+
   /* === Surface System === */
   --surface-primary: var(--color-sand-100);
   --surface-secondary: var(--color-sand-50);
   --surface-tertiary: var(--color-gray-100);
   --surface-elevated: var(--color-white);
   --canvas-bg: var(--color-sand-100);
+
+  /* === Surface Hierarchy (Phase 10) === */
+  --surface-base: var(--color-sand);
+  --surface-raised: #ffffff;
+  --surface-overlay: rgba(255,255,255,0.95);
+  --surface-sunken: var(--color-sand-dark);
 
   /* === Border System === */
   --border-subtle: var(--color-sand-300);
@@ -84,17 +104,48 @@
   --state-working: var(--color-amber-500);
   --state-success: var(--color-success);
   --state-error: var(--color-error);
+  --color-state-working: #f59e0b;
 
   /* === Shadows === */
-  --shadow-sm: 0 1px 2px rgba(107, 87, 53, 0.06);
-  --shadow-md: 0 2px 8px rgba(107, 87, 53, 0.1);
-  --shadow-lg: 0 4px 16px rgba(107, 87, 53, 0.12);
-  --shadow-xl: 0 8px 32px rgba(107, 87, 53, 0.16);
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+  --shadow-md: 0 4px 6px rgba(0,0,0,0.07);
+  --shadow-lg: 0 10px 15px rgba(0,0,0,0.1);
+  --shadow-xl: 0 20px 25px rgba(0,0,0,0.15);
   --shadow-focus: 0 0 0 3px rgba(250, 159, 52, 0.25);
   --shadow-window: 0 4px 24px rgba(107, 87, 53, 0.14);
   --shadow-window-focused: 0 8px 32px rgba(107, 87, 53, 0.2);
 
-  /* === Spacing === */
+  /* === Typography Scale === */
+  --text-xs: 0.75rem;
+  --text-sm: 0.85rem;
+  --text-base: 1rem;
+  --text-lg: 1.15rem;
+  --text-xl: 1.4rem;
+
+  /* === Font Families === */
+  --font-body: 'Charter', 'Georgia', 'Iowan Old Style', 'Palatino Linotype', serif;
+  --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', Menlo, Consolas, monospace;
+  --font-system: var(--font-ui);
+
+  /* === Status/State Backgrounds === */
+  --color-error-bg: #fef2f2;
+  --color-error-text: #991b1b;
+  --color-success-bg: #f0fdf4;
+  --color-success-text: #166534;
+  --color-warning-bg: #fffbeb;
+  --color-warning-text: #92400e;
+
+  /* === Spacing (numeric aliases for sprint2+ usage) === */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  /* === Spacing (named) === */
   --space-xs: 4px;
   --space-sm: 8px;
   --space-md: 12px;
@@ -110,6 +161,11 @@
   --radius-xl: 16px;
   --radius-full: 9999px;
 
+  /* === Transitions (Phase 10) === */
+  --transition-fast: 100ms;
+  --transition-normal: 200ms;
+  --transition-slow: 350ms;
+
   /* === Animation === */
   --duration-instant: 50ms;
   --duration-fast: 150ms;
@@ -120,16 +176,22 @@
   --ease-snap: cubic-bezier(0, 0.7, 0.3, 1);
 
   /* === Z-Index === */
+  --z-base: 0;
   --z-desktop: 0;
+  --z-dropdown: 100;
   --z-window: 100;
+  --z-sticky: 200;
   --z-window-focused: 200;
+  --z-modal: 300;
+  --z-popover: 400;
   --z-panel: 500;
+  --z-toast: 500;
+  --z-tooltip: 600;
   --z-input-bar: 900;
   --z-overlay: 1000;
-  --z-toast: 1100;
 }
 
-/* === Dark Mode === */
+/* === Dark Mode (existing overrides) === */
 @media (prefers-color-scheme: dark) {
   :root {
     --surface-primary: #1a1410;
@@ -148,9 +210,9 @@
     --text-tertiary: var(--color-sand-500);
 
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
-    --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.3);
-    --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.35);
-    --shadow-xl: 0 8px 32px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.35);
+    --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.4);
     --shadow-window: 0 4px 24px rgba(0, 0, 0, 0.35);
     --shadow-window-focused: 0 8px 32px rgba(0, 0, 0, 0.45);
   }

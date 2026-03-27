@@ -241,6 +241,92 @@ impl ActionTypeRegistry {
             FieldDef { name: "event_data".into(), required: false, field_type: FieldType::Any, description: "Event payload".into() },
         ]);
 
+        // File system actions (spec 09)
+        registry.add_core("fs.read", "Read a file's contents", vec![
+            FieldDef { name: "path".into(), required: true, field_type: FieldType::String, description: "File path to read".into() },
+        ]);
+        registry.add_core("fs.write", "Write content to a file", vec![
+            FieldDef { name: "path".into(), required: true, field_type: FieldType::String, description: "File path to write".into() },
+            FieldDef { name: "content".into(), required: true, field_type: FieldType::String, description: "Content to write".into() },
+        ]);
+        registry.add_core("fs.delete", "Delete a file", vec![
+            FieldDef { name: "path".into(), required: true, field_type: FieldType::String, description: "File path to delete".into() },
+        ]);
+        registry.add_core("fs.list", "List directory contents", vec![
+            FieldDef { name: "path".into(), required: true, field_type: FieldType::String, description: "Directory path to list".into() },
+        ]);
+        registry.add_core("fs.move", "Move or rename a file", vec![
+            FieldDef { name: "source".into(), required: true, field_type: FieldType::String, description: "Source path".into() },
+            FieldDef { name: "destination".into(), required: true, field_type: FieldType::String, description: "Destination path".into() },
+        ]);
+        registry.add_core("fs.mkdir", "Create a directory", vec![
+            FieldDef { name: "path".into(), required: true, field_type: FieldType::String, description: "Directory path to create".into() },
+        ]);
+
+        // Window additional actions
+        registry.add_core("window.maximize", "Maximize a window to fill the screen", vec![
+            FieldDef { name: "window_id".into(), required: true, field_type: FieldType::String, description: "ID of the window to maximize".into() },
+        ]);
+        registry.add_core("window.stack", "Stack windows in a group", vec![
+            FieldDef { name: "window_ids".into(), required: true, field_type: FieldType::Array, description: "Array of window IDs to stack".into() },
+        ]);
+
+        // Agent lifecycle actions
+        registry.add_core("agent.spawn", "Spawn a new leaf agent", vec![
+            FieldDef { name: "agent_type".into(), required: true, field_type: FieldType::String, description: "Type of agent to spawn (file|shell|search)".into() },
+            FieldDef { name: "workspace_id".into(), required: false, field_type: FieldType::String, description: "Target workspace".into() },
+            FieldDef { name: "capabilities".into(), required: false, field_type: FieldType::Array, description: "Agent capabilities list".into() },
+        ]);
+        registry.add_core("agent.kill", "Kill/deactivate an agent", vec![
+            FieldDef { name: "agent_id".into(), required: true, field_type: FieldType::String, description: "ID of the agent to kill".into() },
+        ]);
+
+        // Configuration actions
+        registry.add_core("config.get", "Get a configuration value", vec![
+            FieldDef { name: "key".into(), required: true, field_type: FieldType::String, description: "Configuration key".into() },
+        ]);
+        registry.add_core("config.set", "Set a configuration value", vec![
+            FieldDef { name: "key".into(), required: true, field_type: FieldType::String, description: "Configuration key".into() },
+            FieldDef { name: "value".into(), required: true, field_type: FieldType::Any, description: "New value".into() },
+        ]);
+
+        // Memory additional actions
+        registry.add_core("memory.search", "Search semantic memory by tag", vec![
+            FieldDef { name: "tag".into(), required: true, field_type: FieldType::String, description: "Tag to search for".into() },
+        ]);
+        registry.add_core("memory.delete", "Delete a value from semantic memory", vec![
+            FieldDef { name: "key".into(), required: true, field_type: FieldType::String, description: "Key to delete".into() },
+        ]);
+
+        // Plan actions (spec 16)
+        registry.add_core("plan.create", "Create a new plan", vec![
+            FieldDef { name: "name".into(), required: true, field_type: FieldType::String, description: "Plan name".into() },
+            FieldDef { name: "goal".into(), required: true, field_type: FieldType::String, description: "Plan goal description".into() },
+            FieldDef { name: "steps".into(), required: true, field_type: FieldType::Array, description: "Array of plan steps".into() },
+        ]);
+        registry.add_core("plan.update", "Update a plan's status or steps", vec![
+            FieldDef { name: "plan_id".into(), required: true, field_type: FieldType::String, description: "Plan ID".into() },
+            FieldDef { name: "steps".into(), required: false, field_type: FieldType::Array, description: "Updated steps".into() },
+            FieldDef { name: "status".into(), required: false, field_type: FieldType::String, description: "New status".into() },
+        ]);
+
+        // Workspace actions (spec 14)
+        registry.add_core("workspace.create", "Create a new workspace", vec![
+            FieldDef { name: "name".into(), required: true, field_type: FieldType::String, description: "Workspace name".into() },
+            FieldDef { name: "goal".into(), required: false, field_type: FieldType::String, description: "Workspace goal".into() },
+        ]);
+        registry.add_core("workspace.switch", "Switch to a different workspace", vec![
+            FieldDef { name: "workspace_id".into(), required: true, field_type: FieldType::String, description: "Target workspace ID".into() },
+        ]);
+        registry.add_core("workspace.close", "Close a workspace", vec![
+            FieldDef { name: "workspace_id".into(), required: true, field_type: FieldType::String, description: "Workspace ID to close".into() },
+        ]);
+
+        // Undo action (spec 20)
+        registry.add_core("system.undo", "Undo the last undoable action", vec![
+            FieldDef { name: "action_id".into(), required: false, field_type: FieldType::String, description: "Specific action to undo (latest if omitted)".into() },
+        ]);
+
         registry
     }
 
@@ -281,13 +367,21 @@ impl ActionTypeRegistry {
     }
 
     /// Register an ephemeral action type owned by a dynamic app.
+    /// Returns an error if the action type already exists as a Core action.
     pub fn register_ephemeral(
         &mut self,
         app_id: &str,
         action_type: &str,
         description: &str,
         fields: Vec<FieldDef>,
-    ) {
+    ) -> Result<(), LunaError> {
+        if let Some(existing) = self.types.get(action_type) {
+            if existing.tier == ActionTier::Core {
+                return Err(LunaError::Dispatch(format!(
+                    "Cannot overwrite core action type '{}'", action_type
+                )));
+            }
+        }
         self.types.insert(
             action_type.to_string(),
             ActionTypeDefinition {
@@ -299,6 +393,7 @@ impl ActionTypeRegistry {
                 usage_count: 0,
             },
         );
+        Ok(())
     }
 
     /// Remove all ephemeral actions registered by a specific app.
@@ -330,6 +425,9 @@ impl ActionTypeRegistry {
         let mut agent_actions: Vec<&ActionTypeDefinition> = Vec::new();
         let mut memory_actions: Vec<&ActionTypeDefinition> = Vec::new();
         let mut app_actions: Vec<&ActionTypeDefinition> = Vec::new();
+        let mut fs_actions: Vec<&ActionTypeDefinition> = Vec::new();
+        let mut plan_actions: Vec<&ActionTypeDefinition> = Vec::new();
+        let mut workspace_actions: Vec<&ActionTypeDefinition> = Vec::new();
         let mut other_actions: Vec<&ActionTypeDefinition> = Vec::new();
 
         for def in self.types.values() {
@@ -341,6 +439,12 @@ impl ActionTypeRegistry {
                 memory_actions.push(def);
             } else if def.action_type.starts_with("app.") {
                 app_actions.push(def);
+            } else if def.action_type.starts_with("fs.") {
+                fs_actions.push(def);
+            } else if def.action_type.starts_with("plan.") {
+                plan_actions.push(def);
+            } else if def.action_type.starts_with("workspace.") {
+                workspace_actions.push(def);
             } else if !def.action_type.starts_with("user.") && !def.action_type.starts_with("system.") {
                 other_actions.push(def);
             }
@@ -351,6 +455,9 @@ impl ActionTypeRegistry {
             ("### Agent Actions", agent_actions),
             ("### Memory Actions", memory_actions),
             ("### App Actions (Dynamic UI)", app_actions),
+            ("### File System Actions", fs_actions),
+            ("### Plan Actions", plan_actions),
+            ("### Workspace Actions", workspace_actions),
         ];
 
         for (header, mut defs) in categories {
@@ -364,5 +471,111 @@ impl ActionTypeRegistry {
         }
 
         lines.join("\n")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_registry() -> ActionTypeRegistry {
+        ActionTypeRegistry::new_with_core_types()
+    }
+
+    #[test]
+    fn test_validate_returns_true_for_registered_type() {
+        let reg = make_registry();
+        assert!(reg.validate("window.create"));
+    }
+
+    #[test]
+    fn test_validate_returns_false_for_unknown_type() {
+        let reg = make_registry();
+        assert!(!reg.validate("totally.unknown"));
+    }
+
+    #[test]
+    fn test_validate_payload_succeeds_for_valid_payload() {
+        let reg = make_registry();
+        let payload = serde_json::json!({"title": "My Window"});
+        assert!(reg.validate_payload("window.create", &payload).is_ok());
+    }
+
+    #[test]
+    fn test_validate_payload_fails_for_missing_required_field() {
+        let reg = make_registry();
+        let payload = serde_json::json!({});
+        // window.create requires "title"
+        assert!(reg.validate_payload("window.create", &payload).is_err());
+    }
+
+    #[test]
+    fn test_register_adds_new_action_type() {
+        let mut reg = make_registry();
+        let def = ActionTypeDefinition {
+            action_type: "custom.action".to_string(),
+            tier: ActionTier::AppRegistered,
+            description: "A custom action".to_string(),
+            fields: vec![],
+            app_id: None,
+            usage_count: 0,
+        };
+        assert!(reg.register(def).is_ok());
+        assert!(reg.validate("custom.action"));
+    }
+
+    #[test]
+    fn test_register_rejects_core_tier() {
+        let mut reg = make_registry();
+        let def = ActionTypeDefinition {
+            action_type: "fake.core".to_string(),
+            tier: ActionTier::Core,
+            description: "Trying to register core".to_string(),
+            fields: vec![],
+            app_id: None,
+            usage_count: 0,
+        };
+        assert!(reg.register(def).is_err());
+    }
+
+    #[test]
+    fn test_register_ephemeral_adds_with_llm_created_tier() {
+        let mut reg = make_registry();
+        reg.register_ephemeral("app_1", "app_1.do_stuff", "Do stuff", vec![]).unwrap();
+        let def = reg.get("app_1.do_stuff").unwrap();
+        assert_eq!(def.tier, ActionTier::LlmCreated);
+        assert_eq!(def.app_id, Some("app_1".to_string()));
+    }
+
+    #[test]
+    fn test_deregister_app_actions_removes_app_specific() {
+        let mut reg = make_registry();
+        reg.register_ephemeral("app_x", "app_x.action1", "Action 1", vec![]).unwrap();
+        reg.register_ephemeral("app_x", "app_x.action2", "Action 2", vec![]).unwrap();
+        reg.register_ephemeral("app_y", "app_y.action1", "Action Y1", vec![]).unwrap();
+        assert!(reg.validate("app_x.action1"));
+        reg.deregister_app_actions("app_x");
+        assert!(!reg.validate("app_x.action1"));
+        assert!(!reg.validate("app_x.action2"));
+        assert!(reg.validate("app_y.action1"));
+    }
+
+    #[test]
+    fn test_increment_usage_increases_count() {
+        let mut reg = make_registry();
+        assert_eq!(reg.get("window.create").unwrap().usage_count, 0);
+        reg.increment_usage("window.create");
+        assert_eq!(reg.get("window.create").unwrap().usage_count, 1);
+        reg.increment_usage("window.create");
+        assert_eq!(reg.get("window.create").unwrap().usage_count, 2);
+    }
+
+    #[test]
+    fn test_generate_action_space_prompt_includes_registered_actions() {
+        let reg = make_registry();
+        let prompt = reg.generate_action_space_prompt();
+        assert!(prompt.contains("window.create"));
+        assert!(prompt.contains("agent.response"));
+        assert!(prompt.contains("Available Actions"));
     }
 }

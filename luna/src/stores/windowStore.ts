@@ -98,14 +98,24 @@ export const useWindowStore = create<WindowStore>((set, get) => ({
     }));
   },
 
-  // Sync to backend after drag ends
+  // Sync to backend after drag ends — use authoritative return value
   syncWindowPosition: async (id: string, x: number, y: number) => {
-    await windowIpc.moveWindow(id, x, y);
+    const result = await windowIpc.moveWindow(id, x, y);
+    set((state) => ({
+      windows: state.windows.map((w) =>
+        w.id === id ? { ...w, bounds: { ...w.bounds, x: result.bounds.x, y: result.bounds.y } } : w
+      ),
+    }));
   },
 
-  // Sync to backend after resize ends
+  // Sync to backend after resize ends — use authoritative return value
   syncWindowSize: async (id: string, width: number, height: number) => {
-    await windowIpc.resizeWindow(id, width, height);
+    const result = await windowIpc.resizeWindow(id, width, height);
+    set((state) => ({
+      windows: state.windows.map((w) =>
+        w.id === id ? { ...w, bounds: { ...w.bounds, width: result.bounds.width, height: result.bounds.height } } : w
+      ),
+    }));
   },
 
   minimizeWindow: async (id: string) => {

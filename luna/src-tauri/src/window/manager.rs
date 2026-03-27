@@ -133,3 +133,82 @@ impl WindowManager {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_create_window_adds_with_correct_defaults() {
+        let mut wm = WindowManager::new();
+        let win = wm.create_window("Test Window".to_string(), None);
+        assert_eq!(win.title, "Test Window");
+        assert!(win.focused);
+        assert_eq!(win.visibility, Visibility::Visible);
+        assert_eq!(wm.get_all_windows().len(), 1);
+    }
+
+    #[test]
+    fn test_close_window_removes_window() {
+        let mut wm = WindowManager::new();
+        let win = wm.create_window("To Close".to_string(), None);
+        let id = win.id.clone();
+        assert!(wm.close_window(&id).is_ok());
+        assert_eq!(wm.get_all_windows().len(), 0);
+    }
+
+    #[test]
+    fn test_close_window_returns_error_for_unknown() {
+        let mut wm = WindowManager::new();
+        assert!(wm.close_window("nonexistent").is_err());
+    }
+
+    #[test]
+    fn test_focus_window_updates_z_order_and_focused() {
+        let mut wm = WindowManager::new();
+        let win1 = wm.create_window("Win 1".to_string(), None);
+        let win2 = wm.create_window("Win 2".to_string(), None);
+        let id1 = win1.id.clone();
+        let id2 = win2.id.clone();
+
+        // win2 is focused after creation; focus win1
+        wm.focus_window(&id1).unwrap();
+        let w1 = wm.get_window(&id1).unwrap();
+        let w2 = wm.get_window(&id2).unwrap();
+        assert!(w1.focused);
+        assert!(!w2.focused);
+        assert!(w1.z_order > w2.z_order);
+    }
+
+    #[test]
+    fn test_minimize_window_sets_visibility() {
+        let mut wm = WindowManager::new();
+        let win = wm.create_window("Minimize Me".to_string(), None);
+        let id = win.id.clone();
+        wm.minimize_window(&id).unwrap();
+        let w = wm.get_window(&id).unwrap();
+        assert_eq!(w.visibility, Visibility::Minimized);
+        assert!(!w.focused);
+    }
+
+    #[test]
+    fn test_restore_window_sets_visibility_back() {
+        let mut wm = WindowManager::new();
+        let win = wm.create_window("Restore Me".to_string(), None);
+        let id = win.id.clone();
+        wm.minimize_window(&id).unwrap();
+        wm.restore_window(&id).unwrap();
+        let w = wm.get_window(&id).unwrap();
+        assert_eq!(w.visibility, Visibility::Visible);
+    }
+
+    #[test]
+    fn test_get_all_windows_owned_returns_all() {
+        let mut wm = WindowManager::new();
+        wm.create_window("A".to_string(), None);
+        wm.create_window("B".to_string(), None);
+        wm.create_window("C".to_string(), None);
+        let all = wm.get_all_windows_owned();
+        assert_eq!(all.len(), 3);
+    }
+}

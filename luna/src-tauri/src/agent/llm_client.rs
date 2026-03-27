@@ -1,9 +1,27 @@
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use std::sync::{Arc, Mutex};
+use std::time::Instant;
 use tracing::{info, warn};
 
 use super::llm_stream::{self, StreamReceiver};
 use crate::error::LunaError;
+
+/// Shared health state for tracking consecutive errors and timing.
+#[derive(Debug, Clone)]
+struct HealthState {
+    consecutive_errors: u32,
+    last_error_time: Option<Instant>,
+}
+
+impl Default for HealthState {
+    fn default() -> Self {
+        Self {
+            consecutive_errors: 0,
+            last_error_time: None,
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct LlmClient {
@@ -11,6 +29,7 @@ pub struct LlmClient {
     api_key: String,
     model: String,
     provider: LlmProvider,
+    health: Arc<Mutex<HealthState>>,
 }
 
 #[derive(Debug, Clone)]
@@ -105,6 +124,7 @@ impl LlmClient {
             api_key,
             model: "claude-sonnet-4-20250514".to_string(),
             provider: LlmProvider::Anthropic,
+            health: Arc::new(Mutex::new(HealthState::default())),
         }
     }
 
@@ -114,8 +134,45 @@ impl LlmClient {
             api_key,
             model: "gpt-4o".to_string(),
             provider: LlmProvider::OpenAI,
+            health: Arc::new(Mutex::new(HealthState::default())),
         }
     }
+
+    // -- Health monitoring --------------------------------------------------
+
+    /// Returns `true` if the provider is considered healthy.
+    /// A provider is unhealthy when there have been more than 3 consecutive
+    /// errors within the last 60 seconds.
+    pub fn is_healthy(&self) -> bool {
+        let state = self.health.lock().unwrap();
+        if state.consecutive_errors > 3 {
+            if let Some(last) = state.last_error_time {
+                return last.elapsed().as_secs() >= 60;
+            }
+        }
+        true
+    }
+
+    /// Record a successful request (resets the error counter).
+    fn record_success(&self) {
+        let mut state = self.health.lock().unwrap();
+        state.consecutive_errors = 0;
+        state.last_error_time = None;
+    }
+
+    /// Record a failed request.
+    fn record_error(&self) {
+        let mut state = self.health.lock().unwrap();
+        state.consecutive_errors += 1;
+        state.last_error_time = Some(Instant::now());
+    }
+
+    /// Get the current consecutive error count (useful for diagnostics).
+    pub fn consecutive_errors(&self) -> u32 {
+        self.health.lock().unwrap().consecutive_errors
+    }
+
+    // -- Request methods ----------------------------------------------------
 
     pub async fn send(
         &self,
@@ -123,10 +180,15 @@ impl LlmClient {
         messages: &[LlmMessage],
         max_tokens: u32,
     ) -> Result<LlmResponse, LunaError> {
-        match self.provider {
+        let result = match self.provider {
             LlmProvider::Anthropic => self.send_anthropic(system_prompt, messages, max_tokens).await,
             LlmProvider::OpenAI => self.send_openai(system_prompt, messages, max_tokens).await,
+        };
+        match &result {
+            Ok(_) => self.record_success(),
+            Err(_) => self.record_error(),
         }
+        result
     }
 
     /// Send a streaming request. Returns a channel that receives incremental tokens.
@@ -136,7 +198,7 @@ impl LlmClient {
         messages: &[LlmMessage],
         max_tokens: u32,
     ) -> Result<StreamReceiver, LunaError> {
-        match self.provider {
+        let result = match self.provider {
             LlmProvider::Anthropic => {
                 llm_stream::stream_anthropic(
                     &self.client, &self.api_key, &self.model,
@@ -149,7 +211,12 @@ impl LlmClient {
                     system_prompt, messages, max_tokens,
                 ).await
             }
+        };
+        match &result {
+            Ok(_) => self.record_success(),
+            Err(_) => self.record_error(),
         }
+        result
     }
 
     async fn send_anthropic(

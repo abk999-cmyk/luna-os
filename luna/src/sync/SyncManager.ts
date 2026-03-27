@@ -55,7 +55,11 @@ function dispatch(topic: string, payload: any) {
   for (const [pattern, callbacks] of subscriptions) {
     if (topicMatches(pattern, topic)) {
       for (const cb of callbacks) {
-        cb(payload);
+        try {
+          cb(payload);
+        } catch (err) {
+          console.error(`SyncManager: subscriber error for topic '${topic}':`, err);
+        }
       }
     }
   }

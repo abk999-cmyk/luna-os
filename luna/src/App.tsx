@@ -1,17 +1,21 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { Desktop } from './components/Desktop';
 import { PermissionDialog } from './components/PermissionDialog';
 import { AmbientBadge } from './components/AmbientBadge';
+import { CommandPalette, getTogglePalette } from './components/CommandPalette';
 import { ToastContainer, addToast } from './components/primitives/Toast';
 import { useWindowStore } from './stores/windowStore';
 import { useAgentStore } from './stores/agentStore';
 import { useAppStore } from './stores/appStore';
+import { useTaskStore, type Plan } from './stores/taskStore';
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { registerBuiltinComponents } from './renderer/ComponentRegistry';
 import { initSyncManager } from './sync/SyncManager';
 import { getAgentStatus } from './ipc/agent';
 
 import './styles/theme.css';
+import './styles/dark-theme.css';
 import './styles/reset.css';
 import './styles/typography.css';
 import './styles/animations.css';
@@ -40,6 +44,12 @@ function App() {
 
   // H7: Support multiple simultaneous permission requests via queue
   const [permissionQueue, setPermissionQueue] = useState<PermissionRequest[]>([]);
+
+  // Keyboard shortcuts
+  const shortcuts = useMemo(() => ({
+    'meta+shift+k': getTogglePalette(),
+  }), []);
+  useKeyboardShortcuts(shortcuts);
 
   useEffect(() => {
     // Initialize sync manager
@@ -109,6 +119,28 @@ function App() {
         const title = event.payload?.title || 'New Window';
         const contentType = event.payload?.content_type || 'panel';
         await addWindow(title, contentType);
+      }
+    );
+
+    // ── Agent window close (0D: backend emits this but frontend wasn't listening)
+    const unlistenWindowClose = listen<{ window_id?: string }>(
+      'agent-window-close',
+      (event) => {
+        const windowId = event.payload?.window_id;
+        if (windowId) {
+          useWindowStore.getState().removeWindow(windowId);
+        }
+      }
+    );
+
+    // ── Agent window focus (0D: backend emits this but frontend wasn't listening)
+    const unlistenWindowFocus = listen<{ window_id?: string }>(
+      'agent-window-focus',
+      (event) => {
+        const windowId = event.payload?.window_id;
+        if (windowId) {
+          useWindowStore.getState().focusWindow(windowId);
+        }
       }
     );
 
@@ -187,17 +219,65 @@ function App() {
       }
     );
 
+    // ── Workspace events ─────────────────────────────────────────────────────
+    const unlistenWorkspaceSwitched = listen<{ workspace_id: string }>(
+      'workspace-switched',
+      (event) => {
+        const workspaceId = event.payload.workspace_id;
+        if (workspaceId) {
+          // Reload windows for the new workspace
+          useWindowStore.getState().loadWindows();
+          addToast(`Switched to workspace`, 'info');
+        }
+      }
+    );
+
+    const unlistenWorkspaceCreated = listen<{ workspace_id: string; name: string }>(
+      'workspace-created',
+      (event) => {
+        const { name } = event.payload;
+        addToast(`Workspace "${name}" created`, 'success');
+      }
+    );
+
+    // ── Plan events ──────────────────────────────────────────────────────────
+    const unlistenPlanCreated = listen<{ plan: Plan }>(
+      'plan-created',
+      (event) => {
+        const { plan } = event.payload;
+        if (plan) {
+          useTaskStore.getState().addPlan(plan);
+        }
+      }
+    );
+
+    const unlistenPlanUpdated = listen<{ plan: Plan }>(
+      'plan-updated',
+      (event) => {
+        const { plan } = event.payload;
+        if (plan) {
+          useTaskStore.getState().updatePlan(plan);
+        }
+      }
+    );
+
     return () => {
       unlistenResponse.then((fn) => fn());
       unlistenStreamToken.then((fn) => fn());
       unlistenStreamDone.then((fn) => fn());
       unlistenWindowCreate.then((fn) => fn());
+      unlistenWindowClose.then((fn) => fn());
+      unlistenWindowFocus.then((fn) => fn());
       unlistenContentUpdate.then((fn) => fn());
       unlistenNotify.then((fn) => fn());
       unlistenPermission.then((fn) => fn());
       unlistenAppCreated.then((fn) => fn());
       unlistenAppUpdate.then((fn) => fn());
       unlistenAppDestroyed.then((fn) => fn());
+      unlistenWorkspaceSwitched.then((fn) => fn());
+      unlistenWorkspaceCreated.then((fn) => fn());
+      unlistenPlanCreated.then((fn) => fn());
+      unlistenPlanUpdated.then((fn) => fn());
     };
   }, []);
 
@@ -205,6 +285,7 @@ function App() {
     <>
       <Desktop />
       <AmbientBadge />
+      <CommandPalette />
       <ToastContainer />
       {permissionQueue.length > 0 && (
         <PermissionDialog

@@ -104,3 +104,68 @@ impl AppDescriptor {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_component(id: &str, ctype: &str) -> ComponentSpec {
+        ComponentSpec {
+            id: id.to_string(),
+            component_type: ctype.to_string(),
+            props: serde_json::Value::Null,
+            children: vec![],
+            events: serde_json::Map::new(),
+            layout: serde_json::Value::Null,
+        }
+    }
+
+    fn make_descriptor(id: &str, title: &str, components: Vec<ComponentSpec>) -> AppDescriptor {
+        AppDescriptor {
+            version: "1.0".to_string(),
+            app_type: "application".to_string(),
+            id: id.to_string(),
+            title: title.to_string(),
+            description: None,
+            layout: serde_json::json!("vertical"),
+            width: None,
+            height: None,
+            components,
+            actions: vec![],
+            styles: serde_json::Value::Null,
+            data: serde_json::Value::Null,
+        }
+    }
+
+    #[test]
+    fn test_validate_succeeds_with_valid_descriptor() {
+        let desc = make_descriptor("my_app", "My App", vec![make_component("btn1", "button")]);
+        let errors = desc.validate();
+        assert!(errors.is_empty());
+    }
+
+    #[test]
+    fn test_validate_fails_without_id() {
+        let desc = make_descriptor("", "My App", vec![make_component("btn1", "button")]);
+        let errors = desc.validate();
+        assert!(errors.iter().any(|e| e.contains("id is required")));
+    }
+
+    #[test]
+    fn test_validate_fails_without_title() {
+        let desc = make_descriptor("app_1", "", vec![make_component("btn1", "button")]);
+        let errors = desc.validate();
+        assert!(errors.iter().any(|e| e.contains("title is required")));
+    }
+
+    #[test]
+    fn test_validate_fails_with_duplicate_component_ids() {
+        let desc = make_descriptor(
+            "app_1",
+            "My App",
+            vec![make_component("dup", "button"), make_component("dup", "text")],
+        );
+        let errors = desc.validate();
+        assert!(errors.iter().any(|e| e.contains("Duplicate component id: dup")));
+    }
+}

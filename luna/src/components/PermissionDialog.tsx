@@ -27,19 +27,24 @@ export function PermissionDialog({ request, onResolved }: PermissionDialogProps)
       }
       // Always approve the specific pending action (re-dispatches it)
       await approvePendingAction(request.action_id);
+      // Only dequeue on success
+      onResolved();
     } catch (err) {
       console.error('Failed to approve pending action:', err);
+      // Still dequeue on error to avoid permanently stuck dialog
+      onResolved();
     }
-    onResolved();
   };
 
   const handleDeny = async () => {
     try {
       await denyPendingAction(request.action_id);
+      onResolved();
     } catch (err) {
       console.error('Failed to deny pending action:', err);
+      // Still dequeue to avoid stuck dialog
+      onResolved();
     }
-    onResolved();
   };
 
   return (

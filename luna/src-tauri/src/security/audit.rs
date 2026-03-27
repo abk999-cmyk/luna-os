@@ -1,31 +1,27 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 use crate::error::LunaError;
 use crate::persistence::db::Database;
 
 /// Audit log for all permission decisions.
 pub struct AuditLog {
-    db: Arc<Mutex<Option<Database>>>,
+    db: Arc<Mutex<Database>>,
 }
 
 impl AuditLog {
-    pub fn new(db: Arc<Mutex<Option<Database>>>) -> Self {
+    pub fn new(db: Arc<Mutex<Database>>) -> Self {
         Self { db }
     }
 
     pub fn log(&self, agent_id: &str, action_type: &str, decision: &str) -> Result<(), LunaError> {
-        let db_guard = self.db.lock().unwrap();
-        if let Some(ref db) = *db_guard {
-            db.permission_log_insert(agent_id, action_type, decision)?;
-        }
+        let db = self.db.blocking_lock();
+        db.permission_log_insert(agent_id, action_type, decision)?;
         Ok(())
     }
 
     pub fn query(&self, agent_id: Option<&str>, limit: usize) -> Result<Vec<serde_json::Value>, LunaError> {
-        let db_guard = self.db.lock().unwrap();
-        if let Some(ref db) = *db_guard {
-            return db.permission_log_query(agent_id, limit);
-        }
-        Ok(Vec::new())
+        let db = self.db.blocking_lock();
+        db.permission_log_query(agent_id, limit)
     }
 }

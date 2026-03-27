@@ -149,3 +149,49 @@ fn find_matching_bracket(text: &str, open: char, close: char) -> Option<usize> {
 
     None // Incomplete
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_feed_with_complete_json_returns_action() {
+        let mut parser = StreamParser::new("conductor");
+        let actions = parser.feed(r#"{"action_type": "agent.response", "payload": {"text": "hi"}}"#);
+        assert_eq!(actions.len(), 1);
+        assert_eq!(actions[0].action_type, "agent.response");
+    }
+
+    #[test]
+    fn test_feed_with_partial_json_returns_empty() {
+        let mut parser = StreamParser::new("conductor");
+        let actions = parser.feed(r#"{"action_type": "agent.res"#);
+        assert!(actions.is_empty());
+    }
+
+    #[test]
+    fn test_feed_with_multiple_json_objects() {
+        let mut parser = StreamParser::new("conductor");
+        let input = r#"[{"action_type": "window.create", "payload": {"title": "A"}}, {"action_type": "agent.response", "payload": {"text": "done"}}]"#;
+        let actions = parser.feed(input);
+        assert_eq!(actions.len(), 2);
+        assert_eq!(actions[0].action_type, "window.create");
+        assert_eq!(actions[1].action_type, "agent.response");
+    }
+
+    #[test]
+    fn test_full_text_accumulates_all_tokens() {
+        let mut parser = StreamParser::new("conductor");
+        parser.feed("Hello ");
+        parser.feed("world");
+        assert_eq!(parser.full_text(), "Hello world");
+    }
+
+    #[test]
+    fn test_code_fence_stripping() {
+        let mut parser = StreamParser::new("conductor");
+        let actions = parser.feed("```json\n{\"action_type\": \"agent.response\", \"payload\": {\"text\": \"ok\"}}\n```");
+        assert_eq!(actions.len(), 1);
+        assert_eq!(actions[0].action_type, "agent.response");
+    }
+}

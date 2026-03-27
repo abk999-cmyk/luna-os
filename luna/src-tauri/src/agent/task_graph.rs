@@ -61,14 +61,14 @@ impl TaskGraph {
             result: None,
         };
 
-        let mut nodes = self.nodes.write().unwrap();
+        let mut nodes = self.nodes.write().unwrap_or_else(|e| e.into_inner());
         nodes.insert(id.clone(), node);
         id
     }
 
     /// Update the status of a task.
     pub fn update_status(&self, task_id: &str, status: TaskStatus) {
-        let mut nodes = self.nodes.write().unwrap();
+        let mut nodes = self.nodes.write().unwrap_or_else(|e| e.into_inner());
         if let Some(node) = nodes.get_mut(task_id) {
             node.status = status;
         }
@@ -76,7 +76,7 @@ impl TaskGraph {
 
     /// Mark a task as completed with an optional result.
     pub fn complete_task(&self, task_id: &str, result: Option<serde_json::Value>) {
-        let mut nodes = self.nodes.write().unwrap();
+        let mut nodes = self.nodes.write().unwrap_or_else(|e| e.into_inner());
         if let Some(node) = nodes.get_mut(task_id) {
             node.status = TaskStatus::Completed;
             node.completed_at = Some(
@@ -91,7 +91,7 @@ impl TaskGraph {
 
     /// Mark a task as failed.
     pub fn fail_task(&self, task_id: &str, reason: &str) {
-        let mut nodes = self.nodes.write().unwrap();
+        let mut nodes = self.nodes.write().unwrap_or_else(|e| e.into_inner());
         if let Some(node) = nodes.get_mut(task_id) {
             node.status = TaskStatus::Failed;
             node.completed_at = Some(
@@ -106,19 +106,19 @@ impl TaskGraph {
 
     /// Get the full task tree as a flat list (frontend builds tree from parent_id links).
     pub fn get_tree(&self) -> Vec<TaskNode> {
-        let nodes = self.nodes.read().unwrap();
+        let nodes = self.nodes.read().unwrap_or_else(|e| e.into_inner());
         nodes.values().cloned().collect()
     }
 
     /// Get a single task node.
     pub fn get_task(&self, task_id: &str) -> Option<TaskNode> {
-        let nodes = self.nodes.read().unwrap();
+        let nodes = self.nodes.read().unwrap_or_else(|e| e.into_inner());
         nodes.get(task_id).cloned()
     }
 
     /// Clear all tasks (for new sessions).
     pub fn clear(&self) {
-        let mut nodes = self.nodes.write().unwrap();
+        let mut nodes = self.nodes.write().unwrap_or_else(|e| e.into_inner());
         nodes.clear();
     }
 }

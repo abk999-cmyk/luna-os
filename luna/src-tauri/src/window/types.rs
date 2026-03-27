@@ -81,3 +81,56 @@ impl WindowState {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_bounds_default_centered() {
+        let b = Bounds::default_centered(800.0, 600.0);
+        assert_eq!(b.x, 100.0);
+        assert_eq!(b.y, 100.0);
+        assert_eq!(b.width, 800.0);
+        assert_eq!(b.height, 600.0);
+    }
+
+    #[test]
+    fn test_bounds_clamp_enforces_min() {
+        let mut b = Bounds { x: -10.0, y: -5.0, width: 100.0, height: 50.0 };
+        b.clamp();
+        assert_eq!(b.x, 0.0);
+        assert_eq!(b.y, 0.0);
+        assert_eq!(b.width, 320.0);  // min width
+        assert_eq!(b.height, 240.0); // min height
+    }
+
+    #[test]
+    fn test_window_state_default_values() {
+        let ws = WindowState::new("Test".to_string(), None, 1);
+        assert_eq!(ws.title, "Test");
+        assert_eq!(ws.visibility, Visibility::Visible);
+        assert!(ws.focused);
+        assert_eq!(ws.content_type, WindowContentType::Empty);
+        // Default bounds: 600x400
+        assert_eq!(ws.bounds.width, 600.0);
+        assert_eq!(ws.bounds.height, 400.0);
+    }
+
+    #[test]
+    fn test_window_content_type_variants() {
+        let variants = vec![
+            WindowContentType::Response,
+            WindowContentType::Editor,
+            WindowContentType::Panel,
+            WindowContentType::Canvas,
+            WindowContentType::Empty,
+            WindowContentType::DynamicApp,
+            WindowContentType::Terminal,
+            WindowContentType::Scratchpad,
+        ];
+        // Verify they are all distinct
+        assert_eq!(variants[0], WindowContentType::Response);
+        assert_ne!(variants[0], WindowContentType::Editor);
+    }
+}

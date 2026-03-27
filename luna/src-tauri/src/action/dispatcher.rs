@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::{info, warn};
 
@@ -15,7 +15,7 @@ pub struct ActionDispatcher {
     registry: Arc<RwLock<ActionTypeRegistry>>,
     history: Arc<RwLock<ActionHistory>>,
     queue: ActionQueue,
-    db: Arc<Mutex<Option<Database>>>,
+    db: Arc<tokio::sync::Mutex<Database>>,
     session_id: RwLock<Option<String>>,
     permissions: Arc<RwLock<PermissionMatrix>>,
     audit: Arc<AuditLog>,
@@ -27,7 +27,7 @@ impl ActionDispatcher {
         registry: Arc<RwLock<ActionTypeRegistry>>,
         history: Arc<RwLock<ActionHistory>>,
         queue: ActionQueue,
-        db: Arc<Mutex<Option<Database>>>,
+        db: Arc<tokio::sync::Mutex<Database>>,
         permissions: Arc<RwLock<PermissionMatrix>>,
         audit: Arc<AuditLog>,
     ) -> Self {
@@ -122,11 +122,10 @@ impl ActionDispatcher {
         }
         drop(registry);
 
-        // ── 4. Update status ─────────────────────────────────────────────────
-        action.status = ActionStatus::Dispatched;
+        // ── 4. Record action ID before status change ─────────────────────────
         let action_id = action.id;
 
-        // ── 5. Push to history ───────────────────────────────────────────────
+        // ── 5. Push to history (still Queued at this point) ─────────────────
         {
             let mut history = self.history.write().await;
             history.push(action.clone());
@@ -134,14 +133,15 @@ impl ActionDispatcher {
 
         // ── 6. Persist to DB ─────────────────────────────────────────────────
         {
-            let db_guard = self.db.lock().unwrap();
-            if let Some(ref db) = *db_guard {
-                let session_id = self.session_id.try_read().ok().and_then(|s| s.clone());
-                if let Err(e) = db.insert_action(&action, session_id.as_deref()) {
-                    warn!(error = %e, "Failed to persist action to DB");
-                }
+            let db = self.db.lock().await;
+            let session_id = self.session_id.try_read().ok().and_then(|s| s.clone());
+            if let Err(e) = db.insert_action(&action, session_id.as_deref()) {
+                warn!(error = %e, "Failed to persist action to DB");
             }
         }
+
+        // ── 7. Update status to Dispatched ───────────────────────────────────
+        action.status = ActionStatus::Dispatched;
 
         info!(
             action_id = %action_id,
@@ -150,11 +150,17 @@ impl ActionDispatcher {
             "Action dispatched"
         );
 
-        // ── 7. Enqueue for processing ─────────────────────────────────────────
+        // ── 8. Enqueue for processing ─────────────────────────────────────────
         let action_type = action.action_type.clone();
-        self.queue.enqueue(action)?;
+        if let Err(e) = self.queue.enqueue(action) {
+            // Enqueue failed — mark as Failed in history
+            warn!(error = %e, "Failed to enqueue action");
+            let mut history = self.history.write().await;
+            history.update_status(&action_id, ActionStatus::Failed(format!("enqueue failed: {}", e)));
+            return Err(e);
+        }
 
-        // ── 8. Increment usage counter ───────────────────────────────────────
+        // ── 9. Increment usage counter ───────────────────────────────────────
         {
             let mut registry = self.registry.write().await;
             registry.increment_usage(&action_type);
@@ -197,7 +203,6 @@ impl ActionDispatcher {
         self.audit.log(&agent_id, &action.action_type, "approved_by_user").ok();
 
         // Dispatch directly to queue, bypassing permission check (user already approved)
-        action.status = ActionStatus::Dispatched;
         let aid = action.id;
 
         {
@@ -206,17 +211,21 @@ impl ActionDispatcher {
         }
 
         {
-            let db_guard = self.db.lock().unwrap();
-            if let Some(ref db) = *db_guard {
-                let session_id = self.session_id.try_read().ok().and_then(|s| s.clone());
-                if let Err(e) = db.insert_action(&action, session_id.as_deref()) {
-                    warn!(error = %e, "Failed to persist approved action to DB");
-                }
+            let db = self.db.lock().await;
+            let session_id = self.session_id.try_read().ok().and_then(|s| s.clone());
+            if let Err(e) = db.insert_action(&action, session_id.as_deref()) {
+                warn!(error = %e, "Failed to persist approved action to DB");
             }
         }
 
+        action.status = ActionStatus::Dispatched;
         let action_type = action.action_type.clone();
-        self.queue.enqueue(action)?;
+        if let Err(e) = self.queue.enqueue(action) {
+            warn!(error = %e, "Failed to enqueue approved action");
+            let mut history = self.history.write().await;
+            history.update_status(&aid, ActionStatus::Failed(format!("enqueue failed: {}", e)));
+            return Err(e);
+        }
 
         {
             let mut registry = self.registry.write().await;

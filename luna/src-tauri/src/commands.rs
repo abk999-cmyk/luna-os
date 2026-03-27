@@ -66,14 +66,7 @@ pub async fn send_message(
         reg.generate_action_space_prompt()
     };
 
-    // M4: Take conductor out of the lock so the write lock isn't held across the LLM call.
-    // This unblocks get_agent_status and concurrent requests.
-    let conductor_opt = {
-        let mut guard = state.conductor.write().await;
-        guard.take()
-    };
-
-    if let Some(mut conductor) = conductor_opt {
+    if let Some(ref conductor) = *state.conductor {
         let result = conductor.handle_user_input(
             text.clone(),
             Some(action_space),
@@ -81,12 +74,6 @@ pub async fn send_message(
             open_windows,
             &session_id,
         ).await;
-
-        // Put conductor back before processing results
-        {
-            let mut guard = state.conductor.write().await;
-            *guard = Some(conductor);
-        }
 
         match result {
             Ok(actions) => {
@@ -149,11 +136,10 @@ pub async fn send_message(
 pub async fn get_agent_status(
     state: State<'_, AppState>,
 ) -> Result<serde_json::Value, LunaError> {
-    let conductor = state.conductor.read().await;
     let agents = state.agent_registry.list_all().await;
     Ok(serde_json::json!({
-        "has_conductor": conductor.is_some(),
-        "conductor_id": conductor.as_ref().map(|c| c.id.clone()),
+        "has_conductor": state.conductor.is_some(),
+        "conductor_id": (*state.conductor).as_ref().map(|c| c.id.clone()),
         "agents": agents,
     }))
 }
@@ -254,13 +240,7 @@ pub async fn send_message_streaming(
         reg.generate_action_space_prompt()
     };
 
-    // M4: Take conductor out of the lock so the write lock isn't held during streaming
-    let conductor_opt = {
-        let mut guard = state.conductor.write().await;
-        guard.take()
-    };
-
-    if let Some(mut conductor) = conductor_opt {
+    if let Some(ref conductor) = *state.conductor {
         let app_handle = app.clone();
         let dispatcher = state.dispatcher.clone();
         let app_handle2 = app.clone();
@@ -306,12 +286,6 @@ pub async fn send_message_streaming(
                 });
             },
         ).await;
-
-        // Put conductor back
-        {
-            let mut guard = state.conductor.write().await;
-            *guard = Some(conductor);
-        }
 
         // Emit stream-done event
         use tauri::Emitter;
@@ -377,6 +351,8 @@ pub async fn inject_context(
         }),
         &serde_json::json!({}),
         &["context".into(), "drop".into()],
+        "action",
+        None,
     ) {
         warn!(error = %e, "Failed to record context drop in episodic memory");
     }
@@ -435,4 +411,143 @@ pub async fn deny_pending_action(
     action_id: String,
 ) -> Result<(), LunaError> {
     state.dispatcher.deny_pending(&action_id).await
+}
+
+// ── Episodic memory queries ─────────────────────────────────────────────────
+
+/// Query episodic memory by agent ID.
+#[tauri::command]
+pub async fn query_episodic_by_agent(
+    state: State<'_, AppState>,
+    agent_id: String,
+    limit: Option<usize>,
+) -> Result<Vec<serde_json::Value>, LunaError> {
+    state.memory.episodic.query_by_agent(&agent_id, limit.unwrap_or(50))
+}
+
+/// Query episodic memory by time range.
+#[tauri::command]
+pub async fn query_episodic_time_range(
+    state: State<'_, AppState>,
+    start_ms: i64,
+    end_ms: i64,
+    limit: Option<usize>,
+) -> Result<Vec<serde_json::Value>, LunaError> {
+    state.memory.episodic.query_time_range(start_ms, end_ms, limit.unwrap_or(100))
+}
+
+/// Search semantic memory by tag.
+#[tauri::command]
+pub async fn search_semantic_memory(
+    state: State<'_, AppState>,
+    tag: String,
+) -> Result<Vec<(String, String)>, LunaError> {
+    state.memory.semantic.search_by_tag(&tag)
+}
+
+/// Delete a key from the legacy semantic KV store.
+#[tauri::command]
+pub async fn delete_semantic_memory(
+    state: State<'_, AppState>,
+    key: String,
+) -> Result<(), LunaError> {
+    let db = state.db.lock().await;
+    db.conn().execute("DELETE FROM semantic_memory WHERE key = ?1", rusqlite::params![key])?;
+    Ok(())
+}
+
+// ── Undo commands ───────────────────────────────────────────────────────────
+
+/// Undo the most recent undoable action.
+#[tauri::command]
+pub async fn undo_last_action(
+    state: State<'_, AppState>,
+) -> Result<serde_json::Value, LunaError> {
+    let entries = state.undo_manager.get_recent(1)?;
+    match entries.into_iter().next() {
+        Some(entry) => {
+            let entry_json = serde_json::to_value(&entry)?;
+            state.undo_manager.mark_executed(&entry.id)?;
+            Ok(serde_json::json!({
+                "undone": true,
+                "entry": entry_json,
+            }))
+        }
+        None => Ok(serde_json::json!({
+            "undone": false,
+            "reason": "No undoable actions in history",
+        })),
+    }
+}
+
+/// Get the undo history (most recent first).
+#[tauri::command]
+pub async fn get_undo_history(
+    state: State<'_, AppState>,
+    limit: Option<usize>,
+) -> Result<Vec<serde_json::Value>, LunaError> {
+    let entries = state.undo_manager.get_undo_stack(limit.unwrap_or(20))?;
+    entries
+        .into_iter()
+        .map(|e| serde_json::to_value(&e).map_err(LunaError::from))
+        .collect()
+}
+
+// ── Plan commands ───────────────────────────────────────────────────────────
+
+/// Create a new plan.
+#[tauri::command]
+pub async fn create_plan(
+    state: State<'_, AppState>,
+    name: String,
+    goal: String,
+    steps: Vec<serde_json::Value>,
+    created_by: Option<String>,
+) -> Result<serde_json::Value, LunaError> {
+    let id = uuid::Uuid::new_v4().to_string();
+    let steps_json = serde_json::to_string(&steps)?;
+    let db = state.db.lock().await;
+    db.plan_create(&id, &name, &goal, &steps_json, &created_by.unwrap_or_else(|| "conductor".into()))?;
+    Ok(serde_json::json!({ "plan_id": id, "name": name, "goal": goal, "steps": steps }))
+}
+
+/// Get a plan by ID.
+#[tauri::command]
+pub async fn get_plan(
+    state: State<'_, AppState>,
+    plan_id: String,
+) -> Result<serde_json::Value, LunaError> {
+    let db = state.db.lock().await;
+    match db.plan_get(&plan_id)? {
+        Some(plan) => Ok(plan),
+        None => Err(LunaError::Database(format!("Plan not found: {}", plan_id))),
+    }
+}
+
+/// List all active plans.
+#[tauri::command]
+pub async fn list_active_plans(
+    state: State<'_, AppState>,
+) -> Result<Vec<serde_json::Value>, LunaError> {
+    let db = state.db.lock().await;
+    db.plan_list_active()
+}
+
+/// Update a plan's steps and/or status.
+#[tauri::command]
+pub async fn update_plan(
+    state: State<'_, AppState>,
+    plan_id: String,
+    steps: Option<Vec<serde_json::Value>>,
+    status: Option<String>,
+) -> Result<(), LunaError> {
+    let db = state.db.lock().await;
+    if let Some(s) = steps {
+        let json = serde_json::to_string(&s)?;
+        db.plan_update_steps(&plan_id, &json)?;
+    }
+    if let Some(st) = status {
+        db.plan_update_status(&plan_id, &st)?;
+    }
+    Ok(())
 }

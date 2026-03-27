@@ -79,4 +79,38 @@ mod tests {
         assert!(topic_matches("window.*", "window.size"));
         assert!(!topic_matches("window.*", "app.data"));
     }
+
+    #[tokio::test]
+    async fn test_subscribe_adds_subscriber() {
+        let tm = TopicManager::new();
+        tm.subscribe("sub_1", "window.position").await;
+        let subs = tm.get_subscribers("window.position").await;
+        assert_eq!(subs, vec!["sub_1".to_string()]);
+    }
+
+    #[tokio::test]
+    async fn test_unsubscribe_removes_subscriber() {
+        let tm = TopicManager::new();
+        tm.subscribe("sub_1", "window.position").await;
+        tm.subscribe("sub_2", "window.position").await;
+        tm.unsubscribe("sub_1", "window.position").await;
+        let subs = tm.get_subscribers("window.position").await;
+        assert_eq!(subs, vec!["sub_2".to_string()]);
+    }
+
+    #[tokio::test]
+    async fn test_get_subscribers_with_wildcard() {
+        let tm = TopicManager::new();
+        tm.subscribe("sub_wild", "window.*").await;
+        let subs = tm.get_subscribers("window.position").await;
+        assert_eq!(subs, vec!["sub_wild".to_string()]);
+    }
+
+    #[tokio::test]
+    async fn test_get_subscribers_without_wildcard_no_match() {
+        let tm = TopicManager::new();
+        tm.subscribe("sub_exact", "window.position").await;
+        let subs = tm.get_subscribers("window.size").await;
+        assert!(subs.is_empty());
+    }
 }
