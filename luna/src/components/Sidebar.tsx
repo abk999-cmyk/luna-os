@@ -14,13 +14,8 @@ const TABS: { id: SidebarTab; label: string; icon: string }[] = [
   },
   {
     id: 'activity',
-    label: 'Activity',
+    label: 'Timeline',
     icon: '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>',
-  },
-  {
-    id: 'history',
-    label: 'History',
-    icon: '<path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6.69 3L3 13"/>',
   },
 ];
 
@@ -94,8 +89,15 @@ export function Sidebar() {
       {!sidebarCollapsed && (
         <div className="sidebar__content">
           {sidebarTab === 'chat' && <ChatPanel />}
-          {sidebarTab === 'activity' && <ActivityFeed />}
-          {sidebarTab === 'history' && <UndoTimeline open onClose={() => setSidebarTab('chat')} embedded />}
+          {sidebarTab === 'activity' && (
+            <div className="sidebar__timeline">
+              <ActivityFeed />
+              <div className="sidebar__timeline-divider">
+                <span>Undo History</span>
+              </div>
+              <UndoTimeline open onClose={() => setSidebarTab('chat')} embedded />
+            </div>
+          )}
         </div>
       )}
     </div>

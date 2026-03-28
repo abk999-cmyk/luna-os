@@ -1,6 +1,5 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useWindowStore } from '../../stores/windowStore';
-import { useShellStore } from '../../stores/shellStore';
 import { useActivityStore } from '../../stores/activityStore';
 import { TextInputBar } from '../TextInputBar';
 
@@ -11,17 +10,24 @@ interface DockApp {
   icon: React.ReactNode;
 }
 
+// Essential apps shown in dock
 const DOCK_APPS: DockApp[] = [
   { id: 'notes', label: 'Notes', contentType: 'notes', icon: <NotesIcon /> },
-  { id: 'calculator', label: 'Calculator', contentType: 'calculator', icon: <CalculatorIcon /> },
   { id: 'file_manager', label: 'Files', contentType: 'file_manager', icon: <FilesIcon /> },
+  { id: 'terminal', label: 'Terminal', contentType: 'terminal', icon: <TerminalIcon /> },
+  { id: 'browser', label: 'Browser', contentType: 'browser', icon: <BrowserIcon /> },
+  { id: 'canvas', label: 'Canvas', contentType: 'canvas', icon: <CanvasIcon /> },
+];
+
+// All apps available in launcher
+const ALL_APPS: DockApp[] = [
+  ...DOCK_APPS,
+  { id: 'calculator', label: 'Calculator', contentType: 'calculator', icon: <CalculatorIcon /> },
   { id: 'kanban', label: 'Kanban', contentType: 'kanban', icon: <KanbanIcon /> },
   { id: 'calendar', label: 'Calendar', contentType: 'calendar', icon: <CalendarIcon /> },
   { id: 'email', label: 'Email', contentType: 'email', icon: <EmailIcon /> },
   { id: 'spreadsheet', label: 'Spreadsheet', contentType: 'spreadsheet', icon: <SpreadsheetIcon /> },
   { id: 'slides', label: 'Slides', contentType: 'slides', icon: <SlidesIcon /> },
-  { id: 'browser', label: 'Browser', contentType: 'browser', icon: <BrowserIcon /> },
-  { id: 'terminal', label: 'Terminal', contentType: 'terminal', icon: <TerminalIcon /> },
 ];
 
 export function Dock() {
@@ -29,7 +35,6 @@ export function Dock() {
   const addWindow = useWindowStore((s) => s.addWindow);
   const focusWindow = useWindowStore((s) => s.focusWindow);
   const restoreWindow = useWindowStore((s) => s.restoreWindow);
-  const setWorkspaceBrowserOpen = useShellStore((s) => s.setWorkspaceBrowserOpen);
   const [bouncingId, setBouncingId] = useState<string | null>(null);
   const [launcherOpen, setLauncherOpen] = useState(false);
   const events = useActivityStore((s) => s.events);
@@ -98,25 +103,6 @@ export function Dock() {
   return (
     <>
       <div className="dock">
-        {/* Workspace switcher */}
-        <div className="dock__section">
-          <button
-            className="dock__item"
-            onClick={() => setWorkspaceBrowserOpen(true)}
-            title="Workspaces"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="3" width="7" height="7" rx="1" />
-              <rect x="14" y="3" width="7" height="7" rx="1" />
-              <rect x="3" y="14" width="7" height="7" rx="1" />
-              <rect x="14" y="14" width="7" height="7" rx="1" />
-            </svg>
-            <span className="dock__tooltip">Workspaces</span>
-          </button>
-        </div>
-
-        <div className="dock__separator" />
-
         {/* Running apps only */}
         <div className="dock__section">
           {runningAppTypes.map((app) => (
@@ -184,7 +170,7 @@ export function Dock() {
           <div className="dock-launcher__panel" onClick={(e) => e.stopPropagation()}>
             <div className="dock-launcher__title">Apps</div>
             <div className="dock-launcher__grid">
-              {DOCK_APPS.map((app) => (
+              {ALL_APPS.map((app) => (
                 <button
                   key={app.id}
                   className="dock-launcher__app"
@@ -309,6 +295,17 @@ function TerminalIcon() {
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <polyline points="4 17 10 11 4 5" />
       <line x1="12" y1="19" x2="20" y2="19" />
+    </svg>
+  );
+}
+
+function CanvasIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 19l7-7 3 3-7 7-3-3z" />
+      <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z" />
+      <path d="M2 2l7.586 7.586" />
+      <circle cx="11" cy="11" r="2" />
     </svg>
   );
 }

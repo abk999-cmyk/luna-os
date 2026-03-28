@@ -1,0 +1,139 @@
+/* Liquid Glass Design System */
+:root {
+  /* Glass foundations */
+  --glass-bg: rgba(255, 255, 255, 0.08);
+  --glass-bg-elevated: rgba(255, 255, 255, 0.12);
+  --glass-bg-intense: rgba(255, 255, 255, 0.18);
+  --glass-blur: 40px;
+  --glass-blur-heavy: 60px;
+  --glass-saturation: 200%;
+
+  /* Refraction edges */
+  --glass-edge-light: rgba(255, 255, 255, 0.25);
+  --glass-edge-dark: rgba(0, 0, 0, 0.08);
+
+  /* Specular highlight */
+  --glass-specular: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.15) 0%,
+    rgba(255, 255, 255, 0.05) 8%,
+    transparent 20%
+  );
+
+  /* Inner glow */
+  --glass-inner-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.1),
+                         inset 0 -1px 1px rgba(0, 0, 0, 0.05);
+
+  /* Accent: luminous blue-white */
+  --accent-primary: #7eb8ff;
+  --accent-glow: rgba(126, 184, 255, 0.15);
+  --accent-border: rgba(126, 184, 255, 0.3);
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --glass-bg: rgba(255, 255, 255, 0.45);
+    --glass-bg-elevated: rgba(255, 255, 255, 0.55);
+    --glass-bg-intense: rgba(255, 255, 255, 0.65);
+    --glass-edge-light: rgba(255, 255, 255, 0.6);
+    --glass-edge-dark: rgba(0, 0, 0, 0.05);
+  }
+}
+
+/* Base glass surface class */
+.glass-surface {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
+  border: 1px solid var(--glass-edge-light);
+  border-bottom-color: var(--glass-edge-dark);
+  box-shadow:
+    var(--glass-inner-shadow),
+    0 8px 32px rgba(0, 0, 0, 0.12),
+    0 2px 8px rgba(0, 0, 0, 0.06);
+  position: relative;
+}
+
+.glass-surface::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--glass-specular);
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.glass-surface > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Elevated glass (windows) */
+.glass-elevated {
+  background: var(--glass-bg-elevated);
+  backdrop-filter: blur(var(--glass-blur-heavy)) saturate(var(--glass-saturation));
+  -webkit-backdrop-filter: blur(var(--glass-blur-heavy)) saturate(var(--glass-saturation));
+  border: 1px solid var(--glass-edge-light);
+  border-bottom-color: var(--glass-edge-dark);
+  box-shadow:
+    var(--glass-inner-shadow),
+    0 12px 40px rgba(0, 0, 0, 0.15),
+    0 4px 12px rgba(0, 0, 0, 0.08);
+  position: relative;
+}
+
+.glass-elevated::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--glass-specular);
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.glass-elevated > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Intense glass (popovers, modals) */
+.glass-intense {
+  background: var(--glass-bg-intense);
+  backdrop-filter: blur(var(--glass-blur-heavy)) saturate(var(--glass-saturation));
+  -webkit-backdrop-filter: blur(var(--glass-blur-heavy)) saturate(var(--glass-saturation));
+  border: 1px solid var(--glass-edge-light);
+  border-bottom-color: var(--glass-edge-dark);
+  box-shadow:
+    var(--glass-inner-shadow),
+    0 16px 48px rgba(0, 0, 0, 0.18),
+    0 4px 16px rgba(0, 0, 0, 0.1);
+  position: relative;
+}
+
+.glass-intense::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--glass-specular);
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.glass-intense > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* AI provenance marker */
+.ai-authored {
+  border-left: 2px solid var(--accent-border);
+  padding-left: 12px;
+}
+
+/* Agent active breathing edge */
+.glass-breathe {
+  animation: glass-breathe 2s ease-in-out infinite;
+}

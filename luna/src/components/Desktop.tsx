@@ -42,7 +42,7 @@ export function Desktop() {
     bottom: typeof window !== 'undefined' ? window.innerHeight - 56 : 900,
   };
 
-  const sidebarWidth = sidebarCollapsed ? 48 : 360;
+  const sidebarWidth = sidebarCollapsed ? 48 : 304;
 
   return (
     <>

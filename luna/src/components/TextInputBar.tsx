@@ -109,7 +109,7 @@ export function TextInputBar() {
     <>
       <ContextTray />
       <div
-        className={`input-bar ${isRecording ? 'input-bar--recording' : ''}`}
+        className={`input-bar ${isRecording ? 'input-bar--recording' : ''} ${agentStatus === 'streaming' ? 'input-bar--thinking' : ''}`}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >

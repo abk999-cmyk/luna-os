@@ -115,13 +115,18 @@
   --shadow-window: 0 4px 24px rgba(107, 87, 53, 0.14);
   --shadow-window-focused: 0 8px 32px rgba(107, 87, 53, 0.2);
 
+  /* === Accent (Liquid Glass) === */
+  --accent-primary: #7eb8ff;
+  --accent-glow: rgba(126, 184, 255, 0.15);
+
   /* === Typography Scale === */
-  --text-xs: 0.75rem;
-  --text-sm: 0.85rem;
-  --text-base: 1rem;
-  --text-lg: 1.15rem;
-  --text-xl: 1.4rem;
-  --text-2xl: 1.75rem;
+  --text-2xs: 0.625rem;
+  --text-xs: 0.6875rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.9375rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.375rem;
+  --text-2xl: 1.625rem;
 
   /* === Font Weights === */
   --weight-normal: 400;
@@ -141,8 +146,8 @@
   --tracking-wider: 0.05em;
 
   /* === Font Families === */
-  --font-body: 'Charter', 'Georgia', 'Iowan Old Style', 'Palatino Linotype', serif;
-  --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-body: 'Inter', 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-ui: 'Inter', 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', Menlo, Consolas, monospace;
   --font-system: var(--font-ui);
 

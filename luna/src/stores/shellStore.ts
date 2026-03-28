@@ -42,6 +42,13 @@ interface ShellStore {
 
   workspaceBrowserOpen: boolean;
   setWorkspaceBrowserOpen: (open: boolean) => void;
+
+  settingsOpen: boolean;
+  toggleSettings: () => void;
+  closeSettings: () => void;
+
+  theme: 'light' | 'dark' | 'system';
+  setTheme: (theme: 'light' | 'dark' | 'system') => void;
 }
 
 export const useShellStore = create<ShellStore>((set) => ({
@@ -78,4 +85,11 @@ export const useShellStore = create<ShellStore>((set) => ({
 
   workspaceBrowserOpen: false,
   setWorkspaceBrowserOpen: (open) => set({ workspaceBrowserOpen: open }),
+
+  settingsOpen: false,
+  toggleSettings: () => set((s) => ({ settingsOpen: !s.settingsOpen })),
+  closeSettings: () => set({ settingsOpen: false }),
+
+  theme: 'system',
+  setTheme: (theme) => set({ theme }),
 }));

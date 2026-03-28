@@ -2,10 +2,15 @@
   position: absolute;
   min-width: 320px;
   min-height: 240px;
-  background: var(--surface-elevated);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-xl, 16px);
-  box-shadow: var(--shadow-window);
+  background: var(--glass-bg-elevated);
+  backdrop-filter: blur(var(--glass-blur-heavy)) saturate(var(--glass-saturation));
+  -webkit-backdrop-filter: blur(var(--glass-blur-heavy)) saturate(var(--glass-saturation));
+  border: 1px solid var(--glass-edge-light);
+  border-radius: 16px;
+  box-shadow:
+    var(--glass-inner-shadow),
+    0 12px 40px rgba(0, 0, 0, 0.15),
+    0 4px 12px rgba(0, 0, 0, 0.08);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -38,8 +43,8 @@
   align-items: center;
   height: 36px;
   padding: 0 var(--space-md);
-  background: var(--surface-tertiary);
-  border-bottom: 1px solid var(--border-subtle);
+  background: transparent;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   cursor: grab;
   flex-shrink: 0;
   gap: var(--space-sm);
@@ -54,6 +59,15 @@
   .window--focused .window__chrome {
     background: linear-gradient(180deg, var(--surface-tertiary) 0%, var(--surface-secondary) 100%);
   }
+}
+
+.window__chrome-controls {
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.window:hover .window__chrome-controls {
+  opacity: 1;
 }
 
 .window__controls {
@@ -163,10 +177,11 @@
 /* === Agent Presence === */
 
 .window--agent-active {
-  border-color: var(--color-amber-500, #d4a574);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-amber-500, #d4a574) 40%, transparent),
-    var(--shadow-window);
-  animation: agentGlow 2s ease-in-out infinite;
+  border-color: rgba(126, 184, 255, 0.3);
+  box-shadow: 0 0 0 2px var(--accent-glow),
+    var(--glass-inner-shadow),
+    0 12px 40px rgba(0, 0, 0, 0.15);
+  animation: glass-breathe 2s ease-in-out infinite;
 }
 
 .window__agent-badge {
@@ -215,4 +230,9 @@
 
 .window--drop-target .window__body {
   position: relative;
+}
+
+/* === Window Materialize Animation === */
+.window--materialize {
+  animation: window-materialize 350ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }

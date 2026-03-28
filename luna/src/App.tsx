@@ -24,6 +24,7 @@ import './styles/dark-theme.css';
 import './styles/reset.css';
 import './styles/typography.css';
 import './styles/animations.css';
+import './styles/liquid-glass.css';
 import './styles/windows.css';
 import './styles/input-bar.css';
 import './styles/sprint2.css';

@@ -4,19 +4,9 @@ import { useActivityStore } from '../../stores/activityStore';
 import { useAgentStore } from '../../stores/agentStore';
 
 const SUGGESTED_PROMPTS = [
-  { label: 'Analyze my project structure', icon: '◎' },
-  { label: 'Create a new document', icon: '◎' },
-  { label: 'Review recent changes', icon: '◎' },
-  { label: 'Start something new', icon: '◎' },
-];
-
-const CAPABILITIES = [
-  { label: 'Read files', action_type: 'fs.read' },
-  { label: 'Run commands', action_type: 'shell.execute' },
-  { label: 'Create documents', action_type: 'window.create' },
-  { label: 'Analyze code', action_type: 'agent.think' },
-  { label: 'Remember context', action_type: 'memory.store' },
-  { label: 'Plan tasks', action_type: 'plan.create' },
+  { label: 'Analyze my project structure' },
+  { label: 'Create a new document' },
+  { label: 'Start something new' },
 ];
 
 export function HomeSurface() {
@@ -91,18 +81,8 @@ export function HomeSurface() {
             className="home-surface__suggestion-btn"
             onClick={() => handlePromptClick(prompt.label)}
           >
-            <span className="home-surface__suggestion-icon">{prompt.icon}</span>
             {prompt.label}
           </button>
-        ))}
-      </div>
-
-      {/* Capability chips */}
-      <div className="home-surface__capabilities">
-        {CAPABILITIES.map((cap) => (
-          <span key={cap.action_type} className="home-surface__capability-chip">
-            {cap.label}
-          </span>
         ))}
       </div>
     </div>
