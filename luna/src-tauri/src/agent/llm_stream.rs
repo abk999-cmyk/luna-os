@@ -123,6 +123,7 @@ pub async fn stream_openai(
     let body = serde_json::json!({
         "model": model,
         "max_completion_tokens": max_tokens,
+        "reasoning_effort": "high",
         "stream": true,
         "stream_options": { "include_usage": true },
         "messages": oai_messages,

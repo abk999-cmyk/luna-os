@@ -50,6 +50,7 @@ struct AnthropicRequest {
 struct OpenAIRequest {
     model: String,
     max_completion_tokens: u32,
+    reasoning_effort: String,
     messages: Vec<OpenAIMessage>,
 }
 
@@ -297,6 +298,7 @@ impl LlmClient {
         let request = OpenAIRequest {
             model: self.model.clone(),
             max_completion_tokens: max_tokens,
+            reasoning_effort: "high".to_string(),
             messages: oai_messages,
         };
 
