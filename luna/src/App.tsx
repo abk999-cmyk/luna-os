@@ -2,7 +2,6 @@ import { useEffect, useState, useMemo } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { Desktop } from './components/Desktop';
 import { PermissionDialog } from './components/PermissionDialog';
-import { AmbientBadge } from './components/AmbientBadge';
 import { CommandPalette, getTogglePalette } from './components/CommandPalette';
 import { ToastContainer, addToast } from './components/primitives/Toast';
 import { useWindowStore } from './stores/windowStore';
@@ -358,7 +357,7 @@ function App() {
   return (
     <>
       <Desktop />
-      <AmbientBadge />
+      {/* AmbientBadge removed — voice mode via swipe-right on input bar */}
       <CommandPalette />
       <ToastContainer />
       {permissionQueue.length > 0 && (

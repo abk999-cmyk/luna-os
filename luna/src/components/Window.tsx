@@ -60,6 +60,7 @@ interface WindowProps {
 export function Window({ window: win }: WindowProps) {
   // C7: Use individual selectors to avoid O(n²) re-renders
   const removeWindow = useWindowStore((s) => s.removeWindow);
+  const minimizeWindow = useWindowStore((s) => s.minimizeWindow);
   const focusWindow = useWindowStore((s) => s.focusWindow);
   const updateWindowSize = useWindowStore((s) => s.updateWindowSize);
   const syncWindowSize = useWindowStore((s) => s.syncWindowSize);
@@ -194,6 +195,10 @@ export function Window({ window: win }: WindowProps) {
           <button
             className="window__control window__control--close"
             onClick={(e) => { e.stopPropagation(); removeWindow(win.id); }}
+          />
+          <button
+            className="window__control window__control--minimize"
+            onClick={(e) => { e.stopPropagation(); minimizeWindow(win.id); }}
           />
           <button
             className="window__control window__control--maximize"

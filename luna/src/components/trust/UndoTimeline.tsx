@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getUndoHistory, undoLastAction, type UndoEntry } from '../../ipc/undo';
 import { addToast } from '../primitives/Toast';
+import { describeAction } from '../../stores/activityStore';
 
 interface Props {
   open: boolean;
@@ -81,7 +82,7 @@ export function UndoTimeline({ open, onClose, embedded }: Props) {
               className={`undo-entry ${isExecuted ? 'undo-entry--executed' : ''} ${isExpired ? 'undo-entry--expired' : ''}`}
             >
               <div className="undo-entry__info">
-                <div className="undo-entry__action">{entry.action_type}</div>
+                <div className="undo-entry__action">{describeAction(entry.action_type)}</div>
                 <div className="undo-entry__meta">
                   {entry.agent_id} · {timeStr}
                 </div>

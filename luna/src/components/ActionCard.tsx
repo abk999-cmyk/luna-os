@@ -41,6 +41,10 @@ function formatRelativeTime(ts: number): string {
   return `${Math.floor(diff / 3600)}h ago`;
 }
 
+function formatCompactTime(ts: number): string {
+  return new Date(ts).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+}
+
 interface ActionCardProps {
   event: ActivityEvent;
   compact?: boolean;
@@ -84,13 +88,12 @@ export function ActionCard({ event, compact }: ActionCardProps) {
       </div>
       <div className="action-card__content">
         <span className="action-card__description">{event.description}</span>
-        {!compact && (
-          <span className="action-card__meta">
-            {formatRelativeTime(event.timestamp)}
-            {event.status === 'failed' && <span className="action-card__status action-card__status--failed">failed</span>}
-            {event.windowId && <span className="action-card__status action-card__status--link">click to focus</span>}
-          </span>
-        )}
+        <span className="action-card__meta">
+          {event.agentId && <span className="action-card__agent">{event.agentId}</span>}
+          <span>{compact ? formatCompactTime(event.timestamp) : formatRelativeTime(event.timestamp)}</span>
+          {event.status === 'failed' && <span className="action-card__status action-card__status--failed">failed</span>}
+          {!compact && event.windowId && <span className="action-card__status action-card__status--link">click to focus</span>}
+        </span>
       </div>
       {event.status === 'pending' && (
         <div className="action-card__spinner" />

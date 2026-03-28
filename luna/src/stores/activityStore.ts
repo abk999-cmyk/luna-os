@@ -103,10 +103,43 @@ function describeAction(actionType: string, payload?: Record<string, unknown>): 
 
     case 'system.notify':
       return `Notification: ${truncate(String(p.message || ''), 30)}`;
+    case 'user.text_input':
+      return `User input`;
+    case 'config.get':
+      return `Read config: ${truncate(String(p.key || ''), 20)}`;
+    case 'config.set':
+      return `Set config: ${truncate(String(p.key || ''), 20)}`;
+    case 'system.startup':
+      return 'System started';
+    case 'system.shutdown':
+      return 'System shutdown';
+    case 'system.undo':
+      return 'Undo action';
+    case 'app.create':
+      return `Created app: ${truncate(String(p.title || p.name || ''), 25)}`;
+    case 'app.update':
+      return `Updated app`;
+    case 'app.destroy':
+      return `Destroyed app`;
+    case 'app.event':
+      return `App event`;
+    case 'workspace.create':
+      return `Created workspace: ${truncate(String(p.name || ''), 25)}`;
+    case 'workspace.switch':
+      return `Switched workspace`;
+    case 'workspace.close':
+      return `Closed workspace`;
+    case 'agent.task.create':
+      return `Created task: ${truncate(String(p.title || p.name || ''), 25)}`;
+    case 'agent.error':
+      return `Agent error: ${truncate(String(p.message || p.error || ''), 30)}`;
 
     default: {
-      const action = actionType.split('.').slice(1).join('.');
-      return `${actionType.split('.')[0]}.${action || 'action'}`;
+      // Make the fallback more readable
+      const parts = actionType.split('.');
+      const verb = parts.length > 1 ? parts[1] : parts[0];
+      const noun = parts[0];
+      return `${noun} ${verb}`;
     }
   }
 }

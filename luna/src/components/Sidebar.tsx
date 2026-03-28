@@ -1,10 +1,11 @@
-import { useCallback } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { useShellStore } from '../stores/shellStore';
 import { ChatPanel } from './ChatPanel';
-import { ActivityFeed } from './ActivityFeed';
 import { UndoTimeline } from './trust/UndoTimeline';
+import { useActivityStore } from '../stores/activityStore';
+import { searchSemanticMemory } from '../ipc/memory';
 
-type SidebarTab = 'chat' | 'activity' | 'history';
+type SidebarTab = 'chat' | 'activity' | 'memory';
 
 const TABS: { id: SidebarTab; label: string; icon: string }[] = [
   {
@@ -17,10 +18,15 @@ const TABS: { id: SidebarTab; label: string; icon: string }[] = [
     label: 'Timeline',
     icon: '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>',
   },
+  {
+    id: 'memory',
+    label: 'Memory',
+    icon: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
+  },
 ];
 
 export function Sidebar() {
-  const sidebarTab = useShellStore((s) => s.sidebarTab);
+  const sidebarTab = useShellStore((s) => s.sidebarTab) as SidebarTab;
   const setSidebarTab = useShellStore((s) => s.setSidebarTab);
   const sidebarCollapsed = useShellStore((s) => s.sidebarCollapsed);
   const toggleSidebar = useShellStore((s) => s.toggleSidebar);
@@ -91,15 +97,95 @@ export function Sidebar() {
           {sidebarTab === 'chat' && <ChatPanel />}
           {sidebarTab === 'activity' && (
             <div className="sidebar__timeline">
-              <ActivityFeed />
-              <div className="sidebar__timeline-divider">
-                <span>Undo History</span>
-              </div>
               <UndoTimeline open onClose={() => setSidebarTab('chat')} embedded />
             </div>
           )}
+          {sidebarTab === 'memory' && <MemoryPanel />}
         </div>
       )}
+    </div>
+  );
+}
+
+/** Memory Panel — shows stored semantic memories from the activity feed + backend */
+function MemoryPanel() {
+  const events = useActivityStore((s) => s.events);
+  const [memories, setMemories] = useState<{ key: string; value: string; timestamp?: number }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTag, setSearchTag] = useState('');
+
+  // Extract memory events from activity store
+  const memoryEvents = events.filter((e) => e.type === 'memory');
+
+  // Load memories from backend
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    searchSemanticMemory(searchTag || '*')
+      .then((results) => {
+        if (cancelled) return;
+        setMemories(
+          results.map((r: any) => ({
+            key: r.key || r.Key || '',
+            value: r.value || r.Value || '',
+          }))
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setMemories([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [searchTag, memoryEvents.length]); // Re-fetch when memory events change
+
+  return (
+    <div className="memory-panel">
+      <div className="memory-panel__header">
+        <input
+          className="memory-panel__search"
+          type="text"
+          placeholder="Search memories..."
+          value={searchTag}
+          onChange={(e) => setSearchTag(e.target.value)}
+        />
+      </div>
+
+      <div className="memory-panel__list">
+        {loading && (
+          <div className="memory-panel__empty">Loading memories...</div>
+        )}
+
+        {!loading && memories.length === 0 && memoryEvents.length === 0 && (
+          <div className="memory-panel__empty">
+            No memories stored yet. Luna will remember things as you work together.
+          </div>
+        )}
+
+        {/* Stored memories from backend */}
+        {memories.map((mem, i) => (
+          <div key={`stored-${i}`} className="memory-card">
+            <div className="memory-card__key">{mem.key}</div>
+            <div className="memory-card__value">{mem.value}</div>
+          </div>
+        ))}
+
+        {/* Recent memory activity */}
+        {memoryEvents.length > 0 && (
+          <>
+            <div className="memory-panel__section-label">Recent Activity</div>
+            {memoryEvents.slice(-20).reverse().map((event) => (
+              <div key={event.id} className="memory-card memory-card--activity">
+                <div className="memory-card__key">{event.description}</div>
+                <div className="memory-card__time">
+                  {new Date(event.timestamp).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                </div>
+              </div>
+            ))}
+          </>
+        )}
+      </div>
     </div>
   );
 }

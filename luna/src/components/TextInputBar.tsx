@@ -24,8 +24,10 @@ export function TextInputBar() {
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
   const workspaces = useWorkspaceStore((s) => s.workspaces);
 
-  // Swipe tracking
+  // Swipe tracking (touch + mouse drag)
   const touchStartX = useRef<number | null>(null);
+  const mouseStartX = useRef<number | null>(null);
+  const isDragging = useRef(false);
 
   const placeholder = useMemo(() => {
     if (agentStatus === 'streaming') return 'Luna is working...';
@@ -103,6 +105,28 @@ export function TextInputBar() {
     }
   }, [isRecording, handleVoiceToggle]);
 
+  // Mouse-based swipe right for desktop
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    mouseStartX.current = e.clientX;
+    isDragging.current = false;
+  }, []);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (mouseStartX.current === null) return;
+    const dx = e.clientX - mouseStartX.current;
+    if (dx > 20) isDragging.current = true;
+  }, []);
+
+  const handleMouseUp = useCallback((e: React.MouseEvent) => {
+    if (mouseStartX.current === null) return;
+    const dx = e.clientX - mouseStartX.current;
+    mouseStartX.current = null;
+    if (dx > SWIPE_THRESHOLD && !isRecording && isDragging.current) {
+      handleVoiceToggle();
+    }
+    isDragging.current = false;
+  }, [isRecording, handleVoiceToggle]);
+
   const displayValue = isRecording && transcript ? transcript : value;
 
   return (
@@ -112,6 +136,9 @@ export function TextInputBar() {
         className={`input-bar ${isRecording ? 'input-bar--recording' : ''} ${agentStatus === 'streaming' ? 'input-bar--thinking' : ''}`}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
       >
         {isRecording ? (
           <div className="input-bar__voice-mode" onClick={handleVoiceToggle}>

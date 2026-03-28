@@ -9,7 +9,7 @@ export interface ContextItem {
   preview?: string;
 }
 
-type SidebarTab = 'chat' | 'activity' | 'history';
+type SidebarTab = 'chat' | 'activity' | 'history' | 'memory';
 
 interface ShellStore {
   topBarHeight: number;
