@@ -85,14 +85,14 @@ function App() {
 
     // ── Agent window creation ────────────────────────────────────────────────
     const windowCreateDedup = new Map<string, number>();
-    const DEDUP_MS = 2000;
+    const DEDUP_MS = 500;
     const unlistenWindowCreate = listen<Record<string, unknown>>(
       'agent-window-create',
       async (event) => {
         const p = event.payload || {};
         const title = (p.title as string) || 'New Window';
         const contentType = (p.content_type as string) || 'panel';
-        // Dedup guard: skip if same title+contentType was created within 2 seconds
+        // Dedup guard: skip if same title+contentType was created within dedup window
         const dedupKey = `${title}::${contentType}`;
         const now = Date.now();
         const lastTime = windowCreateDedup.get(dedupKey);
@@ -100,7 +100,12 @@ function App() {
         windowCreateDedup.set(dedupKey, now);
         // LLM may use content, text, or body for the window content
         const content = (p.content as string) || (p.text as string) || (p.body as string) || '';
-        await addWindow(title, contentType, content);
+        // Pass through geometry from payload
+        const x = p.x != null ? Number(p.x) : undefined;
+        const y = p.y != null ? Number(p.y) : undefined;
+        const width = p.width != null ? Number(p.width) : undefined;
+        const height = p.height != null ? Number(p.height) : undefined;
+        await addWindow(title, contentType, content, x, y, width, height);
       }
     );
 
@@ -110,7 +115,7 @@ function App() {
       (event) => {
         const windowId = event.payload?.window_id;
         if (windowId) {
-          useWindowStore.getState().removeWindow(windowId);
+          useWindowStore.getState().removeWindowLocal(windowId);
         }
       }
     );

@@ -19,9 +19,10 @@ export function ScratchpadPanel({ workspaceId = 'workspace_default', onClose }: 
   const [entries, setEntries] = useState<ScratchpadEntry[]>([]);
 
   useEffect(() => {
+    let cancelled = false;
     // Load initial scratchpad state
     invoke<ScratchpadEntry[]>('get_scratchpad', { workspaceId })
-      .then(setEntries)
+      .then((data) => { if (!cancelled) setEntries(data); })
       .catch(() => {});
 
     // Listen for live updates
@@ -35,6 +36,7 @@ export function ScratchpadPanel({ workspaceId = 'workspace_default', onClose }: 
     );
 
     return () => {
+      cancelled = true;
       unlisten.then((fn) => fn());
     };
   }, [workspaceId]);

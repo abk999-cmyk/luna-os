@@ -5,12 +5,41 @@ export interface ParsedContext {
   metadata: Record<string, any>;
 }
 
+/** Max file size to read as text (10MB). Larger files are summarized without reading. */
+const MAX_TEXT_SIZE = 10 * 1024 * 1024;
+
+/** Known text extensions that are safe to read. */
+const TEXT_EXTENSIONS = new Set([
+  'txt', 'md', 'log', 'py', 'js', 'ts', 'rs', 'go', 'rb', 'sh',
+  'yaml', 'yml', 'toml', 'html', 'css', 'json', 'jsonl', 'csv', 'tsv',
+  'xml', 'sql', 'c', 'cpp', 'h', 'java', 'kt', 'swift', 'r', 'lua',
+]);
+
 /** Parse a dropped file into a structured context. */
 export async function parseFile(file: File): Promise<ParsedContext> {
   const ext = file.name.split('.').pop()?.toLowerCase() || '';
 
   if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp'].includes(ext)) {
     return parseImageFile(file);
+  }
+
+  // Guard: reject files that are too large or have unknown binary extensions
+  if (file.size > MAX_TEXT_SIZE) {
+    return {
+      type: 'unknown',
+      content: '',
+      summary: `File too large to parse as text (${Math.round(file.size / 1024 / 1024)}MB)`,
+      metadata: { sizeBytes: file.size, skipped: true },
+    };
+  }
+
+  if (!TEXT_EXTENSIONS.has(ext)) {
+    return {
+      type: 'unknown',
+      content: '',
+      summary: `Unknown file type (.${ext || 'no extension'}), ${Math.round(file.size / 1024)}KB`,
+      metadata: { extension: ext, sizeBytes: file.size, skipped: true },
+    };
   }
 
   const text = await file.text();
@@ -23,11 +52,7 @@ export async function parseFile(file: File): Promise<ParsedContext> {
     return parseCsvFile(text, file.name, ext === 'tsv' ? '\t' : ',');
   }
 
-  if (['txt', 'md', 'log', 'py', 'js', 'ts', 'rs', 'go', 'rb', 'sh', 'yaml', 'yml', 'toml', 'html', 'css'].includes(ext)) {
-    return parseTextFile(text, file.name);
-  }
-
-  // Unknown type — treat as text
+  // All other known text extensions
   return parseTextFile(text, file.name);
 }
 

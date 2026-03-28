@@ -55,6 +55,22 @@ impl RbacManager {
         role: Role,
         granted_by: &str,
     ) -> Result<(), LunaError> {
+        // Verify that the granter has owner or editor role for this workspace.
+        // Exception: if the workspace has no members yet, allow bootstrapping the first owner.
+        let members = self.list_workspace_members(workspace_id).await?;
+        if !members.is_empty() {
+            let granter_role = self.get_access(workspace_id, granted_by).await?;
+            match granter_role {
+                Some(Role::Owner) | Some(Role::Editor) => { /* authorized */ }
+                _ => {
+                    return Err(LunaError::Permission(format!(
+                        "User '{}' does not have permission to grant access on workspace '{}'",
+                        granted_by, workspace_id
+                    )));
+                }
+            }
+        }
+
         let now = chrono::Utc::now().timestamp();
         let db = self.db.lock().await;
         db.conn().execute(
@@ -176,6 +192,8 @@ mod tests {
     async fn test_can_edit_and_view() {
         let db = test_db().await;
         let mgr = RbacManager::new(db);
+        // Bootstrap an owner first so subsequent grants are authorized.
+        mgr.grant_access("ws1", "admin", Role::Owner, "admin").await.unwrap();
         mgr.grant_access("ws1", "user1", Role::Viewer, "admin").await.unwrap();
         assert!(!mgr.can_edit("ws1", "user1").await.unwrap());
         assert!(mgr.can_view("ws1", "user1").await.unwrap());
@@ -193,6 +211,32 @@ mod tests {
         mgr.grant_access("ws1", "user2", Role::Editor, "user1").await.unwrap();
         assert!(mgr.is_owner("ws1", "user1").await.unwrap());
         assert!(!mgr.is_owner("ws1", "user2").await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_grant_access_denied_for_viewer() {
+        let db = test_db().await;
+        let mgr = RbacManager::new(db);
+        // Bootstrap owner
+        mgr.grant_access("ws1", "owner1", Role::Owner, "owner1").await.unwrap();
+        // Add a viewer
+        mgr.grant_access("ws1", "viewer1", Role::Viewer, "owner1").await.unwrap();
+        // Viewer should not be able to grant access
+        let result = mgr.grant_access("ws1", "user3", Role::Viewer, "viewer1").await;
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("does not have permission"));
+    }
+
+    #[tokio::test]
+    async fn test_grant_access_denied_for_stranger() {
+        let db = test_db().await;
+        let mgr = RbacManager::new(db);
+        // Bootstrap owner
+        mgr.grant_access("ws1", "owner1", Role::Owner, "owner1").await.unwrap();
+        // A user with no role at all should be denied
+        let result = mgr.grant_access("ws1", "user3", Role::Viewer, "stranger").await;
+        assert!(result.is_err());
     }
 
     #[tokio::test]

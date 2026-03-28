@@ -37,6 +37,11 @@ export function Checkbox({ id, props, onEvent }: PrimitiveProps) {
 export function Toggle({ id, props, onEvent }: PrimitiveProps) {
   const [on, setOn] = useState(props.value ?? props.defaultValue ?? false);
 
+  // Sync internal state when external props.value changes (mirrors Checkbox pattern)
+  useEffect(() => {
+    if (props.value !== undefined) setOn(props.value);
+  }, [props.value]);
+
   const handleToggle = () => {
     if (props.disabled) return;
     const next = !on;

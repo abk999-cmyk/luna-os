@@ -20,14 +20,19 @@ pub async fn grant_workspace_access(
     workspace_id: String,
     user_id: String,
     role: String,
-    granted_by: String,
+    #[allow(unused_variables)] granted_by: String,
 ) -> Result<(), String> {
+    // Ignore caller-supplied granted_by; derive identity from the authenticated session.
+    let current_user = state.identity_manager.get_current_user().await
+        .ok_or_else(|| "No authenticated user session. Please log in first.".to_string())?;
+    let authenticated_id = current_user.user_id;
+
     let role = match role.as_str() {
         "owner" => crate::collaboration::rbac::Role::Owner,
         "editor" => crate::collaboration::rbac::Role::Editor,
         _ => crate::collaboration::rbac::Role::Viewer,
     };
-    state.rbac_manager.grant_access(&workspace_id, &user_id, role, &granted_by).await
+    state.rbac_manager.grant_access(&workspace_id, &user_id, role, &authenticated_id).await
         .map_err(|e| e.to_string())
 }
 

@@ -891,27 +891,81 @@ pub fn register_core_handlers(registry: &ActionHandlerRegistry) {
         }),
     );
 
-    // plan.create → emit plan-created event
+    // plan.create → persist to DB, then emit plan-created event
     registry.register(
         "plan.create",
-        Arc::new(|action, handle, _state| {
+        Arc::new(|action, handle, state| {
             Box::pin(async move {
-                if let Err(e) = handle.emit("plan-created", &action.payload) {
+                let name = action
+                    .payload
+                    .get("name")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| LunaError::Dispatch("plan.create requires 'name'".into()))?
+                    .to_string();
+                let goal = action
+                    .payload
+                    .get("goal")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                let steps = action
+                    .payload
+                    .get("steps")
+                    .cloned()
+                    .unwrap_or_else(|| serde_json::json!([]));
+                let steps_json = serde_json::to_string(&steps).unwrap_or_else(|_| "[]".to_string());
+                let created_by = match &action.source {
+                    crate::action::types::ActionSource::Agent(id) => id.clone(),
+                    crate::action::types::ActionSource::User => "user".to_string(),
+                    crate::action::types::ActionSource::System => "system".to_string(),
+                };
+                let id = uuid::Uuid::new_v4().to_string();
+                {
+                    let db = state.db.lock().await;
+                    db.plan_create(&id, &name, &goal, &steps_json, &created_by)?;
+                }
+                let plan_data = serde_json::json!({
+                    "id": id,
+                    "name": name,
+                    "goal": goal,
+                    "steps": steps,
+                    "created_by": created_by,
+                });
+                if let Err(e) = handle.emit("plan-created", &plan_data) {
                     tracing::debug!(error = %e, "Failed to emit plan-created");
                 }
+                tracing::info!(plan_id = %id, name = %name, "Created plan");
                 Ok(())
             })
         }),
     );
 
-    // plan.update → emit plan-updated event
+    // plan.update → persist to DB, then emit plan-updated event
     registry.register(
         "plan.update",
-        Arc::new(|action, handle, _state| {
+        Arc::new(|action, handle, state| {
             Box::pin(async move {
+                let plan_id = action
+                    .payload
+                    .get("planId")
+                    .or_else(|| action.payload.get("plan_id"))
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| LunaError::Dispatch("plan.update requires 'planId'".into()))?
+                    .to_string();
+                {
+                    let db = state.db.lock().await;
+                    if let Some(steps) = action.payload.get("steps") {
+                        let steps_json = serde_json::to_string(steps).unwrap_or_else(|_| "[]".to_string());
+                        db.plan_update_steps(&plan_id, &steps_json)?;
+                    }
+                    if let Some(status) = action.payload.get("status").and_then(|v| v.as_str()) {
+                        db.plan_update_status(&plan_id, status)?;
+                    }
+                }
                 if let Err(e) = handle.emit("plan-updated", &action.payload) {
                     tracing::debug!(error = %e, "Failed to emit plan-updated");
                 }
+                tracing::info!(plan_id = %plan_id, "Updated plan");
                 Ok(())
             })
         }),
@@ -997,16 +1051,92 @@ pub fn register_core_handlers(registry: &ActionHandlerRegistry) {
         }),
     );
 
-    // system.undo → undo the last undoable action
+    // system.undo → execute the most recent undo entry
     registry.register(
         "system.undo",
-        Arc::new(|action, handle, _state| {
+        Arc::new(|_action, handle, state| {
             Box::pin(async move {
-                // Emit an undo-requested event; the undo manager logic is handled
-                // by the dispatcher/undo subsystem which listens for this event.
-                if let Err(e) = handle.emit("system-undo-requested", &action.payload) {
-                    tracing::debug!(error = %e, "Failed to emit system-undo-requested");
+                use crate::action::undo::InverseOperation;
+
+                let entries = state.undo_manager.get_recent(1).await?;
+                let entry = entries.into_iter().next().ok_or_else(|| {
+                    LunaError::Dispatch("No undoable actions available".into())
+                })?;
+
+                if entry.executed {
+                    return Err(LunaError::Dispatch("Most recent undo entry already executed".into()));
                 }
+
+                let description = entry.description.clone();
+                let entry_id = entry.id.clone();
+                let entry_json = serde_json::json!({
+                    "id": entry.id,
+                    "action_id": entry.action_id,
+                    "action_type": entry.action_type,
+                    "description": entry.description,
+                });
+
+                match &entry.inverse_operation {
+                    InverseOperation::DeleteFile { path } => {
+                        tokio::fs::remove_file(path).await.map_err(|e| {
+                            LunaError::Dispatch(format!("Failed to delete file '{}': {}", path, e))
+                        })?;
+                    }
+                    InverseOperation::RestoreFile { path, original_content } => {
+                        tokio::fs::write(path, original_content).await.map_err(|e| {
+                            LunaError::Dispatch(format!("Failed to restore file '{}': {}", path, e))
+                        })?;
+                    }
+                    InverseOperation::RemoveWindow { window_id } => {
+                        if let Err(e) = handle.emit("agent-window-close", serde_json::json!({"window_id": window_id})) {
+                            tracing::debug!(error = %e, "Failed to emit agent-window-close for undo");
+                        }
+                    }
+                    InverseOperation::RestoreWindow { window_state_json } => {
+                        let window_state: serde_json::Value = serde_json::from_str(window_state_json)
+                            .unwrap_or_else(|_| serde_json::json!({}));
+                        if let Err(e) = handle.emit("agent-window-create", &window_state) {
+                            tracing::debug!(error = %e, "Failed to emit agent-window-create for undo");
+                        }
+                    }
+                    InverseOperation::RestoreSemanticEntry { key, original_value } => {
+                        match original_value {
+                            Some(value) => {
+                                state.memory.semantic.store(key, value, &["undo-restore".to_string()]).await?;
+                            }
+                            None => {
+                                state.memory.semantic.delete(key).await?;
+                            }
+                        }
+                    }
+                    InverseOperation::ReplayAction { action_type, payload } => {
+                        if let Err(e) = handle.emit(&action_type.replace('.', "-"), payload) {
+                            tracing::debug!(error = %e, "Failed to emit replay action for undo");
+                        }
+                    }
+                    InverseOperation::NonReversible { reason } => {
+                        if let Err(e) = handle.emit(
+                            "system-notification",
+                            serde_json::json!({"level": "warning", "message": format!("Cannot undo: {}", reason)}),
+                        ) {
+                            tracing::debug!(error = %e, "Failed to emit non-reversible notification");
+                        }
+                        return Ok(());
+                    }
+                }
+
+                state.undo_manager.mark_executed(&entry_id).await?;
+
+                if let Err(e) = handle.emit("system-undo-completed", &entry_json) {
+                    tracing::debug!(error = %e, "Failed to emit system-undo-completed");
+                }
+                if let Err(e) = handle.emit(
+                    "system-notification",
+                    serde_json::json!({"level": "info", "message": format!("Undo successful: {}", description)}),
+                ) {
+                    tracing::debug!(error = %e, "Failed to emit undo notification");
+                }
+                tracing::info!(entry_id = %entry_id, "Executed undo");
                 Ok(())
             })
         }),

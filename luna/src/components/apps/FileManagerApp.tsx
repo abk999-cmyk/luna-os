@@ -300,6 +300,20 @@ export function FileManagerApp({
     if (filesProp) setFiles(filesProp);
   }, [filesProp]);
 
+  // Sync currentPath prop
+  useEffect(() => {
+    if (pathProp !== undefined) {
+      setCwd(pathProp);
+    }
+  }, [pathProp]);
+
+  // Sync viewMode prop
+  useEffect(() => {
+    if (modeProp !== undefined) {
+      setView(modeProp);
+    }
+  }, [modeProp]);
+
   const commit = useCallback((next: FileEntry[]) => {
     isInternalEdit.current = true;
     setFiles(next);

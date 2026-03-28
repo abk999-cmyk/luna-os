@@ -9,8 +9,9 @@ interface WindowStore {
 
   // Actions
   loadWindows: () => Promise<void>;
-  addWindow: (title: string, contentType?: string, content?: string) => Promise<WindowState>;
+  addWindow: (title: string, contentType?: string, content?: string, x?: number, y?: number, width?: number, height?: number) => Promise<WindowState>;
   removeWindow: (id: string) => Promise<void>;
+  removeWindowLocal: (id: string) => void;
   updateWindowPosition: (id: string, x: number, y: number) => void;
   updateWindowSize: (id: string, width: number, height: number) => void;
   syncWindowPosition: (id: string, x: number, y: number) => Promise<void>;
@@ -36,7 +37,7 @@ interface WindowStore {
 
 // Dedup map: title+contentType → timestamp (prevents duplicate window creation)
 const _windowDedupMap = new Map<string, number>();
-const DEDUP_WINDOW_MS = 2000;
+const DEDUP_WINDOW_MS = 500;
 
 export const useWindowStore = create<WindowStore>((set, get) => ({
   windows: [],
@@ -49,8 +50,8 @@ export const useWindowStore = create<WindowStore>((set, get) => ({
     set({ windows });
   },
 
-  addWindow: async (title: string, contentType?: string, content?: string) => {
-    // Dedup guard: skip if same title+contentType was added within last 2 seconds
+  addWindow: async (title: string, contentType?: string, content?: string, x?: number, y?: number, width?: number, height?: number) => {
+    // Dedup guard: skip if same title+contentType was added within dedup window
     const dedupKey = `${title}::${contentType || 'panel'}`;
     const now = Date.now();
     const lastTime = _windowDedupMap.get(dedupKey);
@@ -61,7 +62,7 @@ export const useWindowStore = create<WindowStore>((set, get) => ({
     }
     _windowDedupMap.set(dedupKey, now);
 
-    const window = await windowIpc.createWindow(title, undefined, undefined, undefined, undefined, contentType);
+    const window = await windowIpc.createWindow(title, width, height, x, y, contentType);
     // H8: Unfocus all existing windows before adding new focused window
     set((state) => ({
       windows: [...state.windows.map((w) => ({ ...w, focused: false })), { ...window, focused: true }],
@@ -82,12 +83,32 @@ export const useWindowStore = create<WindowStore>((set, get) => ({
       useAppStore.getState().destroyApp(appInfo.appId);
     }
 
-    await windowIpc.closeWindow(id);
+    try {
+      await windowIpc.closeWindow(id);
+    } catch (_err) {
+      // Backend close may fail; always proceed with local cleanup
+    }
     set((state) => ({
       windows: state.windows.filter((w) => w.id !== id),
       focusedWindowId: state.focusedWindowId === id ? null : state.focusedWindowId,
     }));
     // Clean up content
+    const content = new Map(get().windowContent);
+    content.delete(id);
+    set({ windowContent: content });
+  },
+
+  removeWindowLocal: (id: string) => {
+    // Local-only cleanup (no backend IPC) — used when backend already closed the window
+    get().detachWindow(id);
+    const appInfo = useAppStore.getState().getAppByWindowId(id);
+    if (appInfo) {
+      useAppStore.getState().destroyApp(appInfo.appId);
+    }
+    set((state) => ({
+      windows: state.windows.filter((w) => w.id !== id),
+      focusedWindowId: state.focusedWindowId === id ? null : state.focusedWindowId,
+    }));
     const content = new Map(get().windowContent);
     content.delete(id);
     set({ windowContent: content });

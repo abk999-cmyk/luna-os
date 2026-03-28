@@ -292,6 +292,7 @@ impl ConductorAgent {
         let mut parser = StreamParser::new(&self.id);
         let mut input_tokens: u32 = 0;
         let mut output_tokens: u32 = 0;
+        let mut any_actions_emitted = false;
 
         while let Some(event) = rx.recv().await {
             match event {
@@ -299,6 +300,7 @@ impl ConductorAgent {
                     on_token(&token);
                     let actions = parser.feed(&token);
                     if !actions.is_empty() {
+                        any_actions_emitted = true;
                         on_actions(actions);
                     }
                 }
@@ -315,6 +317,15 @@ impl ConductorAgent {
         }
 
         let full_text = parser.full_text().to_string();
+
+        // Fallback: if streaming produced no actions, run the full parser
+        // which handles plain-text → agent.response wrapping
+        if !any_actions_emitted && !full_text.trim().is_empty() {
+            let fallback_actions = response_parser::parse_response(&full_text);
+            if !fallback_actions.is_empty() {
+                on_actions(fallback_actions);
+            }
+        }
 
         // Add assistant response to history
         {

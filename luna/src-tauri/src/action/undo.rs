@@ -115,9 +115,8 @@ impl UndoManager {
     pub fn is_reversible(action_type: &str) -> bool {
         matches!(
             action_type,
-            "file.write"
-                | "file.create"
-                | "file.delete"
+            "fs.write"
+                | "fs.delete"
                 | "window.create"
                 | "window.close"
                 | "memory.store"
@@ -140,7 +139,7 @@ impl UndoManager {
             .as_secs() as i64;
 
         let inverse_operation = match action_type {
-            "file.write" => {
+            "fs.write" => {
                 let path = payload
                     .get("path")
                     .and_then(|v| v.as_str())
@@ -151,20 +150,18 @@ impl UndoManager {
                     .and_then(|v| v.as_str())
                     .unwrap_or("")
                     .to_string();
-                InverseOperation::RestoreFile {
-                    path,
-                    original_content,
+                // If there was original content, this was an overwrite → restore it.
+                // If no original content, this was a new file creation → delete it.
+                if original_content.is_empty() && result.get("original_content").is_none() {
+                    InverseOperation::DeleteFile { path }
+                } else {
+                    InverseOperation::RestoreFile {
+                        path,
+                        original_content,
+                    }
                 }
             }
-            "file.create" => {
-                let path = payload
-                    .get("path")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string();
-                InverseOperation::DeleteFile { path }
-            }
-            "file.delete" => {
+            "fs.delete" => {
                 let path = payload
                     .get("path")
                     .and_then(|v| v.as_str())
@@ -346,9 +343,8 @@ mod tests {
 
     #[test]
     fn test_is_reversible_known_types() {
-        assert!(UndoManager::is_reversible("file.write"));
-        assert!(UndoManager::is_reversible("file.create"));
-        assert!(UndoManager::is_reversible("file.delete"));
+        assert!(UndoManager::is_reversible("fs.write"));
+        assert!(UndoManager::is_reversible("fs.delete"));
         assert!(UndoManager::is_reversible("window.create"));
         assert!(UndoManager::is_reversible("window.close"));
         assert!(UndoManager::is_reversible("memory.store"));
@@ -359,10 +355,10 @@ mod tests {
     }
 
     #[test]
-    fn test_create_entry_file_write_maps_to_restore_file() {
+    fn test_create_entry_fs_write_maps_to_restore_file() {
         let payload = serde_json::json!({"path": "/tmp/hello.txt"});
         let result = serde_json::json!({"original_content": "old content"});
-        let entry = UndoManager::create_entry("act-fw", "file.write", "agent-1", &payload, &result);
+        let entry = UndoManager::create_entry("act-fw", "fs.write", "agent-1", &payload, &result);
 
         match &entry.inverse_operation {
             InverseOperation::RestoreFile {

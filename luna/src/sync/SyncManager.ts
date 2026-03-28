@@ -17,21 +17,26 @@ export async function initSyncManager() {
   if (initialized || initializing) return;
   initializing = true;
 
-  // Listen for batched sync events from backend
-  await listen<SyncUpdate[]>('luna-sync', (event) => {
-    const updates = event.payload;
-    for (const update of updates) {
-      dispatch(update.topic, update.payload);
-    }
-  });
+  try {
+    // Listen for batched sync events from backend
+    await listen<SyncUpdate[]>('luna-sync', (event) => {
+      const updates = event.payload;
+      for (const update of updates) {
+        dispatch(update.topic, update.payload);
+      }
+    });
 
-  // Also support individual sync events
-  await listen<SyncUpdate>('luna-sync-single', (event) => {
-    dispatch(event.payload.topic, event.payload.payload);
-  });
+    // Also support individual sync events
+    await listen<SyncUpdate>('luna-sync-single', (event) => {
+      dispatch(event.payload.topic, event.payload.payload);
+    });
 
-  // H12: Mark initialized only after all listeners are registered
-  initialized = true;
+    // H12: Mark initialized only after all listeners are registered
+    initialized = true;
+  } finally {
+    // Always reset initializing so a failed init can be retried
+    initializing = false;
+  }
 }
 
 /** Subscribe to a topic pattern. Returns an unsubscribe function. */

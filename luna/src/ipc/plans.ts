@@ -2,12 +2,14 @@ import { invoke } from '@tauri-apps/api/core';
 import type { Plan } from '../stores/taskStore';
 
 export async function createPlan(
+  name: string,
   goal: string,
-  title?: string,
+  steps?: string[],
 ): Promise<Plan> {
   return invoke('create_plan', {
+    name,
     goal,
-    title: title ?? null,
+    steps: steps ?? [],
   });
 }
 
@@ -22,15 +24,13 @@ export async function listActivePlans(): Promise<Plan[]> {
 export async function updatePlan(
   planId: string,
   updates: {
-    title?: string;
-    goal?: string;
+    steps?: string[];
     status?: string;
   },
 ): Promise<Plan> {
   return invoke('update_plan', {
     planId,
-    title: updates.title ?? null,
-    goal: updates.goal ?? null,
+    steps: updates.steps ?? null,
     status: updates.status ?? null,
   });
 }

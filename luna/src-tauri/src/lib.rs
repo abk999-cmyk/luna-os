@@ -274,6 +274,16 @@ pub fn run() {
     // ── Sandbox manager ────────────────────────────────────────────────────────
     let sandbox_manager = Arc::new(SandboxManager::new());
 
+    // Assign sensible tiers to known agents so they don't fall back to Restricted.
+    {
+        use crate::security::sandbox::SandboxTier;
+        let sm = sandbox_manager.clone();
+        tauri::async_runtime::block_on(async {
+            sm.set_agent_tier("conductor", SandboxTier::Trusted).await;
+            sm.set_agent_tier("orchestrator_workspace_default", SandboxTier::Standard).await;
+        });
+    }
+
     // ── Undo manager ─────────────────────────────────────────────────────────
     let undo_manager = Arc::new(UndoManager::new(db.clone()));
 
@@ -365,7 +375,7 @@ pub fn run() {
 
                     // Auto-record undo entry for undoable actions
                     if matches!(new_status, crate::action::types::ActionStatus::Completed) {
-                        if action.action_type.starts_with("file.") || action.action_type.starts_with("window.") || action.action_type == "memory.store" {
+                        if action.action_type.starts_with("fs.") || action.action_type.starts_with("window.") || action.action_type == "memory.store" {
                             let agent_id = match &action.source {
                                 crate::action::types::ActionSource::Agent(id) => id.clone(),
                                 crate::action::types::ActionSource::User => "user".to_string(),

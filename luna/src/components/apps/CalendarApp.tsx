@@ -1010,6 +1010,20 @@ export function CalendarApp({
     if (externalEvents) setEvents(externalEvents);
   }, [externalEvents]);
 
+  // Sync external view prop
+  useEffect(() => {
+    if (initialView !== undefined) {
+      setView(initialView);
+    }
+  }, [initialView]);
+
+  // Sync external selectedDate prop
+  useEffect(() => {
+    if (initialDate !== undefined) {
+      setCurrentDate(new Date(initialDate));
+    }
+  }, [initialDate]);
+
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Propagate changes

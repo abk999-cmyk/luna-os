@@ -89,9 +89,14 @@ export function useVoiceInput(): UseVoiceInputReturn {
   const stopRecording = useCallback(async (): Promise<string> => {
     setIsRecording(false);
 
-    // Stop speech recognition
+    // Stop speech recognition and wait for final result
     if (speechRecognitionRef.current) {
-      speechRecognitionRef.current.stop();
+      const recognition = speechRecognitionRef.current;
+      await new Promise<void>((resolve) => {
+        const timeout = setTimeout(resolve, 500); // max 500ms wait
+        recognition.onend = () => { clearTimeout(timeout); resolve(); };
+        recognition.stop();
+      });
       speechRecognitionRef.current = null;
     }
 
