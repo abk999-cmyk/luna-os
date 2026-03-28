@@ -37,6 +37,7 @@ use config::LunaConfig;
 use memory::MemorySystem;
 use persistence::db::Database;
 use security::{AuditLog, PermissionMatrix, SandboxManager};
+use security::policy::SecurityPolicy;
 use agent::task_graph::TaskGraph;
 use app::lifecycle::AppManager;
 use app::template_registry::TemplateRegistry;
@@ -287,6 +288,17 @@ pub fn run() {
     // ── Undo manager ─────────────────────────────────────────────────────────
     let undo_manager = Arc::new(UndoManager::new(db.clone()));
 
+    // ── Security policy ─────────────────────────────────────────────────────
+    let security_policy = Arc::new(SecurityPolicy::new(db.clone()));
+    {
+        let sp = security_policy.clone();
+        tauri::async_runtime::block_on(async move {
+            if let Err(e) = sp.load_from_db().await {
+                tracing::warn!("Failed to load security policy from DB: {}", e);
+            }
+        });
+    }
+
     // ── Create app state ──────────────────────────────────────────────────────
     let app_state = AppState::new(
         dispatcher.clone(),
@@ -316,6 +328,7 @@ pub fn run() {
         presence_manager.clone(),
         sandbox_manager.clone(),
         undo_manager.clone(),
+        security_policy.clone(),
     );
 
     info!(session_id = %session_id, "Luna session started");
@@ -349,6 +362,7 @@ pub fn run() {
             let queue_handle = handle.clone();
             let proc_latency = queue_latency;
             tauri::async_runtime::spawn(async move {
+                use tauri::Emitter;
                 while let Some(action) = recv.recv().await {
                     tracing::trace!(
                         action_type = %action.action_type,
@@ -384,6 +398,31 @@ pub fn run() {
                             if let Err(e) = proc_state.undo_manager.create_entry_from_action(&action, &agent_id).await {
                                 tracing::debug!(error = %e, "Could not create undo entry");
                             }
+                        }
+                    }
+
+                    // Emit agent-action event to frontend for activity tracking
+                    {
+                        let status_str = match &new_status {
+                            crate::action::types::ActionStatus::Completed => "completed",
+                            crate::action::types::ActionStatus::Failed(_) => "failed",
+                            _ => "pending",
+                        };
+                        let agent_id = match &action.source {
+                            crate::action::types::ActionSource::Agent(id) => id.clone(),
+                            crate::action::types::ActionSource::User => "user".to_string(),
+                            crate::action::types::ActionSource::System => "system".to_string(),
+                        };
+                        if let Err(e) = queue_handle.emit(
+                            "agent-action",
+                            serde_json::json!({
+                                "action_type": action.action_type,
+                                "payload": action.payload,
+                                "agent_id": agent_id,
+                                "status": status_str,
+                            }),
+                        ) {
+                            tracing::debug!(error = %e, "Failed to emit agent-action event");
                         }
                     }
 
@@ -598,6 +637,8 @@ pub fn run() {
             collaboration::commands::get_workspace_presence,
             commands::undo_last_action,
             commands::get_undo_history,
+            commands::get_permission_mode,
+            commands::set_permission_mode,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

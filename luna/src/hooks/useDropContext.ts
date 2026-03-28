@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { parseFile, generateContextSummary } from '../services/contextParser';
+import { useShellStore } from '../stores/shellStore';
 
 interface UseDropContextReturn {
   isDropTarget: boolean;
@@ -14,6 +15,7 @@ interface UseDropContextReturn {
 export function useDropContext(): UseDropContextReturn {
   const [isDropTarget, setIsDropTarget] = useState(false);
   const dragCountRef = useRef(0);
+  const addContextItem = useShellStore((s) => s.addContextItem);
 
   // M7: Increment counter on dragEnter (fires once per element boundary),
   // not dragOver (fires continuously)
@@ -59,6 +61,16 @@ export function useDropContext(): UseDropContextReturn {
           summary,
           content: parsed.content,
           sourceFilename: file.name,
+        });
+
+        // Also add as a visible context chip
+        addContextItem({
+          id: `ctx-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          filename: file.name,
+          type: parsed.type,
+          size: file.size,
+          content: parsed.content,
+          preview: parsed.content.slice(0, 500),
         });
       } catch (err) {
         console.error('Failed to inject context from file:', file.name, err);

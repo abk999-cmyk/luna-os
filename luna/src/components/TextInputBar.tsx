@@ -1,30 +1,62 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useMemo } from 'react';
 import { sendMessageStreaming } from '../ipc/agent';
 import { useAgentStore } from '../stores/agentStore';
+import { useShellStore } from '../stores/shellStore';
+import { useWindowStore } from '../stores/windowStore';
+import { useWorkspaceStore } from '../stores/workspaceStore';
 import { useVoiceInput } from '../hooks/useVoiceInput';
 import { VoiceWaveform } from './VoiceWaveform';
-import { StatusIndicator } from './StatusIndicator';
-import { ChatPanel } from './ChatPanel';
+import { ContextTray } from './ContextTray';
+
+const SWIPE_THRESHOLD = 60;
 
 export function TextInputBar() {
   const [value, setValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const setStatus = useAgentStore((s) => s.setStatus);
   const addChatMessage = useAgentStore((s) => s.addChatMessage);
-  const hasConductor = useAgentStore((s) => s.hasConductor);
+  const contextItems = useShellStore((s) => s.contextTrayItems);
+  const clearContextItems = useShellStore((s) => s.clearContextItems);
 
   const { startRecording, stopRecording, isRecording, transcript, error: voiceError, analyserNode } = useVoiceInput();
+  const agentStatus = useAgentStore((s) => s.status);
+  const windows = useWindowStore((s) => s.windows);
+  const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
+  const workspaces = useWorkspaceStore((s) => s.workspaces);
+
+  // Swipe tracking
+  const touchStartX = useRef<number | null>(null);
+
+  const placeholder = useMemo(() => {
+    if (agentStatus === 'streaming') return 'Luna is working...';
+    const activeWorkspace = workspaces.find((w) => w.id === activeWorkspaceId);
+    const visibleWindows = windows.filter((w) => w.visibility === 'visible');
+    const focusedWindow = windows.find((w) => w.focused);
+    if (focusedWindow) return `Ask about "${focusedWindow.title}"...`;
+    if (visibleWindows.length > 0) return `${visibleWindows.length} window${visibleWindows.length > 1 ? 's' : ''} open · Ask anything...`;
+    if (activeWorkspace?.goal) return `${activeWorkspace.name}: ${activeWorkspace.goal.slice(0, 40)}`;
+    return 'Ask anything...';
+  }, [agentStatus, windows, workspaces, activeWorkspaceId]);
 
   const handleSubmit = useCallback(async (text?: string) => {
     const submitText = (text || value).trim();
     if (!submitText) return;
+
+    let fullMessage = submitText;
+    if (contextItems.length > 0) {
+      const contextBlock = contextItems
+        .map((item) => `[File: ${item.filename} (${item.type}, ${item.size}B)]\n${item.content}`)
+        .join('\n\n');
+      fullMessage = `${contextBlock}\n\n${submitText}`;
+      clearContextItems();
+    }
 
     setValue('');
     addChatMessage('user', submitText);
     setStatus('streaming');
 
     try {
-      await sendMessageStreaming(submitText);
+      await sendMessageStreaming(fullMessage);
     } catch (e) {
       console.error('Failed to send message:', e);
       addChatMessage('assistant', `Error: ${e}`);
@@ -33,7 +65,7 @@ export function TextInputBar() {
     }
 
     inputRef.current?.focus();
-  }, [value, setStatus, addChatMessage]);
+  }, [value, setStatus, addChatMessage, contextItems, clearContextItems]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -50,7 +82,6 @@ export function TextInputBar() {
       const text = await stopRecording();
       if (text) {
         setValue(text);
-        // Auto-submit after a brief delay so user can see the transcript
         setTimeout(() => handleSubmit(text), 300);
       }
     } else {
@@ -58,82 +89,61 @@ export function TextInputBar() {
     }
   }, [isRecording, startRecording, stopRecording, handleSubmit]);
 
-  // Show live transcript while recording
+  // Swipe right to enter voice mode
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+  }, []);
+
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    if (touchStartX.current === null) return;
+    const dx = e.changedTouches[0].clientX - touchStartX.current;
+    touchStartX.current = null;
+    if (dx > SWIPE_THRESHOLD && !isRecording) {
+      handleVoiceToggle();
+    }
+  }, [isRecording, handleVoiceToggle]);
+
   const displayValue = isRecording && transcript ? transcript : value;
 
   return (
     <>
-    <ChatPanel />
-    <div className="input-bar">
-      <div className="input-bar__context">
-        {hasConductor ? 'Conductor' : 'No Agent'}
-      </div>
-
-      {isRecording ? (
-        <div className="input-bar__voice-mode" style={{
-          display: 'flex', alignItems: 'center', gap: '8px', flex: 1, padding: '0 8px',
-        }}>
-          <VoiceWaveform analyserNode={analyserNode} isRecording={isRecording} />
-          <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', flex: 1 }}>
-            {transcript || 'Listening...'}
-          </span>
-        </div>
-      ) : (
-        <input
-          ref={inputRef}
-          className="input-bar__field"
-          type="text"
-          placeholder="Describe a task..."
-          value={displayValue}
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={handleKeyDown}
-          autoFocus
-        />
-      )}
-
-      <button
-        className="input-bar__voice-btn"
-        onClick={handleVoiceToggle}
-        title={isRecording ? 'Stop recording' : 'Voice input'}
-        style={{
-          background: isRecording ? 'var(--color-error, #c44)' : 'transparent',
-          border: 'none',
-          borderRadius: '50%',
-          width: 32,
-          height: 32,
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: isRecording ? 'white' : 'var(--color-text-muted)',
-          fontSize: '1.1rem',
-          transition: 'all 0.15s ease',
-        }}
+      <ContextTray />
+      <div
+        className={`input-bar ${isRecording ? 'input-bar--recording' : ''}`}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
       >
         {isRecording ? (
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-            <rect x="4" y="4" width="16" height="16" rx="2" />
-          </svg>
+          <div className="input-bar__voice-mode" onClick={handleVoiceToggle}>
+            <VoiceWaveform analyserNode={analyserNode} isRecording={isRecording} />
+            <span className="input-bar__voice-transcript">
+              {transcript || 'Listening...'}
+            </span>
+            <span className="input-bar__voice-stop">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                <rect x="4" y="4" width="16" height="16" rx="2" />
+              </svg>
+            </span>
+          </div>
         ) : (
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-            <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-            <line x1="12" y1="19" x2="12" y2="23" />
-            <line x1="8" y1="23" x2="16" y2="23" />
-          </svg>
+          <input
+            ref={inputRef}
+            className="input-bar__field"
+            type="text"
+            placeholder={placeholder}
+            value={displayValue}
+            onChange={(e) => setValue(e.target.value)}
+            onKeyDown={handleKeyDown}
+            autoFocus
+          />
         )}
-      </button>
 
-      {voiceError && (
-        <span style={{ fontSize: '0.75rem', color: 'var(--color-error)', position: 'absolute', bottom: -16 }}>
-          {voiceError}
-        </span>
-      )}
-
-      <div className="input-bar__status">
-        <StatusIndicator />
+        {voiceError && (
+          <span className="input-bar__error">
+            {voiceError}
+          </span>
+        )}
       </div>
-    </div>
     </>
   );
 }

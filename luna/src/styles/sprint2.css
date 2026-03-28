@@ -199,7 +199,12 @@
   font-weight: 600;
   cursor: pointer;
   border: none;
-  transition: all 0.1s ease;
+  transition: all var(--duration-fast, 150ms) var(--ease-smooth, ease);
+}
+
+.permission-btn:active {
+  transform: scale(0.96);
+  transition-duration: 50ms;
 }
 
 .permission-btn-deny {

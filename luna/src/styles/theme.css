@@ -121,6 +121,24 @@
   --text-base: 1rem;
   --text-lg: 1.15rem;
   --text-xl: 1.4rem;
+  --text-2xl: 1.75rem;
+
+  /* === Font Weights === */
+  --weight-normal: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  /* === Line Heights === */
+  --leading-tight: 1.2;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.65;
+
+  /* === Letter Spacing === */
+  --tracking-tight: -0.01em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.02em;
+  --tracking-wider: 0.05em;
 
   /* === Font Families === */
   --font-body: 'Charter', 'Georgia', 'Iowan Old Style', 'Palatino Linotype', serif;
@@ -189,6 +207,15 @@
   --z-tooltip: 600;
   --z-input-bar: 900;
   --z-overlay: 1000;
+
+  /* === Shell === */
+  --shell-topbar-height: 32px;
+  --shell-dock-height: 56px;
+  --z-shell-dock: 840;
+  --z-shell-topbar: 850;
+  --z-snap-overlay: 860;
+  --z-context-tray: 895;
+  --z-mission-control: 950;
 }
 
 /* === Dark Mode (existing overrides) === */
@@ -208,6 +235,11 @@
     --text-primary: var(--color-sand-100);
     --text-secondary: var(--color-sand-300);
     --text-tertiary: var(--color-sand-500);
+
+    --surface-base: #1a1410;
+    --surface-raised: #2a2218;
+    --surface-overlay: rgba(42, 34, 24, 0.95);
+    --surface-sunken: #12100c;
 
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
     --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.3);

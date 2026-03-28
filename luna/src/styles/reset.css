@@ -23,9 +23,24 @@ body {
   user-select: auto;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 input, textarea, button {
   font-family: inherit;
   font-size: inherit;
+}
+
+/* Focus-visible ring: consistent amber ring across all interactive elements */
+:focus-visible {
+  outline: 2px solid var(--color-amber-500, #fa9f34);
+  outline-offset: 2px;
+}
+
+/* Remove default outline for mouse clicks */
+:focus:not(:focus-visible) {
+  outline: none;
 }
 
 a {

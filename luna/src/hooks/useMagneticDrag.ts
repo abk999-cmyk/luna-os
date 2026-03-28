@@ -1,5 +1,6 @@
 import { useCallback, useRef } from 'react';
 import { useWindowStore } from '../stores/windowStore';
+import { useEdgeSnap } from './useEdgeSnap';
 
 const SNAP_THRESHOLD = 25; // pixels
 
@@ -101,6 +102,7 @@ function computeSnap(
 
 export function useMagneticDrag() {
   const dragState = useRef<DragState | null>(null);
+  const { activeZone, updateZone, clearZone, getTargetBounds } = useEdgeSnap();
 
   const startDrag = useCallback(
     (windowId: string, clientX: number, clientY: number, origX: number, origY: number) => {
@@ -179,6 +181,17 @@ export function useMagneticDrag() {
       }
     }
 
+    // Edge snap detection
+    const topBarH = 32;
+    const dockH = 56;
+    const desktopBounds = {
+      top: topBarH,
+      left: 0,
+      right: window.innerWidth,
+      bottom: window.innerHeight - dockH,
+    };
+    updateZone(clientX, clientY, desktopBounds);
+
     // Update main window position
     store.updateWindowPosition(ds.windowId, newX, newY);
 
@@ -196,6 +209,31 @@ export function useMagneticDrag() {
 
     const store = useWindowStore.getState();
     const win = store.windows.find((w) => w.id === ds.windowId);
+
+    // If an edge snap zone is active, snap the window to fill that zone
+    if (activeZone && win) {
+      const topBarH = 32;
+      const dockH = 56;
+      const desktopBounds = {
+        top: topBarH,
+        left: 0,
+        right: window.innerWidth,
+        bottom: window.innerHeight - dockH,
+      };
+      const target = getTargetBounds(activeZone, desktopBounds);
+      if (target) {
+        store.updateWindowPosition(ds.windowId, target.x, target.y);
+        store.updateWindowSize(ds.windowId, target.width, target.height);
+        store.syncWindowPosition(ds.windowId, target.x, target.y);
+        store.syncWindowSize(ds.windowId, target.width, target.height);
+        clearZone();
+        dragState.current = null;
+        return;
+      }
+    }
+
+    clearZone();
+
     if (win) {
       store.syncWindowPosition(ds.windowId, win.bounds.x, win.bounds.y);
     }
@@ -215,5 +253,5 @@ export function useMagneticDrag() {
 
   const isDragging = useCallback(() => dragState.current !== null, []);
 
-  return { startDrag, moveDrag, endDrag, isDragging };
+  return { startDrag, moveDrag, endDrag, isDragging, activeSnapZone: activeZone };
 }

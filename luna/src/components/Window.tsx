@@ -4,12 +4,14 @@ import { useWindowStore } from '../stores/windowStore';
 import { useAppStore } from '../stores/appStore';
 import { useMagneticDrag } from '../hooks/useMagneticDrag';
 import { useDropContext } from '../hooks/useDropContext';
+import { useWindowAgentPresence } from '../hooks/useWindowAgentPresence';
 import { ResponseDisplay } from './ResponseDisplay';
 import { DynamicRenderer } from '../renderer/DynamicRenderer';
 import { RichTextEditor } from './RichTextEditor';
 import { TerminalView } from './WindowTerminalView';
 import { CanvasView } from './WindowCanvasView';
 import { ScratchpadView } from './WindowScratchpadView';
+import { MemoryInspector } from './trust/MemoryInspector';
 
 // Lazy-load heavy app components
 const SpreadsheetApp = lazy(() => import('./apps/SpreadsheetApp').then(m => ({ default: m.SpreadsheetApp })));
@@ -69,6 +71,7 @@ export function Window({ window: win }: WindowProps) {
   const windowRef = useRef<HTMLDivElement>(null);
   const { startDrag, moveDrag, endDrag, isDragging } = useMagneticDrag();
   const { isDropTarget, handleDragEnter, handleDragOver, handleDragLeave, handleDrop } = useDropContext();
+  const agentPresence = useWindowAgentPresence(win.id);
 
   // Drag handling (magnetic)
   const onDragStart = useCallback(
@@ -158,6 +161,7 @@ export function Window({ window: win }: WindowProps) {
     isDragging() && 'window--dragging',
     groupSize > 0 && 'window--grouped',
     isDropTarget && 'window--drop-target',
+    agentPresence?.active && 'window--agent-active',
   ]
     .filter(Boolean)
     .join(' ');
@@ -202,6 +206,12 @@ export function Window({ window: win }: WindowProps) {
           />
         </div>
         <div className="window__title">{win.title}</div>
+        {agentPresence?.active && (
+          <div className="window__agent-badge">
+            <span className="window__agent-badge-dot" />
+            Luna working
+          </div>
+        )}
       </div>
 
       {/* Body */}
@@ -423,6 +433,11 @@ function WindowBody({
   // Canvas
   if (win.content_type === 'canvas') {
     return <CanvasView />;
+  }
+
+  // Memory Inspector
+  if (win.content_type === 'memory_inspector') {
+    return <MemoryInspector />;
   }
 
   // Scratchpad

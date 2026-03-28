@@ -13,6 +13,11 @@ import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { registerBuiltinComponents } from './renderer/ComponentRegistry';
 import { initSyncManager } from './sync/SyncManager';
 import { getAgentStatus } from './ipc/agent';
+import { useWorkspaceStore } from './stores/workspaceStore';
+import { useShellStore } from './stores/shellStore';
+import { useActivityStore } from './stores/activityStore';
+import { getPermissionMode } from './ipc/permissions';
+import { undoLastAction } from './ipc/undo';
 
 import './styles/theme.css';
 import './styles/dark-theme.css';
@@ -23,6 +28,7 @@ import './styles/windows.css';
 import './styles/input-bar.css';
 import './styles/sprint2.css';
 import './styles/magnetic.css';
+import './styles/shell.css';
 
 // Initialize component registry for dynamic rendering
 registerBuiltinComponents();
@@ -48,6 +54,12 @@ function App() {
   // Keyboard shortcuts
   const shortcuts = useMemo(() => ({
     'meta+shift+k': getTogglePalette(),
+    'f3': () => useShellStore.getState().toggleMissionControl(),
+    'meta+z': () => {
+      undoLastAction().then((r: { undone: boolean }) => {
+        if (r.undone) addToast('Action undone', 'success');
+      }).catch(() => {});
+    },
   }), []);
   useKeyboardShortcuts(shortcuts);
 
@@ -63,6 +75,14 @@ function App() {
       setHasConductor(status.has_conductor);
     });
 
+    // Load workspaces
+    useWorkspaceStore.getState().loadWorkspaces();
+
+    // Load permission mode
+    getPermissionMode().then((mode) => {
+      useShellStore.getState().setPermissionMode(mode);
+    }).catch(() => {});
+
     // ── Agent response → chat panel ─────────────────────────────────────────
     const unlistenResponse = listen<{ text?: string }>('agent-response', (_event) => {
       const text = _event.payload?.text || 'No response';
@@ -70,18 +90,51 @@ function App() {
       useAgentStore.getState().addChatMessage('assistant', text);
     });
 
-    // ── Streaming: track status only ────────────────────────────────────────
-    // Raw tokens are the LLM's JSON action array — don't display them.
-    // Parsed actions (agent.response, window.create, etc.) are dispatched
-    // through the action system and handled by their own event listeners.
+    // ── Streaming: track status + accumulate response text ──────────────────
     const unlistenStreamToken = listen<{ token: string; stream_id?: string }>('agent-stream-token', (_event) => {
-      // Just set status to streaming — actual content comes from dispatched actions
       setStatus('streaming');
     });
 
     const unlistenStreamDone = listen<{ stream_id?: string }>('agent-stream-done', (_event) => {
+      // Finalize streaming: create chat message from accumulated tokens, clear state
+      useAgentStore.getState().finalizeStream();
       setStatus('idle');
     });
+
+    // ── Capture ALL agent actions into activityStore + chat ─────────────────
+    const unlistenAgentAction = listen<{ action_type: string; payload?: Record<string, unknown>; agent_id?: string }>(
+      'agent-action',
+      (event) => {
+        const { action_type, payload, agent_id } = event.payload;
+
+        // Skip agent.response — handled by the dedicated agent-response listener
+        if (action_type === 'agent.response') return;
+
+        // Feed ALL non-response actions into activityStore for visibility
+        {
+          const actEvent = useActivityStore.getState().addEvent({
+            action_type,
+            type: undefined as any, // deriveType handles it
+            description: '', // describeAction handles it
+            status: 'completed',
+            payload: payload || {},
+            agentId: agent_id,
+            windowId: (payload?.window_id as string) || undefined,
+          });
+
+          // Track as streaming action for inline chat cards
+          useAgentStore.getState().addStreamingAction({
+            id: actEvent.id,
+            type: actEvent.type,
+            action_type: actEvent.action_type,
+            description: actEvent.description,
+            timestamp: actEvent.timestamp,
+            status: actEvent.status,
+            windowId: actEvent.windowId,
+          });
+        }
+      }
+    );
 
     // ── Agent window creation ────────────────────────────────────────────────
     const windowCreateDedup = new Map<string, number>();
@@ -106,6 +159,15 @@ function App() {
         const width = p.width != null ? Number(p.width) : undefined;
         const height = p.height != null ? Number(p.height) : undefined;
         await addWindow(title, contentType, content, x, y, width, height);
+
+        // Track in activityStore
+        useActivityStore.getState().addEvent({
+          action_type: 'window.create',
+          type: 'window',
+          description: `Opened "${title}"`,
+          status: 'completed',
+          payload: { title, content_type: contentType },
+        });
       }
     );
 
@@ -138,6 +200,14 @@ function App() {
         const { window_id, content } = event.payload;
         if (window_id && content !== undefined) {
           setWindowContent(window_id, content);
+          useActivityStore.getState().addEvent({
+            action_type: 'window.update_content',
+            type: 'window',
+            description: 'Updated window content',
+            status: 'completed',
+            payload: { window_id },
+            windowId: window_id,
+          });
         }
       }
     );
@@ -212,8 +282,8 @@ function App() {
       (event) => {
         const workspaceId = event.payload.workspace_id;
         if (workspaceId) {
-          // Reload windows for the new workspace
           useWindowStore.getState().loadWindows();
+          useWorkspaceStore.getState().setActiveWorkspaceId(workspaceId);
           addToast(`Switched to workspace`, 'info');
         }
       }
@@ -223,6 +293,7 @@ function App() {
       'workspace-created',
       (event) => {
         const { name } = event.payload;
+        useWorkspaceStore.getState().loadWorkspaces();
         addToast(`Workspace "${name}" created`, 'success');
       }
     );
@@ -234,6 +305,13 @@ function App() {
         const { plan } = event.payload;
         if (plan) {
           useTaskStore.getState().addPlan(plan);
+          useActivityStore.getState().addEvent({
+            action_type: 'plan.create',
+            type: 'plan',
+            description: `Created plan: ${plan.title || plan.id}`,
+            status: 'completed',
+            payload: { plan_id: plan.id, title: plan.title },
+          });
         }
       }
     );
@@ -244,6 +322,13 @@ function App() {
         const { plan } = event.payload;
         if (plan) {
           useTaskStore.getState().updatePlan(plan);
+          useActivityStore.getState().addEvent({
+            action_type: 'plan.update',
+            type: 'plan',
+            description: 'Updated plan',
+            status: 'completed',
+            payload: { plan_id: plan.id },
+          });
         }
       }
     );
@@ -252,6 +337,7 @@ function App() {
       unlistenResponse.then((fn) => fn());
       unlistenStreamToken.then((fn) => fn());
       unlistenStreamDone.then((fn) => fn());
+      unlistenAgentAction.then((fn) => fn());
       unlistenWindowCreate.then((fn) => fn());
       unlistenWindowClose.then((fn) => fn());
       unlistenWindowFocus.then((fn) => fn());

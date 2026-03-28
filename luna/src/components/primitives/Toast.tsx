@@ -36,15 +36,22 @@ export function ToastContainer() {
 }
 
 function ToastItem({ toast, onDismiss }: { toast: ToastMessage; onDismiss: (id: string) => void }) {
+  const [exiting, setExiting] = useState(false);
+
+  const dismiss = useCallback(() => {
+    setExiting(true);
+    setTimeout(() => onDismiss(toast.id), 300);
+  }, [toast.id, onDismiss]);
+
   useEffect(() => {
-    const duration = toast.duration ?? 5000;
+    const duration = toast.duration ?? 4000;
     if (duration <= 0) return;
-    const timer = setTimeout(() => onDismiss(toast.id), duration);
+    const timer = setTimeout(dismiss, duration);
     return () => clearTimeout(timer);
-  }, [toast, onDismiss]);
+  }, [toast, dismiss]);
 
   return (
-    <div className={`luna-toast luna-toast--${toast.level}`}>
+    <div className={`luna-toast luna-toast--${toast.level} ${exiting ? 'luna-toast--exiting' : ''}`}>
       <span className="luna-toast__icon">
         {toast.level === 'success' && '✓'}
         {toast.level === 'error' && '✕'}
@@ -52,7 +59,7 @@ function ToastItem({ toast, onDismiss }: { toast: ToastMessage; onDismiss: (id: 
         {toast.level === 'info' && 'i'}
       </span>
       <span className="luna-toast__message">{toast.message}</span>
-      <button className="luna-toast__close" onClick={() => onDismiss(toast.id)}>
+      <button className="luna-toast__close" onClick={dismiss}>
         &times;
       </button>
     </div>

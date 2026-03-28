@@ -16,6 +16,7 @@ use crate::sync::batcher::UpdateBatcher;
 use crate::sync::topic::TopicManager;
 use crate::persistence::db::Database;
 use crate::security::{AuditLog, PermissionMatrix, SandboxManager};
+use crate::security::policy::SecurityPolicy;
 use crate::window::manager::WindowManager;
 use crate::workspace::manager::WorkspaceManager;
 use crate::telemetry::metrics::MetricsCollector;
@@ -63,6 +64,7 @@ pub struct AppState {
     pub presence_manager: Arc<PresenceManager>,
     pub sandbox_manager: Arc<SandboxManager>,
     pub undo_manager: Arc<UndoManager>,
+    pub security_policy: Arc<SecurityPolicy>,
 }
 
 impl AppState {
@@ -95,6 +97,7 @@ impl AppState {
         presence_manager: Arc<PresenceManager>,
         sandbox_manager: Arc<SandboxManager>,
         undo_manager: Arc<UndoManager>,
+        security_policy: Arc<SecurityPolicy>,
     ) -> Self {
         Self {
             dispatcher,
@@ -124,6 +127,7 @@ impl AppState {
             presence_manager,
             sandbox_manager,
             undo_manager,
+            security_policy,
         }
     }
 

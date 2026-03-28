@@ -84,3 +84,19 @@
 .luna-toast__close:hover {
   color: var(--text-primary);
 }
+
+/* Toast dismiss animation */
+.luna-toast--exiting {
+  animation: luna-toast-out 300ms var(--ease-smooth, ease) forwards;
+}
+
+@keyframes luna-toast-out {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+}

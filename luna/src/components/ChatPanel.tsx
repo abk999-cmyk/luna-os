@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useAgentStore, type ChatMessage } from '../stores/agentStore';
+import { ActionCard } from './ActionCard';
 
 /** Format timestamp to readable time */
 function formatTime(ts: number): string {
@@ -234,23 +235,48 @@ function TypingIndicator() {
   );
 }
 
+/** Inline streaming message with blinking cursor */
+function StreamingMessageInline({ text, elapsedMs }: { text: string; elapsedMs: number }) {
+  const elapsed = Math.floor(elapsedMs / 1000);
+  const minutes = Math.floor(elapsed / 60);
+  const seconds = elapsed % 60;
+  const timeStr = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+
+  return (
+    <div className="streaming-message" style={{ borderLeft: '3px solid var(--color-accent, #d4a574)', paddingLeft: 12 }}>
+      <div className="chat-assistant-msg" style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--text-primary, #e8e0d8)' }}>
+        <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{text}</ReactMarkdown>
+        <span className="luna-streaming-cursor">▎</span>
+      </div>
+      <div style={{ fontSize: 11, color: 'var(--text-tertiary, #6a6058)', marginTop: 4 }}>
+        Streaming · {timeStr}
+      </div>
+    </div>
+  );
+}
+
 export function ChatPanel() {
   const chatMessages = useAgentStore((s) => s.chatMessages);
   const status = useAgentStore((s) => s.status);
+  const streamingTokens = useAgentStore((s) => s.streamingTokens);
+  const streamingStartTime = useAgentStore((s) => s.streamingStartTime);
+  const activeSubAgents = useAgentStore((s) => s.activeSubAgents);
+  const streamingActions = useAgentStore((s) => s.streamingActions);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [now, setNow] = useState(Date.now());
+
+  // Update elapsed time for streaming
+  useEffect(() => {
+    if (status !== 'streaming') return;
+    const interval = setInterval(() => setNow(Date.now()), 500);
+    return () => clearInterval(interval);
+  }, [status]);
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [chatMessages, status]);
-
-  const toggleExpanded = useCallback(() => {
-    setIsExpanded((prev) => !prev);
-  }, []);
-
-  if (chatMessages.length === 0 && status !== 'streaming') return null;
+  }, [chatMessages, status, streamingTokens, streamingActions.length]);
 
   const isGrouped = (idx: number): boolean => {
     if (idx === 0) return false;
@@ -258,7 +284,7 @@ export function ChatPanel() {
   };
 
   return (
-    <>
+    <div className="chat-panel">
       <style>{`
         @keyframes typingDot {
           0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
@@ -310,75 +336,74 @@ export function ChatPanel() {
         }
       `}</style>
 
-      <div
-        style={{
-          position: 'fixed',
-          bottom: 56,
-          left: 0,
-          right: 0,
-          maxHeight: isExpanded ? '45vh' : 40,
-          background: 'rgba(26, 22, 20, 0.88)',
-          backdropFilter: 'blur(16px)',
-          WebkitBackdropFilter: 'blur(16px)',
-          borderTop: '1px solid rgba(255,255,255,0.06)',
-          zIndex: 900,
-          display: 'flex',
-          flexDirection: 'column',
-          transition: 'max-height 0.25s ease-in-out',
-          overflow: 'hidden',
-        }}
-      >
-        {/* Header */}
-        <div
-          onClick={toggleExpanded}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '6px 16px',
-            cursor: 'pointer',
-            borderBottom: isExpanded ? '1px solid rgba(255,255,255,0.06)' : 'none',
-            flexShrink: 0,
-          }}
-        >
-          <span style={{
-            fontSize: '11px',
-            fontWeight: 600,
-            color: 'var(--text-secondary, #b0a898)',
-            fontFamily: 'var(--font-system)',
-            textTransform: 'uppercase',
-            letterSpacing: '0.5px',
-          }}>
-            Chat · {chatMessages.length}
-          </span>
-          <span style={{
-            fontSize: '10px',
-            color: 'var(--text-tertiary, #6a6058)',
-            transition: 'transform 0.2s',
-            transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-          }}>
-            ▲
-          </span>
-        </div>
+      {/* Messages */}
+      <div ref={scrollRef} className="chat-panel__messages">
+        {chatMessages.length === 0 && status !== 'streaming' && (
+          <div className="chat-panel__empty">
+            Send a message to start a conversation with Luna.
+          </div>
+        )}
 
-        {/* Messages */}
-        <div
-          ref={scrollRef}
-          style={{
-            flex: 1,
-            overflowY: 'auto',
-            paddingTop: 4,
-            paddingBottom: 10,
-          }}
-        >
-          {chatMessages.map((msg, idx) => (
-            msg.role === 'user'
-              ? <UserMessage key={msg.id} msg={msg} isGrouped={isGrouped(idx)} />
-              : <AssistantMessage key={msg.id} msg={msg} isGrouped={isGrouped(idx)} />
-          ))}
-          {status === 'streaming' && <TypingIndicator />}
-        </div>
+        {chatMessages.map((msg, idx) => (
+          <div key={msg.id}>
+            {msg.role === 'user'
+              ? <UserMessage msg={msg} isGrouped={isGrouped(idx)} />
+              : (
+                <>
+                  <AssistantMessage msg={msg} isGrouped={isGrouped(idx)} />
+                  {/* Inline action cards for completed messages */}
+                  {msg.actions && msg.actions.length > 0 && (
+                    <div className="chat-panel__actions">
+                      {msg.actions.map((action) => (
+                        <ActionCard
+                          key={action.id}
+                          event={{ ...action, payload: {} } as any}
+                          compact
+                        />
+                      ))}
+                    </div>
+                  )}
+                </>
+              )
+            }
+          </div>
+        ))}
+
+        {/* Streaming state */}
+        {status === 'streaming' && (
+          streamingTokens ? (
+            <div style={{ padding: '10px 12px', marginTop: 8, animation: 'fadeSlideIn 0.2s ease-out' }}>
+              <StreamingMessageInline text={streamingTokens} elapsedMs={streamingStartTime ? now - streamingStartTime : 0} />
+
+              {/* Live action cards during streaming */}
+              {streamingActions.length > 0 && (
+                <div className="chat-panel__actions">
+                  {streamingActions.slice(-5).map((action) => (
+                    <ActionCard
+                      key={action.id}
+                      event={{ ...action, payload: {} } as any}
+                      compact
+                    />
+                  ))}
+                </div>
+              )}
+
+              {activeSubAgents.length > 0 && (
+                <div style={{ marginTop: 6, fontSize: 11, color: 'var(--text-tertiary, #6a6058)' }}>
+                  {activeSubAgents.map((a) => (
+                    <div key={a.id} style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                      <span style={{ color: 'var(--color-amber-500, #d4a574)' }}>◎</span>
+                      <span>{a.task} ({a.status})</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <TypingIndicator />
+          )
+        )}
       </div>
-    </>
+    </div>
   );
 }

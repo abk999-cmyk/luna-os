@@ -4,13 +4,13 @@
   min-height: 240px;
   background: var(--surface-elevated);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl, 16px);
   box-shadow: var(--shadow-window);
   display: flex;
   flex-direction: column;
   overflow: hidden;
   animation: window-open var(--duration-normal) var(--ease-smooth);
-  transition: box-shadow var(--duration-fast) var(--ease-smooth);
+  transition: box-shadow var(--duration-fast) var(--ease-smooth), border-color var(--duration-fast) var(--ease-smooth);
 }
 
 .window--focused {
@@ -25,6 +25,11 @@
 .window--dragging {
   opacity: 0.92;
   cursor: grabbing;
+}
+
+.window--closing {
+  animation: window-close 150ms var(--ease-smooth) forwards;
+  pointer-events: none;
 }
 
 /* === Window Chrome (Title Bar) === */
@@ -43,6 +48,12 @@
 
 .window--focused .window__chrome {
   background: linear-gradient(180deg, var(--color-sand-200) 0%, var(--color-sand-100) 100%);
+}
+
+@media (prefers-color-scheme: dark) {
+  .window--focused .window__chrome {
+    background: linear-gradient(180deg, var(--surface-tertiary) 0%, var(--surface-secondary) 100%);
+  }
 }
 
 .window__controls {
@@ -103,6 +114,13 @@
   flex: 1;
   overflow: auto;
   padding: var(--space-lg);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+@media (prefers-color-scheme: dark) {
+  .window__body {
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.15);
+  }
 }
 
 /* === Resize Handle === */
@@ -118,18 +136,59 @@
 .window__resize-handle::after {
   content: '';
   position: absolute;
-  bottom: 3px;
-  right: 3px;
-  width: 8px;
-  height: 8px;
-  border-right: 2px solid var(--color-sand-400);
-  border-bottom: 2px solid var(--color-sand-400);
+  bottom: 4px;
+  right: 4px;
+  width: 10px;
+  height: 10px;
+  background: repeating-linear-gradient(
+    135deg,
+    var(--color-sand-400) 0px,
+    var(--color-sand-400) 1px,
+    transparent 1px,
+    transparent 3px
+  );
   opacity: 0;
   transition: opacity var(--duration-fast);
+  border-radius: 1px;
 }
 
 .window:hover .window__resize-handle::after {
-  opacity: 0.6;
+  opacity: 0.5;
+}
+
+.window__resize-handle:hover::after {
+  opacity: 0.8;
+}
+
+/* === Agent Presence === */
+
+.window--agent-active {
+  border-color: var(--color-amber-500, #d4a574);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-amber-500, #d4a574) 40%, transparent),
+    var(--shadow-window);
+  animation: agentGlow 2s ease-in-out infinite;
+}
+
+.window__agent-badge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-amber-500, #d4a574) 15%, transparent);
+  color: var(--color-amber-500, #d4a574);
+  font-size: 10px;
+  font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.window__agent-badge-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--color-amber-500, #d4a574);
+  animation: pulse 1.5s ease-in-out infinite;
 }
 
 /* === Drop Target === */

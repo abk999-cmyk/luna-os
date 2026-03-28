@@ -493,6 +493,31 @@ pub async fn get_undo_history(
         .collect()
 }
 
+// ── Permission mode commands ────────────────────────────────────────────────
+
+/// Get the current permission mode.
+#[tauri::command]
+pub async fn get_permission_mode(
+    state: State<'_, AppState>,
+) -> Result<String, LunaError> {
+    let mode = state.security_policy.get_mode().await;
+    Ok(serde_json::to_value(&mode)?
+        .as_str()
+        .unwrap_or("supervised")
+        .to_string())
+}
+
+/// Set the permission mode.
+#[tauri::command]
+pub async fn set_permission_mode(
+    state: State<'_, AppState>,
+    mode: String,
+) -> Result<(), LunaError> {
+    let permission_mode: crate::security::policy::PermissionMode =
+        serde_json::from_value(serde_json::Value::String(mode))?;
+    state.security_policy.set_mode(permission_mode).await
+}
+
 // ── Plan commands ───────────────────────────────────────────────────────────
 
 /// Create a new plan.

@@ -1,80 +1,99 @@
+/* Input bar — lives inside .dock__input-wrapper, not fixed */
 .input-bar {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 56px;
-  background: var(--surface-elevated);
-  border-top: 1px solid var(--border-subtle);
+  position: relative;
   display: flex;
   align-items: center;
-  padding: 0 var(--space-xl);
-  gap: var(--space-md);
-  z-index: var(--z-input-bar);
-  box-shadow: 0 -2px 12px rgba(107, 87, 53, 0.08);
+  gap: 0;
+  background: color-mix(in srgb, var(--surface-elevated) 60%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-amber-500, #d4a574) 18%, transparent);
+  border-radius: 20px;
+  padding: 0 16px;
+  height: 40px;
+  width: 100%;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3);
+  transition:
+    border-color var(--duration-fast) var(--ease-smooth),
+    box-shadow var(--duration-fast) var(--ease-smooth),
+    background var(--duration-fast) var(--ease-smooth);
 }
 
-.input-bar__context {
-  font-family: var(--font-system);
-  font-size: var(--text-sm);
-  color: var(--text-tertiary);
-  white-space: nowrap;
-  flex-shrink: 0;
+.input-bar:focus-within {
+  border-color: color-mix(in srgb, var(--color-amber-500, #d4a574) 45%, transparent);
+  background: var(--surface-elevated);
+  box-shadow:
+    inset 0 1px 3px rgba(0, 0, 0, 0.3),
+    0 0 0 3px color-mix(in srgb, var(--color-amber-500, #d4a574) 12%, transparent);
+}
+
+.input-bar--recording {
+  border-color: color-mix(in srgb, var(--color-amber-500, #d4a574) 50%, transparent);
+  background: color-mix(in srgb, var(--color-amber-500, #d4a574) 8%, var(--surface-elevated));
+  box-shadow:
+    inset 0 1px 3px rgba(0, 0, 0, 0.3),
+    0 0 0 2px color-mix(in srgb, var(--color-amber-500, #d4a574) 25%, transparent);
 }
 
 .input-bar__field {
   flex: 1;
-  height: 38px;
-  background: var(--surface-primary);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  padding: 0 var(--space-lg);
-  font-family: var(--font-body);
-  font-size: var(--text-base);
+  border: none;
+  background: transparent;
   color: var(--text-primary);
+  font-family: var(--font-ui, -apple-system, BlinkMacSystemFont, sans-serif);
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: -0.01em;
   outline: none;
-  transition: border-color var(--duration-fast) var(--ease-smooth),
-              box-shadow var(--duration-fast) var(--ease-smooth);
-}
-
-.input-bar__field:focus {
-  border-color: var(--border-active);
-  box-shadow: var(--shadow-focus);
+  min-width: 0;
+  padding: 0;
+  height: 100%;
 }
 
 .input-bar__field::placeholder {
-  color: var(--text-tertiary);
+  color: color-mix(in srgb, var(--color-amber-500, #d4a574) 35%, transparent);
+  font-weight: 400;
 }
 
-.input-bar__status {
+/* Voice recording mode — fills the pill */
+.input-bar__voice-mode {
   display: flex;
   align-items: center;
-  flex-shrink: 0;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+  height: 100%;
 }
 
-/* Status Indicator */
-.status-dot {
-  width: 8px;
-  height: 8px;
+.input-bar__voice-transcript {
+  font-size: 14px;
+  color: var(--text-tertiary);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.input-bar__voice-stop {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
-  background: var(--state-idle);
-  transition: background var(--duration-fast);
+  color: var(--color-amber-500, #d4a574);
+  flex-shrink: 0;
+  opacity: 0.7;
+  transition: opacity var(--duration-fast);
 }
 
-.status-dot--working {
-  background: var(--state-working);
-  animation: pulse 1.5s infinite;
+.input-bar__voice-stop:hover {
+  opacity: 1;
 }
 
-.status-dot--error {
-  background: var(--state-error);
-}
-
-.status-dot--success {
-  background: var(--state-success);
-}
-
-.status-dot--streaming {
-  background: var(--state-working, var(--color-amber-500));
-  animation: pulse 0.8s infinite;
+.input-bar__error {
+  font-size: 11px;
+  color: var(--color-error);
+  position: absolute;
+  bottom: -16px;
+  left: 16px;
 }
