@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { GLASS } from './glassStyles';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -15,54 +16,43 @@ interface CalculatorProps {
 
 const S: Record<string, React.CSSProperties> = {
   root: {
-    display: 'flex',
-    flexDirection: 'column',
-    height: '100%',
-    background: 'var(--surface-base, #1a1614)',
-    color: 'var(--text-primary, #e8e0d8)',
-    fontFamily: 'var(--font-system, system-ui)',
-    fontSize: 13,
-    borderRadius: 8,
-    border: '1px solid var(--border-subtle, #3a332e)',
-    overflow: 'hidden',
+    ...GLASS.appRoot,
     minWidth: 300,
   },
   header: {
+    ...GLASS.elevated,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: '8px 14px',
-    borderBottom: '1px solid var(--border-subtle, #3a332e)',
-    background: 'var(--surface-elevated, #2a2420)',
+    borderBottom: `1px solid ${GLASS.dividerColor}`,
     flexShrink: 0,
   },
   modeToggle: {
-    background: 'none',
-    border: '1px solid var(--border-subtle, #3a332e)',
-    borderRadius: 6,
-    color: 'var(--text-secondary, #b0a898)',
+    ...GLASS.ghostBtn,
     padding: '4px 10px',
-    cursor: 'pointer',
     fontSize: 12,
-    fontFamily: 'var(--font-system, system-ui)',
+    fontFamily: 'var(--font-ui)',
   },
   modeActive: {
-    background: 'rgba(212,165,116,0.15)',
-    borderColor: 'var(--color-accent, #d4a574)',
-    color: 'var(--color-accent, #d4a574)',
+    background: GLASS.selectedBg,
+    borderColor: GLASS.selectedBorder,
+    color: 'var(--accent-primary)',
   },
   display: {
+    ...GLASS.elevated,
     padding: '16px 18px 12px',
     textAlign: 'right',
-    borderBottom: '1px solid var(--border-subtle, #3a332e)',
+    borderBottom: `1px solid ${GLASS.dividerColor}`,
+    borderTop: 'none',
     flexShrink: 0,
   },
   expression: {
     fontSize: 14,
-    color: 'var(--text-secondary, #b0a898)',
+    color: 'var(--text-secondary)',
     minHeight: 20,
     marginBottom: 4,
-    fontFamily: 'var(--font-mono, monospace)',
+    fontFamily: 'var(--font-mono)',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
@@ -70,7 +60,7 @@ const S: Record<string, React.CSSProperties> = {
   result: {
     fontSize: 32,
     fontWeight: 600,
-    fontFamily: 'var(--font-mono, monospace)',
+    fontFamily: 'var(--font-mono)',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
@@ -82,22 +72,22 @@ const S: Record<string, React.CSSProperties> = {
   },
   historyPanel: {
     width: 160,
-    borderRight: '1px solid var(--border-subtle, #3a332e)',
+    borderRight: `1px solid ${GLASS.dividerColor}`,
     overflowY: 'auto',
     padding: 8,
     flexShrink: 0,
   },
   historyTitle: {
     fontSize: 11,
-    color: 'var(--text-tertiary, #6a6058)',
+    color: 'var(--text-tertiary)',
     padding: '4px 6px',
     fontWeight: 600,
   },
   historyItem: {
     fontSize: 12,
-    color: 'var(--text-secondary, #b0a898)',
+    color: 'var(--text-secondary)',
     padding: '4px 6px',
-    fontFamily: 'var(--font-mono, monospace)',
+    fontFamily: 'var(--font-mono)',
     borderRadius: 4,
     cursor: 'pointer',
     overflow: 'hidden',
@@ -114,27 +104,28 @@ const S: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    background: 'var(--surface-elevated, #2a2420)',
-    border: '1px solid var(--border-subtle, #3a332e)',
+    background: 'rgba(255, 255, 255, 0.06)',
+    border: `1px solid ${GLASS.dividerColor}`,
     borderRadius: 8,
-    color: 'var(--text-primary, #e8e0d8)',
+    color: 'var(--text-primary)',
     fontSize: 16,
-    fontFamily: 'var(--font-system, system-ui)',
+    fontFamily: 'var(--font-ui)',
     cursor: 'pointer',
     padding: '10px 0',
     transition: 'background 0.1s',
     userSelect: 'none',
   },
   btnOp: {
-    color: 'var(--color-accent, #d4a574)',
+    background: 'rgba(126, 184, 255, 0.08)',
+    color: 'var(--accent-primary)',
   },
   btnAccent: {
-    background: 'var(--color-accent, #d4a574)',
-    color: '#1a1614',
+    background: 'var(--accent-primary)',
+    color: '#000',
     fontWeight: 600,
   },
   btnDark: {
-    background: 'rgba(255,255,255,0.04)',
+    background: 'rgba(255, 255, 255, 0.04)',
   },
   memoryRow: {
     display: 'flex',
@@ -145,11 +136,11 @@ const S: Record<string, React.CSSProperties> = {
   memBtn: {
     flex: 1,
     background: 'none',
-    border: '1px solid var(--border-subtle, #3a332e)',
+    border: `1px solid ${GLASS.dividerColor}`,
     borderRadius: 6,
-    color: 'var(--text-secondary, #b0a898)',
+    color: 'var(--text-secondary)',
     fontSize: 11,
-    fontFamily: 'var(--font-system, system-ui)',
+    fontFamily: 'var(--font-ui)',
     cursor: 'pointer',
     padding: '5px 0',
   },
@@ -373,7 +364,7 @@ export function CalculatorApp({ mode: modeProp = 'standard', history: histProp }
         <div style={S.historyPanel}>
           <div style={S.historyTitle}>History</div>
           {history.length === 0 && (
-            <div style={{ fontSize: 12, color: 'var(--text-tertiary, #6a6058)', padding: '8px 6px' }}>
+            <div style={{ fontSize: 12, color: 'var(--text-tertiary)', padding: '8px 6px' }}>
               No history yet
             </div>
           )}
@@ -386,7 +377,7 @@ export function CalculatorApp({ mode: modeProp = 'standard', history: histProp }
                 const val = h.split('=').pop()?.trim();
                 if (val) { setDisplay(val); setJustEvaluated(true); }
               }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(212,165,116,0.08)'; }}
+              onMouseEnter={e => { e.currentTarget.style.background = GLASS.hoverBg; }}
               onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}
             >
               {h}
@@ -409,7 +400,7 @@ export function CalculatorApp({ mode: modeProp = 'standard', history: histProp }
                 key={b.label}
                 style={{ ...S.btn, ...S.btnDark, fontSize: 13 }}
                 onClick={b.action}
-                onMouseDown={e => { e.currentTarget.style.background = 'rgba(212,165,116,0.15)'; }}
+                onMouseDown={e => { e.currentTarget.style.background = GLASS.activeBg; }}
                 onMouseUp={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
                 onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
               >
@@ -428,20 +419,22 @@ export function CalculatorApp({ mode: modeProp = 'standard', history: histProp }
                 onClick={b.action}
                 onMouseDown={e => {
                   e.currentTarget.style.background = b.style === S.btnAccent
-                    ? '#c49564'
-                    : 'rgba(212,165,116,0.15)';
+                    ? 'var(--accent-primary)'
+                    : GLASS.activeBg;
                 }}
                 onMouseUp={e => {
                   e.currentTarget.style.background = b.style === S.btnAccent
-                    ? 'var(--color-accent, #d4a574)'
+                    ? 'var(--accent-primary)'
+                    : b.style === S.btnOp ? 'rgba(126, 184, 255, 0.08)'
                     : b.style === S.btnDark ? 'rgba(255,255,255,0.04)'
-                    : 'var(--surface-elevated, #2a2420)';
+                    : 'rgba(255, 255, 255, 0.06)';
                 }}
                 onMouseLeave={e => {
                   e.currentTarget.style.background = b.style === S.btnAccent
-                    ? 'var(--color-accent, #d4a574)'
+                    ? 'var(--accent-primary)'
+                    : b.style === S.btnOp ? 'rgba(126, 184, 255, 0.08)'
                     : b.style === S.btnDark ? 'rgba(255,255,255,0.04)'
-                    : 'var(--surface-elevated, #2a2420)';
+                    : 'rgba(255, 255, 255, 0.06)';
                 }}
               >
                 {b.label}
@@ -455,20 +448,22 @@ export function CalculatorApp({ mode: modeProp = 'standard', history: histProp }
                 onClick={b.action}
                 onMouseDown={e => {
                   e.currentTarget.style.background = b.style === S.btnAccent
-                    ? '#c49564'
-                    : 'rgba(212,165,116,0.15)';
+                    ? 'var(--accent-primary)'
+                    : GLASS.activeBg;
                 }}
                 onMouseUp={e => {
                   e.currentTarget.style.background = b.style === S.btnAccent
-                    ? 'var(--color-accent, #d4a574)'
+                    ? 'var(--accent-primary)'
+                    : b.style === S.btnOp ? 'rgba(126, 184, 255, 0.08)'
                     : b.style === S.btnDark ? 'rgba(255,255,255,0.04)'
-                    : 'var(--surface-elevated, #2a2420)';
+                    : 'rgba(255, 255, 255, 0.06)';
                 }}
                 onMouseLeave={e => {
                   e.currentTarget.style.background = b.style === S.btnAccent
-                    ? 'var(--color-accent, #d4a574)'
+                    ? 'var(--accent-primary)'
+                    : b.style === S.btnOp ? 'rgba(126, 184, 255, 0.08)'
                     : b.style === S.btnDark ? 'rgba(255,255,255,0.04)'
-                    : 'var(--surface-elevated, #2a2420)';
+                    : 'rgba(255, 255, 255, 0.06)';
                 }}
               >
                 {b.label}

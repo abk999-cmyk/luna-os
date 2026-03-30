@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { GLASS } from './glassStyles';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -50,12 +51,10 @@ const S: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     height: '100%',
-    background: 'var(--surface-base, #1a1614)',
-    color: 'var(--text-primary, #e8e0d8)',
-    fontFamily: 'var(--font-system, system-ui)',
+    background: 'transparent',
+    color: 'var(--text-primary)',
+    fontFamily: 'var(--font-ui)',
     fontSize: 13,
-    borderRadius: 8,
-    border: '1px solid var(--border-subtle, #3a332e)',
     overflow: 'hidden',
   },
   body: {
@@ -72,21 +71,21 @@ const S: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
-    borderRight: '1px solid var(--border-subtle, #3a332e)',
-    background: 'var(--surface-elevated, #2a2420)',
+    borderRight: `1px solid ${GLASS.dividerColor}`,
+    ...GLASS.elevated,
     gap: 16,
   },
   albumArt: {
     width: 180,
     height: 180,
     borderRadius: 12,
-    background: 'linear-gradient(135deg, rgba(212,165,116,0.2) 0%, rgba(90,70,55,0.3) 100%)',
+    ...GLASS.surface,
+    background: 'linear-gradient(135deg, rgba(126,184,255,0.1) 0%, rgba(255,255,255,0.04) 100%)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     fontSize: 64,
-    color: 'var(--color-accent, #d4a574)',
-    border: '1px solid var(--border-subtle, #3a332e)',
+    color: 'var(--accent-primary)',
     overflow: 'hidden',
     flexShrink: 0,
   },
@@ -106,13 +105,13 @@ const S: Record<string, React.CSSProperties> = {
   },
   songArtist: {
     fontSize: 13,
-    color: 'var(--text-secondary, #b0a898)',
+    color: 'var(--text-secondary)',
     textAlign: 'center',
     marginTop: -8,
   },
   songAlbum: {
     fontSize: 12,
-    color: 'var(--text-tertiary, #6a6058)',
+    color: 'var(--text-tertiary)',
     textAlign: 'center',
     marginTop: -10,
   },
@@ -126,14 +125,14 @@ const S: Record<string, React.CSSProperties> = {
   progressBar: {
     width: '100%',
     height: 4,
-    background: 'var(--border-subtle, #3a332e)',
+    background: 'rgba(255,255,255,0.08)',
     borderRadius: 2,
     cursor: 'pointer',
     position: 'relative',
   },
   progressFill: {
     height: '100%',
-    background: 'var(--color-accent, #d4a574)',
+    background: 'var(--accent-primary)',
     borderRadius: 2,
     position: 'relative',
   },
@@ -144,15 +143,15 @@ const S: Record<string, React.CSSProperties> = {
     width: 12,
     height: 12,
     borderRadius: '50%',
-    background: 'var(--color-accent, #d4a574)',
+    background: 'var(--accent-primary)',
     boxShadow: '0 1px 4px rgba(0,0,0,0.4)',
   },
   progressTimes: {
     display: 'flex',
     justifyContent: 'space-between',
     fontSize: 11,
-    color: 'var(--text-tertiary, #6a6058)',
-    fontFamily: 'var(--font-mono, monospace)',
+    color: 'var(--text-tertiary)',
+    fontFamily: 'var(--font-mono)',
   },
   // Controls
   controls: {
@@ -162,36 +161,30 @@ const S: Record<string, React.CSSProperties> = {
     gap: 12,
   },
   controlBtn: {
-    background: 'none',
-    border: 'none',
-    color: 'var(--text-secondary, #b0a898)',
+    ...GLASS.ghostBtn,
     fontSize: 18,
-    cursor: 'pointer',
     padding: 6,
     borderRadius: '50%',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    fontFamily: 'var(--font-system, system-ui)',
+    fontFamily: 'var(--font-ui)',
     transition: 'color 0.15s',
   },
   playBtn: {
-    background: 'var(--color-accent, #d4a574)',
-    color: '#1a1614',
+    ...GLASS.accentBtn,
     width: 44,
     height: 44,
     borderRadius: '50%',
-    border: 'none',
     fontSize: 20,
-    cursor: 'pointer',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    fontFamily: 'var(--font-system, system-ui)',
+    fontFamily: 'var(--font-ui)',
     flexShrink: 0,
   },
   controlActive: {
-    color: 'var(--color-accent, #d4a574)',
+    color: 'var(--accent-primary)',
   },
   // Volume
   volumeRow: {
@@ -202,16 +195,16 @@ const S: Record<string, React.CSSProperties> = {
   },
   volumeIcon: {
     fontSize: 16,
-    color: 'var(--text-secondary, #b0a898)',
+    color: 'var(--text-secondary)',
     cursor: 'pointer',
     background: 'none',
     border: 'none',
-    fontFamily: 'var(--font-system, system-ui)',
+    fontFamily: 'var(--font-ui)',
   },
   volumeSlider: {
     flex: 1,
     height: 4,
-    background: 'var(--border-subtle, #3a332e)',
+    background: 'rgba(255,255,255,0.08)',
     borderRadius: 2,
     cursor: 'pointer',
     position: 'relative',
@@ -222,32 +215,27 @@ const S: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     overflow: 'hidden',
+    ...GLASS.elevated,
   },
   tabRow: {
     display: 'flex',
-    borderBottom: '1px solid var(--border-subtle, #3a332e)',
+    borderBottom: `1px solid ${GLASS.dividerColor}`,
     flexShrink: 0,
   },
   panelTab: {
+    ...GLASS.tab,
     flex: 1,
-    background: 'none',
-    border: 'none',
     borderBottom: '2px solid transparent',
-    color: 'var(--text-secondary, #b0a898)',
     padding: '10px 16px',
-    cursor: 'pointer',
-    fontSize: 13,
     fontWeight: 500,
-    fontFamily: 'var(--font-system, system-ui)',
     textAlign: 'center',
   },
   panelTabActive: {
-    borderBottomColor: 'var(--color-accent, #d4a574)',
-    color: 'var(--color-accent, #d4a574)',
+    borderBottomColor: 'var(--accent-primary)',
+    color: 'var(--accent-primary)',
   },
   songList: {
-    flex: 1,
-    overflowY: 'auto',
+    ...GLASS.scrollList,
   },
   songItem: {
     display: 'grid',
@@ -256,17 +244,17 @@ const S: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     padding: '8px 14px',
     cursor: 'pointer',
-    borderBottom: '1px solid var(--border-subtle, #3a332e)',
+    borderBottom: `1px solid ${GLASS.dividerColor}`,
     transition: 'background 0.1s',
   },
   songItemActive: {
-    background: 'rgba(212,165,116,0.10)',
+    background: GLASS.selectedBg,
   },
   songIdx: {
     fontSize: 12,
-    color: 'var(--text-tertiary, #6a6058)',
+    color: 'var(--text-tertiary)',
     textAlign: 'center',
-    fontFamily: 'var(--font-mono, monospace)',
+    fontFamily: 'var(--font-mono)',
   },
   songInfo: {
     overflow: 'hidden',
@@ -279,15 +267,15 @@ const S: Record<string, React.CSSProperties> = {
   },
   songInfoArtist: {
     fontSize: 12,
-    color: 'var(--text-secondary, #b0a898)',
+    color: 'var(--text-secondary)',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
   },
   songDuration: {
     fontSize: 12,
-    color: 'var(--text-tertiary, #6a6058)',
-    fontFamily: 'var(--font-mono, monospace)',
+    color: 'var(--text-tertiary)',
+    fontFamily: 'var(--font-mono)',
   },
   likeBtn: {
     background: 'none',
@@ -295,8 +283,8 @@ const S: Record<string, React.CSSProperties> = {
     fontSize: 16,
     cursor: 'pointer',
     padding: 2,
-    color: 'var(--text-tertiary, #6a6058)',
-    fontFamily: 'var(--font-system, system-ui)',
+    color: 'var(--text-tertiary)',
+    fontFamily: 'var(--font-ui)',
   },
   likeBtnActive: {
     color: '#e05252',
@@ -503,7 +491,7 @@ export function MusicPlayerApp({
                 style={{
                   height: '100%',
                   width: `${volume}%`,
-                  background: 'var(--color-accent, #d4a574)',
+                  background: 'var(--accent-primary)',
                   borderRadius: 2,
                   position: 'relative',
                 }}
@@ -515,12 +503,12 @@ export function MusicPlayerApp({
                   width: 10,
                   height: 10,
                   borderRadius: '50%',
-                  background: 'var(--color-accent, #d4a574)',
+                  background: 'var(--accent-primary)',
                   boxShadow: '0 1px 4px rgba(0,0,0,0.4)',
                 } as React.CSSProperties} />
               </div>
             </div>
-            <span style={{ fontSize: 11, color: 'var(--text-tertiary, #6a6058)', fontFamily: 'var(--font-mono, monospace)', minWidth: 28, textAlign: 'right' }}>
+            <span style={{ fontSize: 11, color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)', minWidth: 28, textAlign: 'right' }}>
               {volume}%
             </span>
           </div>
@@ -553,7 +541,7 @@ export function MusicPlayerApp({
                       ...(i === currentIdx ? S.songItemActive : {}),
                     }}
                     onClick={() => { setCurrentIdx(i); setProgress(0); setPlaying(true); }}
-                    onMouseEnter={e => { if (i !== currentIdx) e.currentTarget.style.background = 'rgba(212,165,116,0.05)'; }}
+                    onMouseEnter={e => { if (i !== currentIdx) e.currentTarget.style.background = GLASS.hoverBg; }}
                     onMouseLeave={e => { if (i !== currentIdx) e.currentTarget.style.background = 'none'; }}
                   >
                     <span style={S.songIdx}>
@@ -562,7 +550,7 @@ export function MusicPlayerApp({
                     <div style={S.songInfo}>
                       <div style={{
                         ...S.songInfoTitle,
-                        ...(i === currentIdx ? { color: 'var(--color-accent, #d4a574)' } : {}),
+                        ...(i === currentIdx ? { color: 'var(--accent-primary)' } : {}),
                       }}>
                         {song.title}
                       </div>
@@ -578,7 +566,7 @@ export function MusicPlayerApp({
                   </div>
                 ))
               : queue.length === 0 ? (
-                  <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-tertiary, #6a6058)' }}>
+                  <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-tertiary)' }}>
                     Queue is empty. Right-click songs to add them.
                   </div>
                 ) : queue.map((song, i) => (

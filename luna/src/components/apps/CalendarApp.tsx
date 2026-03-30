@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { GLASS } from './glassStyles';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -148,21 +149,20 @@ const css = {
     flexDirection: 'column' as const,
     height: '100%',
     width: '100%',
-    background: 'var(--surface-base, #1a1614)',
-    color: 'var(--text-primary, #e8e0d8)',
-    fontFamily: 'var(--font-system, system-ui)',
+    background: 'transparent',
+    color: 'var(--text-primary)',
+    fontFamily: 'var(--font-ui)',
     fontSize: 13,
     overflow: 'hidden',
     userSelect: 'none' as const,
-    borderRadius: 8,
   },
   header: {
     display: 'flex',
     alignItems: 'center',
     gap: 8,
     padding: '10px 16px',
-    background: 'var(--surface-elevated, #2a2420)',
-    borderBottom: '1px solid var(--border-subtle, #3a332e)',
+    ...GLASS.elevated,
+    borderBottom: `1px solid ${GLASS.dividerColor}`,
     flexShrink: 0,
   },
   headerTitle: {
@@ -171,41 +171,33 @@ const css = {
     minWidth: 200,
   },
   navBtn: {
-    background: 'transparent',
-    border: '1px solid var(--border-subtle, #3a332e)',
-    color: 'var(--text-primary, #e8e0d8)',
-    borderRadius: 6,
+    ...GLASS.ghostBtn,
     padding: '4px 10px',
-    cursor: 'pointer',
     fontSize: 13,
     lineHeight: '20px',
   },
   todayBtn: {
-    background: 'transparent',
-    border: '1px solid var(--border-subtle, #3a332e)',
-    color: 'var(--text-primary, #e8e0d8)',
-    borderRadius: 6,
+    ...GLASS.ghostBtn,
     padding: '4px 12px',
-    cursor: 'pointer',
     fontSize: 13,
     fontWeight: 500,
   },
   viewSwitcher: {
     display: 'flex',
     marginLeft: 'auto',
-    border: '1px solid var(--border-subtle, #3a332e)',
+    border: `1px solid ${GLASS.dividerColor}`,
     borderRadius: 6,
     overflow: 'hidden',
   },
   viewBtn: (active: boolean) => ({
-    background: active ? 'var(--color-accent, #d4a574)' : 'transparent',
-    color: active ? '#1a1614' : 'var(--text-primary, #e8e0d8)',
+    background: active ? 'var(--accent-primary)' : 'transparent',
+    color: active ? '#000' : 'var(--text-primary)',
     border: 'none',
     padding: '4px 14px',
     cursor: 'pointer',
     fontSize: 13,
     fontWeight: active ? 600 : 400,
-    borderRight: '1px solid var(--border-subtle, #3a332e)',
+    borderRight: `1px solid ${GLASS.dividerColor}`,
   }),
   body: {
     display: 'flex',
@@ -215,9 +207,10 @@ const css = {
   sidebar: {
     width: 200,
     flexShrink: 0,
-    borderRight: '1px solid var(--border-subtle, #3a332e)',
+    borderRight: `1px solid ${GLASS.dividerColor}`,
     padding: 12,
     overflowY: 'auto' as const,
+    ...GLASS.elevated,
   },
   main: {
     flex: 1,
@@ -278,7 +271,7 @@ function MiniCalendar({
                 style={{
                   padding: 2,
                   fontWeight: 400,
-                  color: i === 0 || i === 6 ? 'var(--text-tertiary, #6a6058)' : 'var(--text-primary, #e8e0d8)',
+                  color: i === 0 || i === 6 ? 'var(--text-tertiary)' : 'var(--text-primary)',
                   textAlign: 'center',
                 }}
               >
@@ -304,14 +297,14 @@ function MiniCalendar({
                       cursor: 'pointer',
                       borderRadius: '50%',
                       color: !inMonth
-                        ? 'var(--text-tertiary, #6a6058)'
+                        ? 'var(--text-tertiary)'
                         : isSelected
                         ? '#1a1614'
-                        : 'var(--text-primary, #e8e0d8)',
+                        : 'var(--text-primary)',
                       background: isSelected
-                        ? 'var(--color-accent, #d4a574)'
+                        ? 'var(--accent-primary)'
                         : isToday
-                        ? 'rgba(212, 165, 116, 0.2)'
+                        ? 'rgba(126,184,255,0.15)'
                         : 'transparent',
                       fontWeight: isToday ? 700 : 400,
                     }}
@@ -367,12 +360,9 @@ function EventForm({
   };
 
   const fieldStyle: React.CSSProperties = {
+    ...GLASS.inset,
     width: '100%',
     padding: '6px 8px',
-    background: 'var(--surface-base, #1a1614)',
-    border: '1px solid var(--border-subtle, #3a332e)',
-    borderRadius: 4,
-    color: 'var(--text-primary, #e8e0d8)',
     fontSize: 12,
     fontFamily: 'inherit',
     boxSizing: 'border-box',
@@ -394,8 +384,9 @@ function EventForm({
       style={{
         position: 'absolute',
         zIndex: 100,
-        background: 'var(--surface-elevated, #2a2420)',
-        border: '1px solid var(--border-subtle, #3a332e)',
+        ...GLASS.elevated,
+        backdropFilter: 'blur(40px) saturate(var(--glass-saturation))',
+        WebkitBackdropFilter: 'blur(40px) saturate(var(--glass-saturation))',
         borderRadius: 8,
         padding: 14,
         width: 280,
@@ -415,14 +406,14 @@ function EventForm({
           type="checkbox"
           checked={allDay}
           onChange={(e) => setAllDay(e.target.checked)}
-          style={{ accentColor: 'var(--color-accent, #d4a574)' }}
+          style={{ accentColor: 'var(--accent-primary)' }}
         />
         All day
       </label>
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 11, color: 'var(--text-tertiary, #6a6058)', marginBottom: 2 }}>Start</div>
+          <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 2 }}>Start</div>
           <input
             type={allDay ? 'date' : 'datetime-local'}
             value={allDay ? start.slice(0, 10) : start}
@@ -431,7 +422,7 @@ function EventForm({
           />
         </div>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 11, color: 'var(--text-tertiary, #6a6058)', marginBottom: 2 }}>End</div>
+          <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 2 }}>End</div>
           <input
             type={allDay ? 'date' : 'datetime-local'}
             value={allDay ? end.slice(0, 10) : end}
@@ -460,7 +451,7 @@ function EventForm({
               borderRadius: '50%',
               background: c,
               cursor: 'pointer',
-              border: c === color ? '2px solid var(--text-primary, #e8e0d8)' : '2px solid transparent',
+              border: c === color ? '2px solid var(--text-primary)' : '2px solid transparent',
             }}
           />
         ))}
@@ -479,13 +470,13 @@ function EventForm({
         <button
           type="button"
           onClick={onCancel}
-          style={{ ...formBtnStyle, background: 'var(--surface-base, #1a1614)', color: 'var(--text-primary, #e8e0d8)' }}
+          style={{ ...formBtnStyle, ...GLASS.ghostBtn }}
         >
           Cancel
         </button>
         <button
           type="submit"
-          style={{ ...formBtnStyle, background: 'var(--color-accent, #d4a574)', color: '#1a1614' }}
+          style={{ ...formBtnStyle, ...GLASS.accentBtn }}
         >
           Save
         </button>
@@ -548,7 +539,7 @@ function MonthView({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Day-of-week header */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: '1px solid var(--border-subtle, #3a332e)' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
         {DAYS_SHORT.map((d, i) => (
           <div
             key={d}
@@ -557,7 +548,7 @@ function MonthView({
               fontSize: 11,
               fontWeight: 600,
               textTransform: 'uppercase',
-              color: i === 0 || i === 6 ? 'var(--text-tertiary, #6a6058)' : 'var(--text-primary, #e8e0d8)',
+              color: i === 0 || i === 6 ? 'var(--text-tertiary)' : 'var(--text-primary)',
               textAlign: 'center',
             }}
           >
@@ -589,11 +580,11 @@ function MonthView({
                   key={di}
                   onClick={() => onClickDay(day)}
                   style={{
-                    borderRight: di < 6 ? '1px solid var(--border-subtle, #3a332e)' : 'none',
-                    borderBottom: '1px solid var(--border-subtle, #3a332e)',
+                    borderRight: di < 6 ? '1px solid rgba(255,255,255,0.06)' : 'none',
+                    borderBottom: '1px solid rgba(255,255,255,0.06)',
                     padding: 4,
                     cursor: 'pointer',
-                    background: isToday ? 'rgba(212, 165, 116, 0.08)' : 'transparent',
+                    background: isToday ? 'rgba(126,184,255,0.08)' : 'transparent',
                     overflow: 'hidden',
                     minHeight: 0,
                   }}
@@ -608,13 +599,13 @@ function MonthView({
                       fontSize: 12,
                       fontWeight: isToday ? 700 : 400,
                       color: !inMonth
-                        ? 'var(--text-tertiary, #6a6058)'
+                        ? 'var(--text-tertiary)'
                         : isToday
                         ? '#1a1614'
                         : isWeekend
-                        ? 'var(--text-tertiary, #6a6058)'
-                        : 'var(--text-primary, #e8e0d8)',
-                      background: isToday ? 'var(--color-accent, #d4a574)' : 'transparent',
+                        ? 'var(--text-tertiary)'
+                        : 'var(--text-primary)',
+                      background: isToday ? 'var(--accent-primary)' : 'transparent',
                       marginBottom: 2,
                     }}
                   >
@@ -635,7 +626,7 @@ function MonthView({
                         marginBottom: 1,
                         borderRadius: 3,
                         background: evt.color || EVENT_COLORS[0],
-                        color: '#1a1614',
+                        color: '#000',
                         overflow: 'hidden',
                         whiteSpace: 'nowrap',
                         textOverflow: 'ellipsis',
@@ -648,7 +639,7 @@ function MonthView({
                     </div>
                   ))}
                   {dayEvents.length > 3 && (
-                    <div style={{ fontSize: 10, color: 'var(--text-tertiary, #6a6058)', paddingLeft: 4 }}>
+                    <div style={{ fontSize: 10, color: 'var(--text-tertiary)', paddingLeft: 4 }}>
                       +{dayEvents.length - 3} more
                     </div>
                   )}
@@ -740,11 +731,11 @@ function TimeGrid({
         style={{
           display: 'grid',
           gridTemplateColumns: `56px repeat(${days.length}, 1fr)`,
-          borderBottom: '1px solid var(--border-subtle, #3a332e)',
+          borderBottom: '1px solid rgba(255,255,255,0.06)',
           flexShrink: 0,
         }}
       >
-        <div style={{ borderRight: '1px solid var(--border-subtle, #3a332e)' }} />
+        <div style={{ borderRight: '1px solid rgba(255,255,255,0.06)' }} />
         {days.map((day, i) => {
           const isToday = isSameDay(day, today);
           const isWeekend = day.getDay() === 0 || day.getDay() === 6;
@@ -754,14 +745,14 @@ function TimeGrid({
               style={{
                 textAlign: 'center',
                 padding: '8px 0 4px',
-                borderRight: i < days.length - 1 ? '1px solid var(--border-subtle, #3a332e)' : 'none',
+                borderRight: i < days.length - 1 ? '1px solid rgba(255,255,255,0.06)' : 'none',
               }}
             >
               <div
                 style={{
                   fontSize: 11,
                   textTransform: 'uppercase',
-                  color: isWeekend ? 'var(--text-tertiary, #6a6058)' : 'var(--text-primary, #e8e0d8)',
+                  color: isWeekend ? 'var(--text-tertiary)' : 'var(--text-primary)',
                   fontWeight: 600,
                 }}
               >
@@ -776,8 +767,8 @@ function TimeGrid({
                   borderRadius: '50%',
                   fontSize: 16,
                   fontWeight: isToday ? 700 : 400,
-                  color: isToday ? '#1a1614' : 'var(--text-primary, #e8e0d8)',
-                  background: isToday ? 'var(--color-accent, #d4a574)' : 'transparent',
+                  color: isToday ? '#1a1614' : 'var(--text-primary)',
+                  background: isToday ? 'var(--accent-primary)' : 'transparent',
                 }}
               >
                 {day.getDate()}
@@ -793,17 +784,17 @@ function TimeGrid({
           style={{
             display: 'grid',
             gridTemplateColumns: `56px repeat(${days.length}, 1fr)`,
-            borderBottom: '1px solid var(--border-subtle, #3a332e)',
+            borderBottom: '1px solid rgba(255,255,255,0.06)',
             flexShrink: 0,
           }}
         >
           <div
             style={{
               fontSize: 10,
-              color: 'var(--text-tertiary, #6a6058)',
+              color: 'var(--text-tertiary)',
               padding: '4px 4px',
               textAlign: 'right',
-              borderRight: '1px solid var(--border-subtle, #3a332e)',
+              borderRight: '1px solid rgba(255,255,255,0.06)',
             }}
           >
             all-day
@@ -813,7 +804,7 @@ function TimeGrid({
               key={i}
               style={{
                 padding: 2,
-                borderRight: i < days.length - 1 ? '1px solid var(--border-subtle, #3a332e)' : 'none',
+                borderRight: i < days.length - 1 ? '1px solid rgba(255,255,255,0.06)' : 'none',
                 minHeight: 24,
               }}
             >
@@ -829,7 +820,7 @@ function TimeGrid({
                     padding: '1px 4px',
                     borderRadius: 3,
                     background: evt.color || EVENT_COLORS[0],
-                    color: '#1a1614',
+                    color: '#000',
                     fontWeight: 500,
                     marginBottom: 1,
                     cursor: 'pointer',
@@ -857,14 +848,14 @@ function TimeGrid({
           }}
         >
           {/* Hour labels */}
-          <div style={{ borderRight: '1px solid var(--border-subtle, #3a332e)', position: 'relative' }}>
+          <div style={{ borderRight: '1px solid rgba(255,255,255,0.06)', position: 'relative' }}>
             {HOURS.map((h) => (
               <div
                 key={h}
                 style={{
                   height: HOUR_HEIGHT,
                   fontSize: 10,
-                  color: 'var(--text-tertiary, #6a6058)',
+                  color: 'var(--text-tertiary)',
                   textAlign: 'right',
                   paddingRight: 8,
                   paddingTop: 0,
@@ -887,8 +878,8 @@ function TimeGrid({
                 key={colIdx}
                 style={{
                   position: 'relative',
-                  borderRight: colIdx < days.length - 1 ? '1px solid var(--border-subtle, #3a332e)' : 'none',
-                  background: isToday ? 'rgba(212, 165, 116, 0.04)' : 'transparent',
+                  borderRight: colIdx < days.length - 1 ? '1px solid rgba(255,255,255,0.06)' : 'none',
+                  background: isToday ? 'rgba(126,184,255,0.04)' : 'transparent',
                 }}
               >
                 {/* Hour lines and click targets */}
@@ -901,7 +892,7 @@ function TimeGrid({
                     }}
                     style={{
                       height: HOUR_HEIGHT,
-                      borderBottom: '1px solid var(--border-subtle, #3a332e)',
+                      borderBottom: '1px solid rgba(255,255,255,0.06)',
                       cursor: 'pointer',
                     }}
                   />
@@ -937,7 +928,7 @@ function TimeGrid({
                         width: `calc(${widthPct}% - 4px)`,
                         height,
                         background: evt.color || EVENT_COLORS[0],
-                        color: '#1a1614',
+                        color: '#000',
                         borderRadius: 4,
                         padding: '2px 6px',
                         fontSize: 11,
@@ -1217,7 +1208,7 @@ export function CalendarApp({
           />
           {/* Upcoming events list */}
           <div style={{ marginTop: 20 }}>
-            <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-tertiary, #6a6058)', marginBottom: 8 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-tertiary)', marginBottom: 8 }}>
               Upcoming
             </div>
             {events
@@ -1232,7 +1223,7 @@ export function CalendarApp({
                     alignItems: 'flex-start',
                     gap: 8,
                     padding: '6px 0',
-                    borderBottom: '1px solid var(--border-subtle, #3a332e)',
+                    borderBottom: '1px solid rgba(255,255,255,0.06)',
                     cursor: 'pointer',
                   }}
                   onClick={(e) => {
@@ -1252,7 +1243,7 @@ export function CalendarApp({
                   />
                   <div>
                     <div style={{ fontSize: 12, fontWeight: 500, lineHeight: '16px' }}>{evt.title}</div>
-                    <div style={{ fontSize: 10, color: 'var(--text-tertiary, #6a6058)' }}>
+                    <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>
                       {new Date(evt.start).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                       {!evt.allDay && ` ${formatTime(new Date(evt.start))}`}
                     </div>
@@ -1260,7 +1251,7 @@ export function CalendarApp({
                 </div>
               ))}
             {events.filter((e) => new Date(e.start).getTime() >= Date.now()).length === 0 && (
-              <div style={{ fontSize: 12, color: 'var(--text-tertiary, #6a6058)' }}>No upcoming events</div>
+              <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No upcoming events</div>
             )}
           </div>
         </div>

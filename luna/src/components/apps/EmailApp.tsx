@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import { GLASS } from './glassStyles';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -158,12 +159,12 @@ function generateId(): string {
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
 const cssVars = {
-  surfaceBase: 'var(--surface-base, #1a1614)',
-  surfaceElevated: 'var(--surface-elevated, #2a2420)',
-  colorAccent: 'var(--color-accent, #d4a574)',
-  borderSubtle: 'var(--border-subtle, #3a332e)',
-  textPrimary: 'var(--text-primary, #e8e0d8)',
-  fontSystem: 'var(--font-system, system-ui)',
+  surfaceBase: 'transparent',
+  surfaceElevated: 'var(--glass-bg-elevated)',
+  colorAccent: 'var(--accent-primary)',
+  borderSubtle: GLASS.dividerColor as string,
+  textPrimary: 'var(--text-primary)',
+  fontSystem: 'var(--font-ui)',
 };
 
 const styles: Record<string, React.CSSProperties> = {
@@ -171,7 +172,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     width: '100%',
     height: '100%',
-    background: cssVars.surfaceBase,
+    background: 'transparent',
     color: cssVars.textPrimary,
     fontFamily: cssVars.fontSystem,
     fontSize: 13,
@@ -183,7 +184,7 @@ const styles: Record<string, React.CSSProperties> = {
   sidebar: {
     width: 200,
     minWidth: 200,
-    background: cssVars.surfaceElevated,
+    ...GLASS.elevated,
     borderRight: `1px solid ${cssVars.borderSubtle}`,
     display: 'flex',
     flexDirection: 'column',
@@ -202,15 +203,10 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 8,
   },
   composeBtn: {
+    ...GLASS.accentBtn,
     flex: 1,
     padding: '8px 14px',
-    background: cssVars.colorAccent,
-    color: '#1a1614',
-    border: 'none',
-    borderRadius: 6,
-    fontWeight: 600,
     fontSize: 13,
-    cursor: 'pointer',
     fontFamily: 'inherit',
     display: 'flex',
     alignItems: 'center',
@@ -242,7 +238,7 @@ const styles: Record<string, React.CSSProperties> = {
     position: 'relative' as const,
   },
   folderItemActive: {
-    background: 'rgba(212,165,116,0.15)',
+    background: GLASS.selectedBg,
   },
   folderIcon: {
     fontSize: 15,
@@ -295,9 +291,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     gap: 6,
-    background: cssVars.surfaceBase,
-    border: `1px solid ${cssVars.borderSubtle}`,
-    borderRadius: 6,
+    ...GLASS.inset,
     padding: '5px 10px',
   },
   searchInput: {
@@ -324,7 +318,7 @@ const styles: Record<string, React.CSSProperties> = {
     position: 'relative' as const,
   },
   emailRowSelected: {
-    background: 'rgba(212,165,116,0.15)',
+    background: GLASS.selectedBg,
   },
   emailRowUnread: {
     fontWeight: 600,
@@ -414,19 +408,14 @@ const styles: Record<string, React.CSSProperties> = {
     flexWrap: 'wrap' as const,
   },
   toolbarBtn: {
-    background: 'transparent',
-    border: `1px solid ${cssVars.borderSubtle}`,
-    color: cssVars.textPrimary,
-    borderRadius: 5,
+    ...GLASS.ghostBtn,
     padding: '5px 10px',
     fontSize: 12,
-    cursor: 'pointer',
     fontFamily: 'inherit',
     display: 'flex',
     alignItems: 'center',
     gap: 4,
     whiteSpace: 'nowrap' as const,
-    transition: 'background 0.12s, border-color 0.12s',
   },
   toolbarSeparator: {
     width: 1,
@@ -490,8 +479,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'inline-flex',
     alignItems: 'center',
     gap: 6,
-    background: cssVars.surfaceElevated,
-    border: `1px solid ${cssVars.borderSubtle}`,
+    ...GLASS.surface,
     borderRadius: 6,
     padding: '6px 10px',
     fontSize: 12,
@@ -513,9 +501,10 @@ const styles: Record<string, React.CSSProperties> = {
   composeModal: {
     width: '100%',
     maxWidth: 560,
-    background: cssVars.surfaceElevated,
+    ...GLASS.elevated,
+    backdropFilter: 'blur(40px) saturate(var(--glass-saturation))',
+    WebkitBackdropFilter: 'blur(40px) saturate(var(--glass-saturation))',
     borderRadius: 10,
-    border: `1px solid ${cssVars.borderSubtle}`,
     display: 'flex',
     flexDirection: 'column',
     overflow: 'hidden',
@@ -528,7 +517,7 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'space-between',
     padding: '10px 14px',
     borderBottom: `1px solid ${cssVars.borderSubtle}`,
-    background: cssVars.surfaceBase,
+    background: 'rgba(0,0,0,0.2)',
   },
   composeTitle: {
     fontSize: 13,
@@ -587,24 +576,15 @@ const styles: Record<string, React.CSSProperties> = {
     borderTop: `1px solid ${cssVars.borderSubtle}`,
   },
   sendBtn: {
+    ...GLASS.accentBtn,
     padding: '7px 20px',
-    background: cssVars.colorAccent,
-    color: '#1a1614',
-    border: 'none',
-    borderRadius: 6,
-    fontWeight: 600,
     fontSize: 13,
-    cursor: 'pointer',
     fontFamily: 'inherit',
   },
   discardBtn: {
+    ...GLASS.ghostBtn,
     padding: '7px 14px',
-    background: 'transparent',
-    border: `1px solid ${cssVars.borderSubtle}`,
-    color: cssVars.textPrimary,
-    borderRadius: 6,
     fontSize: 12,
-    cursor: 'pointer',
     fontFamily: 'inherit',
   },
   ccToggle: {
@@ -655,7 +635,7 @@ function ToolbarButton({ label, icon, onClick, disabled, danger }: ToolbarButton
         opacity: disabled ? 0.35 : 1,
         pointerEvents: disabled ? 'none' : 'auto',
         ...(hovered && !disabled
-          ? { background: danger ? 'rgba(220,80,80,0.15)' : 'rgba(212,165,116,0.12)' }
+          ? { background: danger ? 'rgba(220,80,80,0.15)' : GLASS.hoverBg }
           : {}),
       }}
       onClick={onClick}
@@ -978,7 +958,7 @@ export function EmailApp({ emails: initialEmails, folders: initialFolders, onSen
               }}
               onMouseEnter={(e) => {
                 if (activeFolder !== folder.name) {
-                  (e.currentTarget as HTMLDivElement).style.background = 'rgba(212,165,116,0.07)';
+                  (e.currentTarget as HTMLDivElement).style.background = GLASS.hoverBg;
                 }
               }}
               onMouseLeave={(e) => {
@@ -1057,7 +1037,7 @@ export function EmailApp({ emails: initialEmails, folders: initialFolders, onSen
                 onClick={() => selectEmail(email.id)}
                 onMouseEnter={(e) => {
                   if (selectedEmailId !== email.id) {
-                    (e.currentTarget as HTMLDivElement).style.background = 'rgba(212,165,116,0.07)';
+                    (e.currentTarget as HTMLDivElement).style.background = GLASS.hoverBg;
                   }
                 }}
                 onMouseLeave={(e) => {

@@ -8,6 +8,7 @@ import React, {
   type KeyboardEvent,
   type MouseEvent,
 } from 'react';
+import { GLASS } from './glassStyles';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -223,13 +224,13 @@ function computeDisplay(cell: CellData | undefined, data: SheetDataMap): string 
 // ---------------------------------------------------------------------------
 
 const T = {
-  surfaceBase: 'var(--surface-base, #1a1614)',
-  surfaceElevated: 'var(--surface-elevated, #2a2420)',
-  borderSubtle: 'var(--border-subtle, #3a332e)',
-  accent: 'var(--color-accent, #d4a574)',
-  textPrimary: 'var(--text-primary, #e8e0d8)',
-  textSecondary: 'var(--text-secondary, #a89888)',
-  font: 'var(--font-system, system-ui)',
+  surfaceBase: 'transparent',
+  surfaceElevated: 'var(--glass-bg-elevated)',
+  borderSubtle: GLASS.dividerColor as string,
+  accent: 'var(--accent-primary)',
+  textPrimary: 'var(--text-primary)',
+  textSecondary: 'var(--text-secondary)',
+  font: 'var(--font-ui)',
 };
 
 // ---------------------------------------------------------------------------
@@ -716,8 +717,8 @@ export const SpreadsheetApp: React.FC<SpreadsheetAppProps> = ({
         width: colWidths[c],
         height: ROW_HEIGHT,
         boxSizing: 'border-box',
-        borderRight: `1px solid ${T.borderSubtle}`,
-        borderBottom: `1px solid ${T.borderSubtle}`,
+        borderRight: '1px solid rgba(255,255,255,0.04)',
+        borderBottom: '1px solid rgba(255,255,255,0.04)',
         padding: '0 6px',
         display: 'flex',
         alignItems: 'center',
@@ -729,7 +730,7 @@ export const SpreadsheetApp: React.FC<SpreadsheetAppProps> = ({
           cell?.align === 'center' ? 'center' : cell?.align === 'right' ? 'flex-end' : 'flex-start',
         color: cell?.textColor || T.textPrimary,
         backgroundColor: inSel
-          ? 'rgba(212,165,116,0.12)'
+          ? GLASS.selectedBg
           : cell?.bgColor || 'transparent',
         outline: isCursor ? `2px solid ${T.accent}` : 'none',
         outlineOffset: '-2px',
@@ -814,9 +815,9 @@ export const SpreadsheetApp: React.FC<SpreadsheetAppProps> = ({
           fontSize: 11,
           fontWeight: 600,
           color: T.textSecondary,
-          backgroundColor: T.surfaceElevated,
-          borderRight: `1px solid ${T.borderSubtle}`,
-          borderBottom: `1px solid ${T.borderSubtle}`,
+          backgroundColor: 'rgba(255,255,255,0.04)',
+          borderRight: '1px solid rgba(255,255,255,0.04)',
+          borderBottom: '1px solid rgba(255,255,255,0.04)',
           boxSizing: 'border-box',
           userSelect: 'none',
         }}
@@ -857,9 +858,9 @@ export const SpreadsheetApp: React.FC<SpreadsheetAppProps> = ({
           fontSize: 11,
           fontWeight: 500,
           color: T.textSecondary,
-          backgroundColor: T.surfaceElevated,
-          borderRight: `1px solid ${T.borderSubtle}`,
-          borderBottom: `1px solid ${T.borderSubtle}`,
+          backgroundColor: 'rgba(255,255,255,0.04)',
+          borderRight: '1px solid rgba(255,255,255,0.04)',
+          borderBottom: '1px solid rgba(255,255,255,0.04)',
           boxSizing: 'border-box',
           userSelect: 'none',
         }}
@@ -876,7 +877,7 @@ export const SpreadsheetApp: React.FC<SpreadsheetAppProps> = ({
         flexDirection: 'column',
         width: '100%',
         height: '100%',
-        backgroundColor: T.surfaceBase,
+        background: 'transparent',
         fontFamily: T.font,
         color: T.textPrimary,
         overflow: 'hidden',
@@ -891,8 +892,8 @@ export const SpreadsheetApp: React.FC<SpreadsheetAppProps> = ({
           alignItems: 'center',
           gap: 4,
           padding: '4px 8px',
-          backgroundColor: T.surfaceElevated,
-          borderBottom: `1px solid ${T.borderSubtle}`,
+          ...GLASS.elevated,
+          borderBottom: `1px solid ${GLASS.dividerColor}`,
           flexShrink: 0,
           flexWrap: 'wrap',
           minHeight: 36,
@@ -903,10 +904,7 @@ export const SpreadsheetApp: React.FC<SpreadsheetAppProps> = ({
           value={toolFontSize}
           onChange={(e) => setToolFontSize(Number(e.target.value))}
           style={{
-            background: T.surfaceBase,
-            color: T.textPrimary,
-            border: `1px solid ${T.borderSubtle}`,
-            borderRadius: 4,
+            ...GLASS.inset,
             padding: '2px 4px',
             fontSize: 12,
             fontFamily: T.font,
@@ -997,8 +995,8 @@ export const SpreadsheetApp: React.FC<SpreadsheetAppProps> = ({
           alignItems: 'center',
           gap: 8,
           padding: '2px 8px',
-          backgroundColor: T.surfaceElevated,
-          borderBottom: `1px solid ${T.borderSubtle}`,
+          ...GLASS.elevated,
+          borderBottom: `1px solid ${GLASS.dividerColor}`,
           flexShrink: 0,
           height: 30,
         }}
@@ -1076,9 +1074,9 @@ export const SpreadsheetApp: React.FC<SpreadsheetAppProps> = ({
               left: 0,
               width: ROW_HEADER_WIDTH,
               height: HEADER_HEIGHT,
-              backgroundColor: T.surfaceElevated,
-              borderRight: `1px solid ${T.borderSubtle}`,
-              borderBottom: `1px solid ${T.borderSubtle}`,
+              backgroundColor: 'rgba(255,255,255,0.04)',
+              borderRight: '1px solid rgba(255,255,255,0.04)',
+              borderBottom: '1px solid rgba(255,255,255,0.04)',
               zIndex: 12,
               boxSizing: 'border-box',
             }}
@@ -1142,8 +1140,8 @@ export const SpreadsheetApp: React.FC<SpreadsheetAppProps> = ({
           alignItems: 'center',
           gap: 0,
           padding: '0 4px',
-          backgroundColor: T.surfaceElevated,
-          borderTop: `1px solid ${T.borderSubtle}`,
+          ...GLASS.elevated,
+          borderTop: `1px solid ${GLASS.dividerColor}`,
           flexShrink: 0,
           height: 32,
           overflow: 'auto',
@@ -1161,9 +1159,9 @@ export const SpreadsheetApp: React.FC<SpreadsheetAppProps> = ({
               fontSize: 12,
               fontFamily: T.font,
               color: name === activeSheet ? T.textPrimary : T.textSecondary,
-              backgroundColor: name === activeSheet ? T.surfaceBase : 'transparent',
+              backgroundColor: name === activeSheet ? GLASS.selectedBg : 'transparent',
               border: 'none',
-              borderRight: `1px solid ${T.borderSubtle}`,
+              borderRight: `1px solid ${GLASS.dividerColor}`,
               borderTop: name === activeSheet ? `2px solid ${T.accent}` : '2px solid transparent',
               cursor: 'pointer',
               height: '100%',
@@ -1217,7 +1215,7 @@ const ToolbarButton: React.FC<{
       border: 'none',
       cursor: 'pointer',
       color: active ? T.textPrimary : T.textSecondary,
-      backgroundColor: active ? 'rgba(212,165,116,0.18)' : 'transparent',
+      backgroundColor: active ? GLASS.selectedBg : 'transparent',
       fontFamily: T.font,
       fontSize: 14,
     }}
@@ -1231,7 +1229,7 @@ const ToolbarDivider: React.FC = () => (
     style={{
       width: 1,
       height: 20,
-      backgroundColor: T.borderSubtle,
+      backgroundColor: GLASS.dividerColor,
       margin: '0 4px',
     }}
   />

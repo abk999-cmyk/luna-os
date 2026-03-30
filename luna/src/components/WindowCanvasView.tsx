@@ -1,4 +1,5 @@
 import { useRef, useEffect, useCallback, useState } from 'react';
+import { GLASS } from './apps/glassStyles';
 
 interface CanvasShape {
   id: string;
@@ -239,11 +240,12 @@ export function CanvasView({ content, onChange }: CanvasViewProps) {
   ];
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#1a1a1a' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'transparent' }}>
       {/* Toolbar */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px',
-        borderBottom: '1px solid rgba(255,255,255,0.08)', background: 'rgba(0,0,0,0.3)',
+        borderBottom: `1px solid ${GLASS.dividerColor}`,
+        ...GLASS.elevated,
         flexShrink: 0, flexWrap: 'wrap',
       }}>
         {/* Tool buttons */}
@@ -253,9 +255,10 @@ export function CanvasView({ content, onChange }: CanvasViewProps) {
             onClick={() => setActiveTool(tool)}
             title={label}
             style={{
-              padding: '4px 10px', borderRadius: 6, border: 'none', cursor: 'pointer',
-              background: activeTool === tool ? 'rgba(126, 184, 255, 0.2)' : 'transparent',
-              color: activeTool === tool ? '#7eb8ff' : '#999',
+              padding: '4px 10px', borderRadius: 6, cursor: 'pointer',
+              background: activeTool === tool ? GLASS.selectedBg : 'transparent',
+              color: activeTool === tool ? 'var(--accent-primary)' : 'var(--text-secondary)',
+              border: activeTool === tool ? `1px solid ${GLASS.selectedBorder}` : '1px solid transparent',
               fontSize: 14, fontFamily: 'inherit',
               transition: 'all 0.15s',
             }}
@@ -264,7 +267,7 @@ export function CanvasView({ content, onChange }: CanvasViewProps) {
           </button>
         ))}
 
-        <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.1)', margin: '0 4px' }} />
+        <div style={{ width: 1, height: 20, background: GLASS.dividerColor, margin: '0 4px' }} />
 
         {/* Color palette */}
         {COLORS.map((color) => (
@@ -272,19 +275,21 @@ export function CanvasView({ content, onChange }: CanvasViewProps) {
             key={color}
             onClick={() => setActiveColor(color)}
             style={{
-              width: 18, height: 18, borderRadius: '50%', border: activeColor === color ? '2px solid #7eb8ff' : '2px solid transparent',
+              width: 18, height: 18, borderRadius: '50%',
+              border: activeColor === color ? `2px solid var(--accent-primary)` : '2px solid transparent',
               background: color, cursor: 'pointer', padding: 0, flexShrink: 0,
+              boxShadow: activeColor === color ? `0 0 6px ${GLASS.selectedBorder}` : 'none',
             }}
           />
         ))}
 
-        <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.1)', margin: '0 4px' }} />
+        <div style={{ width: 1, height: 20, background: GLASS.dividerColor, margin: '0 4px' }} />
 
         {/* Brush size */}
         <input
           type="range" min={1} max={12} value={brushSize}
           onChange={(e) => setBrushSize(Number(e.target.value))}
-          style={{ width: 60, accentColor: '#7eb8ff' }}
+          style={{ width: 60, accentColor: 'var(--accent-primary)' }}
           title={`Brush size: ${brushSize}`}
         />
 
@@ -292,13 +297,12 @@ export function CanvasView({ content, onChange }: CanvasViewProps) {
 
         {/* Actions */}
         <button onClick={handleUndo} title="Undo" style={{
-          padding: '4px 8px', borderRadius: 6, border: 'none', background: 'transparent',
-          color: undoStack.length > 0 ? '#999' : '#444', cursor: undoStack.length > 0 ? 'pointer' : 'default',
-          fontSize: 13, fontFamily: 'inherit',
+          ...GLASS.ghostBtn, padding: '4px 8px', fontSize: 13,
+          opacity: undoStack.length > 0 ? 1 : 0.4,
+          cursor: undoStack.length > 0 ? 'pointer' : 'default',
         }}>Undo</button>
         <button onClick={handleClear} title="Clear" style={{
-          padding: '4px 8px', borderRadius: 6, border: 'none', background: 'transparent',
-          color: '#999', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit',
+          ...GLASS.ghostBtn, padding: '4px 8px', fontSize: 13,
         }}>Clear</button>
       </div>
 

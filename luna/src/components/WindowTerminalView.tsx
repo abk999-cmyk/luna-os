@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { dispatchAction } from '../ipc/actions';
 import { listen } from '@tauri-apps/api/event';
+import { GLASS } from './apps/glassStyles';
 
 interface TerminalLine {
   type: 'input' | 'output' | 'ai-input' | 'error' | 'system';
@@ -147,7 +148,7 @@ export function TerminalView({ content }: TerminalViewProps) {
       case 'ai-input': return '#7eb8ff';   // blue-white for AI
       case 'error': return '#f87171';       // red for errors
       case 'system': return '#6b7280';      // gray for system
-      default: return '#e8e0d8';            // default text
+      default: return 'var(--text-primary)'; // default text
     }
   };
 
@@ -167,10 +168,11 @@ export function TerminalView({ content }: TerminalViewProps) {
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
-        background: 'rgba(0, 0, 0, 0.88)',
-        backdropFilter: 'blur(40px)',
-        color: '#e8e0d8',
-        fontFamily: 'var(--font-mono, "JetBrains Mono", "SF Mono", "Fira Code", monospace)',
+        background: 'rgba(0, 0, 0, 0.75)',
+        backdropFilter: 'blur(40px) saturate(180%)',
+        WebkitBackdropFilter: 'blur(40px) saturate(180%)',
+        color: 'var(--text-primary)',
+        fontFamily: 'var(--font-mono)',
         fontSize: '13px',
         lineHeight: '1.6',
       }}
@@ -192,7 +194,7 @@ export function TerminalView({ content }: TerminalViewProps) {
             <span style={{ color: getPromptColor(line.type), userSelect: 'none' }}>
               {getPrompt(line.type)}
             </span>
-            <span style={{ color: line.type === 'output' ? '#e8e0d8' : getPromptColor(line.type) }}>
+            <span style={{ color: line.type === 'output' ? 'var(--text-primary)' : getPromptColor(line.type) }}>
               {line.text}
             </span>
           </div>
@@ -210,7 +212,7 @@ export function TerminalView({ content }: TerminalViewProps) {
           display: 'flex',
           alignItems: 'center',
           padding: '8px 16px',
-          borderTop: '1px solid rgba(255, 255, 255, 0.06)',
+          borderTop: `1px solid ${GLASS.dividerColor}`,
           background: 'rgba(0, 0, 0, 0.3)',
           flexShrink: 0,
         }}
@@ -230,7 +232,7 @@ export function TerminalView({ content }: TerminalViewProps) {
             background: 'transparent',
             border: 'none',
             outline: 'none',
-            color: '#e8e0d8',
+            color: 'var(--text-primary)',
             fontFamily: 'inherit',
             fontSize: 'inherit',
             lineHeight: 'inherit',

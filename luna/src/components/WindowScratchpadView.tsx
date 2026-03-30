@@ -14,13 +14,13 @@ export function ScratchpadView({ content, onChange }: ScratchpadViewProps) {
         width: '100%',
         height: '100%',
         padding: '12px 16px',
-        background: 'var(--surface-base, #1a1614)',
-        color: 'var(--text-primary, #e8e0d8)',
+        background: 'transparent',
+        color: 'var(--text-primary)',
         border: 'none',
         outline: 'none',
         resize: 'none',
-        fontFamily: 'var(--font-system, system-ui)',
-        fontSize: 'var(--text-base, 14px)',
+        fontFamily: 'var(--font-system)',
+        fontSize: 'var(--text-base)',
         lineHeight: '1.6',
       }}
     />

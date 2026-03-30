@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { GLASS } from './glassStyles';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -74,44 +75,34 @@ const S: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     height: '100%',
-    background: 'var(--surface-base, #1a1614)',
-    color: 'var(--text-primary, #e8e0d8)',
-    fontFamily: 'var(--font-system, system-ui)',
+    background: 'transparent',
+    color: 'var(--text-primary)',
+    fontFamily: 'var(--font-ui)',
     fontSize: 13,
     overflow: 'hidden',
-    borderRadius: 8,
-    border: '1px solid var(--border-subtle, #3a332e)',
   },
   toolbar: {
     display: 'flex',
     alignItems: 'center',
     gap: 8,
     padding: '8px 12px',
-    borderBottom: '1px solid var(--border-subtle, #3a332e)',
-    background: 'var(--surface-elevated, #2a2420)',
+    borderBottom: `1px solid ${GLASS.dividerColor}`,
+    ...GLASS.elevated,
     flexShrink: 0,
   },
   searchInput: {
+    ...GLASS.inset,
     flex: 1,
-    background: 'var(--surface-base, #1a1614)',
-    border: '1px solid var(--border-subtle, #3a332e)',
-    borderRadius: 6,
     padding: '6px 10px',
-    color: 'var(--text-primary, #e8e0d8)',
     fontSize: 13,
-    fontFamily: 'var(--font-system, system-ui)',
-    outline: 'none',
+    fontFamily: 'var(--font-ui)',
     minWidth: 0,
   },
   toolBtn: {
-    background: 'none',
-    border: '1px solid var(--border-subtle, #3a332e)',
-    borderRadius: 6,
-    color: 'var(--text-secondary, #b0a898)',
+    ...GLASS.ghostBtn,
     padding: '5px 10px',
-    cursor: 'pointer',
     fontSize: 13,
-    fontFamily: 'var(--font-system, system-ui)',
+    fontFamily: 'var(--font-ui)',
     whiteSpace: 'nowrap' as const,
   },
   breadcrumbs: {
@@ -120,17 +111,18 @@ const S: Record<string, React.CSSProperties> = {
     gap: 4,
     padding: '6px 12px',
     fontSize: 12,
-    color: 'var(--text-secondary, #b0a898)',
-    borderBottom: '1px solid var(--border-subtle, #3a332e)',
+    color: 'var(--text-secondary)',
+    borderBottom: `1px solid ${GLASS.dividerColor}`,
+    background: 'transparent',
     flexShrink: 0,
   },
   crumbLink: {
     background: 'none',
     border: 'none',
-    color: 'var(--color-accent, #d4a574)',
+    color: 'var(--accent-primary)',
     cursor: 'pointer',
     fontSize: 12,
-    fontFamily: 'var(--font-system, system-ui)',
+    fontFamily: 'var(--font-ui)',
     padding: 0,
   },
   body: {
@@ -141,9 +133,10 @@ const S: Record<string, React.CSSProperties> = {
   sidebar: {
     width: 170,
     flexShrink: 0,
-    borderRight: '1px solid var(--border-subtle, #3a332e)',
+    borderRight: `1px solid ${GLASS.dividerColor}`,
     overflowY: 'auto' as const,
     padding: '8px 0',
+    ...GLASS.elevated,
   },
   sideItem: {
     display: 'flex',
@@ -152,16 +145,16 @@ const S: Record<string, React.CSSProperties> = {
     padding: '6px 14px',
     cursor: 'pointer',
     fontSize: 13,
-    color: 'var(--text-secondary, #b0a898)',
+    color: 'var(--text-secondary)',
     border: 'none',
     background: 'none',
     width: '100%',
     textAlign: 'left' as const,
-    fontFamily: 'var(--font-system, system-ui)',
+    fontFamily: 'var(--font-ui)',
   },
   sideItemActive: {
-    background: 'rgba(212,165,116,0.12)',
-    color: 'var(--color-accent, #d4a574)',
+    background: GLASS.selectedBg,
+    color: 'var(--accent-primary)',
   },
   main: {
     flex: 1,
@@ -184,10 +177,12 @@ const S: Record<string, React.CSSProperties> = {
     textAlign: 'center' as const,
     userSelect: 'none' as const,
     border: '1px solid transparent',
+    ...GLASS.surface,
+    background: 'transparent',
   },
   gridItemSelected: {
-    background: 'rgba(212,165,116,0.10)',
-    border: '1px solid var(--color-accent, #d4a574)',
+    background: GLASS.selectedBg,
+    border: `1px solid ${GLASS.selectedBorder}`,
   },
   gridIcon: { fontSize: 32 },
   gridName: { fontSize: 11, wordBreak: 'break-word' as const, lineHeight: 1.3 },
@@ -204,8 +199,8 @@ const S: Record<string, React.CSSProperties> = {
     border: '1px solid transparent',
   },
   listRowSelected: {
-    background: 'rgba(212,165,116,0.10)',
-    border: '1px solid var(--color-accent, #d4a574)',
+    background: GLASS.selectedBg,
+    border: `1px solid ${GLASS.selectedBorder}`,
   },
   listHeader: {
     display: 'grid',
@@ -213,35 +208,35 @@ const S: Record<string, React.CSSProperties> = {
     gap: 8,
     padding: '4px 8px',
     fontSize: 11,
-    color: 'var(--text-tertiary, #6a6058)',
-    borderBottom: '1px solid var(--border-subtle, #3a332e)',
+    color: 'var(--text-tertiary)',
+    borderBottom: `1px solid ${GLASS.dividerColor}`,
     marginBottom: 4,
     userSelect: 'none' as const,
   },
   sortBtn: {
     background: 'none',
     border: 'none',
-    color: 'var(--text-tertiary, #6a6058)',
+    color: 'var(--text-tertiary)',
     cursor: 'pointer',
     fontSize: 11,
-    fontFamily: 'var(--font-system, system-ui)',
+    fontFamily: 'var(--font-ui)',
     padding: 0,
     textAlign: 'left' as const,
   },
   detailPanel: {
     width: 200,
     flexShrink: 0,
-    borderLeft: '1px solid var(--border-subtle, #3a332e)',
+    borderLeft: `1px solid ${GLASS.dividerColor}`,
     padding: 14,
     overflowY: 'auto' as const,
+    ...GLASS.elevated,
   },
   detailTitle: { fontSize: 14, fontWeight: 600, marginBottom: 12 },
-  detailRow: { marginBottom: 8, fontSize: 12, color: 'var(--text-secondary, #b0a898)' },
-  detailLabel: { color: 'var(--text-tertiary, #6a6058)', display: 'block', marginBottom: 2 },
+  detailRow: { marginBottom: 8, fontSize: 12, color: 'var(--text-secondary)' },
+  detailLabel: { color: 'var(--text-tertiary)', display: 'block', marginBottom: 2 },
   ctxMenu: {
     position: 'fixed' as const,
-    background: 'var(--surface-elevated, #2a2420)',
-    border: '1px solid var(--border-subtle, #3a332e)',
+    ...GLASS.elevated,
     borderRadius: 8,
     padding: '4px 0',
     zIndex: 9999,
@@ -253,12 +248,12 @@ const S: Record<string, React.CSSProperties> = {
     width: '100%',
     background: 'none',
     border: 'none',
-    color: 'var(--text-primary, #e8e0d8)',
+    color: 'var(--text-primary)',
     padding: '7px 14px',
     textAlign: 'left' as const,
     cursor: 'pointer',
     fontSize: 13,
-    fontFamily: 'var(--font-system, system-ui)',
+    fontFamily: 'var(--font-ui)',
   },
 };
 
@@ -462,9 +457,9 @@ export function FileManagerApp({
         ) : (
           <span>{f.name}</span>
         )}
-        <span style={{ color: 'var(--text-tertiary, #6a6058)' }}>{f.modified ?? '--'}</span>
-        <span style={{ color: 'var(--text-tertiary, #6a6058)' }}>{formatSize(f.size)}</span>
-        <span style={{ color: 'var(--text-tertiary, #6a6058)' }}>{f.type}</span>
+        <span style={{ color: 'var(--text-tertiary)' }}>{f.modified ?? '--'}</span>
+        <span style={{ color: 'var(--text-tertiary)' }}>{formatSize(f.size)}</span>
+        <span style={{ color: 'var(--text-tertiary)' }}>{f.type}</span>
       </div>
     );
   };
@@ -482,13 +477,13 @@ export function FileManagerApp({
         <button style={S.toolBtn} onClick={handleNewFolder}>+ Folder</button>
         <button style={S.toolBtn} title="Upload">Upload</button>
         <button
-          style={{ ...S.toolBtn, color: view === 'grid' ? 'var(--color-accent, #d4a574)' : undefined }}
+          style={{ ...S.toolBtn, color: view === 'grid' ? 'var(--accent-primary)' : undefined }}
           onClick={() => setView('grid')}
         >
           Grid
         </button>
         <button
-          style={{ ...S.toolBtn, color: view === 'list' ? 'var(--color-accent, #d4a574)' : undefined }}
+          style={{ ...S.toolBtn, color: view === 'list' ? 'var(--accent-primary)' : undefined }}
           onClick={() => setView('list')}
         >
           List
@@ -532,7 +527,7 @@ export function FileManagerApp({
             </div>
           )}
           {visible.length === 0 && (
-            <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary, #6a6058)' }}>
+            <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>
               {search ? 'No matching files' : 'This folder is empty'}
             </div>
           )}
@@ -560,19 +555,19 @@ export function FileManagerApp({
       {ctxMenu && (
         <div style={{ ...S.ctxMenu, top: ctxMenu.y, left: ctxMenu.x }}>
           <button style={S.ctxItem} onClick={() => { const f = files.find(f => f.id === ctxMenu.fileId); if (f) handleOpen(f); setCtxMenu(null); }}
-            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(212,165,116,0.12)')}
+            onMouseEnter={e => (e.currentTarget.style.background = GLASS.hoverBg)}
             onMouseLeave={e => (e.currentTarget.style.background = 'none')}
           >Open</button>
           <button style={S.ctxItem} onClick={handleRenameStart}
-            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(212,165,116,0.12)')}
+            onMouseEnter={e => (e.currentTarget.style.background = GLASS.hoverBg)}
             onMouseLeave={e => (e.currentTarget.style.background = 'none')}
           >Rename</button>
           <button style={S.ctxItem} onClick={handleDelete}
-            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(212,165,116,0.12)')}
+            onMouseEnter={e => (e.currentTarget.style.background = GLASS.hoverBg)}
             onMouseLeave={e => (e.currentTarget.style.background = 'none')}
           >Delete</button>
           <button style={S.ctxItem}
-            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(212,165,116,0.12)')}
+            onMouseEnter={e => (e.currentTarget.style.background = GLASS.hoverBg)}
             onMouseLeave={e => (e.currentTarget.style.background = 'none')}
             onClick={() => setCtxMenu(null)}
           >Move</button>

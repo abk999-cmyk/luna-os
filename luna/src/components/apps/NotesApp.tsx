@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { GLASS } from './glassStyles';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -85,51 +86,40 @@ const S: Record<string, React.CSSProperties> = {
   root: {
     display: 'flex',
     height: '100%',
-    background: 'var(--surface-base, #1a1614)',
-    color: 'var(--text-primary, #e8e0d8)',
-    fontFamily: 'var(--font-system, system-ui)',
+    background: 'transparent',
+    color: 'var(--text-primary)',
+    fontFamily: 'var(--font-ui)',
     fontSize: 13,
-    borderRadius: 8,
-    border: '1px solid var(--border-subtle, #3a332e)',
     overflow: 'hidden',
   },
   sidebar: {
     width: 260,
     flexShrink: 0,
-    borderRight: '1px solid var(--border-subtle, #3a332e)',
+    borderRight: `1px solid ${GLASS.dividerColor}`,
     display: 'flex',
     flexDirection: 'column',
-    background: 'var(--surface-elevated, #2a2420)',
+    ...GLASS.elevated,
   },
   sideHeader: {
     display: 'flex',
     alignItems: 'center',
     gap: 8,
     padding: '10px 12px',
-    borderBottom: '1px solid var(--border-subtle, #3a332e)',
+    borderBottom: `1px solid ${GLASS.dividerColor}`,
     flexShrink: 0,
   },
   searchInput: {
+    ...GLASS.inset,
     flex: 1,
-    background: 'var(--surface-base, #1a1614)',
-    border: '1px solid var(--border-subtle, #3a332e)',
-    borderRadius: 6,
     padding: '6px 10px',
-    color: 'var(--text-primary, #e8e0d8)',
     fontSize: 13,
-    fontFamily: 'var(--font-system, system-ui)',
-    outline: 'none',
+    fontFamily: 'var(--font-ui)',
     minWidth: 0,
   },
   newBtn: {
-    background: 'var(--color-accent, #d4a574)',
-    border: 'none',
-    borderRadius: 6,
-    color: '#1a1614',
+    ...GLASS.accentBtn,
     width: 30,
     height: 30,
-    cursor: 'pointer',
-    fontWeight: 700,
     fontSize: 18,
     display: 'flex',
     alignItems: 'center',
@@ -141,7 +131,7 @@ const S: Record<string, React.CSSProperties> = {
     gap: 4,
     padding: '6px 12px',
     flexWrap: 'wrap',
-    borderBottom: '1px solid var(--border-subtle, #3a332e)',
+    borderBottom: `1px solid ${GLASS.dividerColor}`,
     flexShrink: 0,
   },
   tagPill: {
@@ -149,28 +139,27 @@ const S: Record<string, React.CSSProperties> = {
     padding: '2px 8px',
     borderRadius: 10,
     cursor: 'pointer',
-    border: '1px solid var(--border-subtle, #3a332e)',
+    border: '1px solid rgba(255,255,255,0.08)',
     background: 'none',
-    color: 'var(--text-secondary, #b0a898)',
-    fontFamily: 'var(--font-system, system-ui)',
+    color: 'var(--text-secondary)',
+    fontFamily: 'var(--font-ui)',
   },
   tagPillActive: {
-    background: 'rgba(212,165,116,0.15)',
-    borderColor: 'var(--color-accent, #d4a574)',
-    color: 'var(--color-accent, #d4a574)',
+    background: GLASS.selectedBg,
+    borderColor: GLASS.selectedBorder,
+    color: 'var(--accent-primary)',
   },
   noteList: {
-    flex: 1,
-    overflowY: 'auto',
+    ...GLASS.scrollList,
   },
   noteItem: {
     padding: '10px 14px',
     cursor: 'pointer',
-    borderBottom: '1px solid var(--border-subtle, #3a332e)',
+    borderBottom: `1px solid ${GLASS.dividerColor}`,
     transition: 'background 0.1s',
   },
   noteItemActive: {
-    background: 'rgba(212,165,116,0.10)',
+    background: GLASS.selectedBg,
   },
   noteItemTitle: {
     display: 'flex',
@@ -182,7 +171,7 @@ const S: Record<string, React.CSSProperties> = {
   },
   noteItemPreview: {
     fontSize: 12,
-    color: 'var(--text-secondary, #b0a898)',
+    color: 'var(--text-secondary)',
     marginBottom: 4,
     lineHeight: 1.4,
     overflow: 'hidden',
@@ -191,7 +180,7 @@ const S: Record<string, React.CSSProperties> = {
   },
   noteItemDate: {
     fontSize: 11,
-    color: 'var(--text-tertiary, #6a6058)',
+    color: 'var(--text-tertiary)',
   },
   editor: {
     flex: 1,
@@ -204,16 +193,16 @@ const S: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: '10px 16px',
-    borderBottom: '1px solid var(--border-subtle, #3a332e)',
+    borderBottom: `1px solid ${GLASS.dividerColor}`,
     flexShrink: 0,
   },
   titleInput: {
     background: 'none',
     border: 'none',
-    color: 'var(--text-primary, #e8e0d8)',
+    color: 'var(--text-primary)',
     fontSize: 18,
     fontWeight: 600,
-    fontFamily: 'var(--font-system, system-ui)',
+    fontFamily: 'var(--font-ui)',
     outline: 'none',
     flex: 1,
     minWidth: 0,
@@ -223,18 +212,14 @@ const S: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     gap: 4,
     padding: '6px 16px',
-    borderBottom: '1px solid var(--border-subtle, #3a332e)',
+    borderBottom: `1px solid ${GLASS.dividerColor}`,
     flexShrink: 0,
   },
   fmtBtn: {
-    background: 'none',
-    border: '1px solid transparent',
-    borderRadius: 4,
-    color: 'var(--text-secondary, #b0a898)',
+    ...GLASS.ghostBtn,
     padding: '3px 8px',
-    cursor: 'pointer',
     fontSize: 13,
-    fontFamily: 'var(--font-system, system-ui)',
+    fontFamily: 'var(--font-ui)',
   },
   editorBody: {
     flex: 1,
@@ -243,16 +228,17 @@ const S: Record<string, React.CSSProperties> = {
     outline: 'none',
     lineHeight: 1.6,
     fontSize: 14,
-    color: 'var(--text-primary, #e8e0d8)',
+    color: 'var(--text-primary)',
+    background: 'rgba(0,0,0,0.1)',
   },
   editorFooter: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: '6px 16px',
-    borderTop: '1px solid var(--border-subtle, #3a332e)',
+    borderTop: `1px solid ${GLASS.dividerColor}`,
     fontSize: 11,
-    color: 'var(--text-tertiary, #6a6058)',
+    color: 'var(--text-tertiary)',
     flexShrink: 0,
   },
   tagsRow: {
@@ -272,7 +258,7 @@ const S: Record<string, React.CSSProperties> = {
     color: '#e05252',
     cursor: 'pointer',
     fontSize: 13,
-    fontFamily: 'var(--font-system, system-ui)',
+    fontFamily: 'var(--font-ui)',
     padding: '4px 8px',
   },
   pinBtn: {
@@ -285,22 +271,22 @@ const S: Record<string, React.CSSProperties> = {
   iconBtn: {
     background: 'none',
     border: 'none',
-    color: 'var(--text-secondary, #b0a898)',
+    color: 'var(--text-secondary)',
     cursor: 'pointer',
     fontSize: 13,
-    fontFamily: 'var(--font-system, system-ui)',
+    fontFamily: 'var(--font-ui)',
     padding: '4px 8px',
   },
   saveIndicator: {
     fontSize: 11,
-    color: 'var(--text-tertiary, #6a6058)',
+    color: 'var(--text-tertiary)',
   },
   empty: {
     flex: 1,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    color: 'var(--text-tertiary, #6a6058)',
+    color: 'var(--text-tertiary)',
     fontSize: 14,
   },
 };
@@ -459,11 +445,11 @@ export function NotesApp({ notes: notesProp, onChange }: NotesProps) {
               key={n.id}
               style={{ ...S.noteItem, ...(activeId === n.id ? S.noteItemActive : {}) }}
               onClick={() => setActiveId(n.id)}
-              onMouseEnter={e => { if (activeId !== n.id) e.currentTarget.style.background = 'rgba(212,165,116,0.05)'; }}
+              onMouseEnter={e => { if (activeId !== n.id) e.currentTarget.style.background = GLASS.hoverBg; }}
               onMouseLeave={e => { if (activeId !== n.id) e.currentTarget.style.background = 'none'; }}
             >
               <div style={S.noteItemTitle}>
-                {n.pinned && <span title="Pinned" style={{ color: 'var(--color-accent, #d4a574)' }}>{'\u{1F4CC}'}</span>}
+                {n.pinned && <span title="Pinned" style={{ color: 'var(--accent-primary)' }}>{'\u{1F4CC}'}</span>}
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.title}</span>
               </div>
               <div style={S.noteItemPreview}>{preview(n.content)}</div>
@@ -485,7 +471,7 @@ export function NotesApp({ notes: notesProp, onChange }: NotesProps) {
             </div>
           ))}
           {listed.length === 0 && (
-            <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-tertiary, #6a6058)' }}>
+            <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-tertiary)' }}>
               No notes found
             </div>
           )}
@@ -515,7 +501,7 @@ export function NotesApp({ notes: notesProp, onChange }: NotesProps) {
             <button style={S.fmtBtn} onMouseDown={e => { e.preventDefault(); execCmd('italic'); }}><i>I</i></button>
             <button style={S.fmtBtn} onMouseDown={e => { e.preventDefault(); execCmd('underline'); }}><u>U</u></button>
             <button style={S.fmtBtn} onMouseDown={e => { e.preventDefault(); execCmd('strikeThrough'); }}><s>S</s></button>
-            <span style={{ width: 1, height: 16, background: 'var(--border-subtle, #3a332e)', margin: '0 4px' }} />
+            <span style={{ width: 1, height: 16, background: GLASS.dividerColor, margin: '0 4px' }} />
             <button style={S.fmtBtn} onMouseDown={e => { e.preventDefault(); execCmd('insertUnorderedList'); }}>List</button>
             <button style={S.fmtBtn} onMouseDown={e => { e.preventDefault(); execCmd('insertOrderedList'); }}>Num</button>
           </div>

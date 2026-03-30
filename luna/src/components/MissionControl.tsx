@@ -77,6 +77,9 @@ function ContentTypeIcon({ contentType }: { contentType: string }) {
     file_manager: 'M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z',
     terminal: 'M4 17l6-6-6-6',
     browser: 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z',
+    weather: 'M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9z',
+    clock: 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z',
+    settings: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
     panel: 'M3 3h18v18H3z',
   };
 

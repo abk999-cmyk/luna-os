@@ -24,6 +24,16 @@ const NotesApp = lazy(() => import('./apps/NotesApp').then(m => ({ default: m.No
 const CalculatorApp = lazy(() => import('./apps/CalculatorApp').then(m => ({ default: m.CalculatorApp })));
 const BrowserApp = lazy(() => import('./apps/BrowserApp').then(m => ({ default: m.BrowserApp })));
 const MusicPlayerApp = lazy(() => import('./apps/MusicPlayerApp').then(m => ({ default: m.MusicPlayerApp })));
+const WeatherApp = lazy(() => import('./apps/WeatherApp').then(m => ({ default: m.WeatherApp })));
+const ClockApp = lazy(() => import('./apps/ClockApp').then(m => ({ default: m.ClockApp })));
+const SettingsApp = lazy(() => import('./apps/SettingsApp').then(m => ({ default: m.SettingsApp })));
+const PhotosApp = lazy(() => import('./apps/PhotosApp').then(m => ({ default: m.PhotosApp })));
+const ContactsApp = lazy(() => import('./apps/ContactsApp').then(m => ({ default: m.ContactsApp })));
+const TodoApp = lazy(() => import('./apps/TodoApp').then(m => ({ default: m.TodoApp })));
+const TextEditorApp = lazy(() => import('./apps/TextEditorApp').then(m => ({ default: m.TextEditorApp })));
+const SystemMonitorApp = lazy(() => import('./apps/SystemMonitorApp').then(m => ({ default: m.SystemMonitorApp })));
+const VideoPlayerApp = lazy(() => import('./apps/VideoPlayerApp').then(m => ({ default: m.VideoPlayerApp })));
+const PomodoroApp = lazy(() => import('./apps/PomodoroApp').then(m => ({ default: m.PomodoroApp })));
 
 /** Try to parse JSON content, return null if invalid */
 function tryParseJson(content: string): any | null {
@@ -244,7 +254,7 @@ function WindowBody({
 }) {
   // Parse JSON content once for app types
   const parsedData = useMemo(() => {
-    if (['spreadsheet', 'slides', 'email', 'calendar', 'file_manager', 'kanban', 'notes', 'calculator', 'browser', 'music', 'code_editor'].includes(win.content_type || '')) {
+    if (['spreadsheet', 'slides', 'email', 'calendar', 'file_manager', 'kanban', 'notes', 'calculator', 'browser', 'music', 'code_editor', 'weather', 'clock', 'settings', 'photos', 'contacts', 'todo', 'text_editor', 'system_monitor', 'video_player', 'pomodoro'].includes(win.content_type || '')) {
       return tryParseJson(content);
     }
     return null;
@@ -419,6 +429,96 @@ function WindowBody({
           isPlaying={parsedData?.isPlaying}
           volume={parsedData?.volume}
         />
+      </Suspense>
+    );
+  }
+
+  // Weather
+  if (win.content_type === 'weather') {
+    return (
+      <Suspense fallback={<AppLoader />}>
+        <WeatherApp initialCity={parsedData?.city} />
+      </Suspense>
+    );
+  }
+
+  // Clock
+  if (win.content_type === 'clock') {
+    return (
+      <Suspense fallback={<AppLoader />}>
+        <ClockApp />
+      </Suspense>
+    );
+  }
+
+  // Settings
+  if (win.content_type === 'settings') {
+    return (
+      <Suspense fallback={<AppLoader />}>
+        <SettingsApp />
+      </Suspense>
+    );
+  }
+
+  // Photos
+  if (win.content_type === 'photos') {
+    return (
+      <Suspense fallback={<AppLoader />}>
+        <PhotosApp />
+      </Suspense>
+    );
+  }
+
+  // Contacts
+  if (win.content_type === 'contacts') {
+    return (
+      <Suspense fallback={<AppLoader />}>
+        <ContactsApp />
+      </Suspense>
+    );
+  }
+
+  // Todo
+  if (win.content_type === 'todo') {
+    return (
+      <Suspense fallback={<AppLoader />}>
+        <TodoApp />
+      </Suspense>
+    );
+  }
+
+  // Text Editor
+  if (win.content_type === 'text_editor') {
+    return (
+      <Suspense fallback={<AppLoader />}>
+        <TextEditorApp />
+      </Suspense>
+    );
+  }
+
+  // System Monitor
+  if (win.content_type === 'system_monitor') {
+    return (
+      <Suspense fallback={<AppLoader />}>
+        <SystemMonitorApp />
+      </Suspense>
+    );
+  }
+
+  // Video Player
+  if (win.content_type === 'video_player') {
+    return (
+      <Suspense fallback={<AppLoader />}>
+        <VideoPlayerApp />
+      </Suspense>
+    );
+  }
+
+  // Pomodoro
+  if (win.content_type === 'pomodoro') {
+    return (
+      <Suspense fallback={<AppLoader />}>
+        <PomodoroApp />
       </Suspense>
     );
   }
