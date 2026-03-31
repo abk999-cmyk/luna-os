@@ -248,6 +248,16 @@ impl Database {
             );
             CREATE INDEX IF NOT EXISTS idx_workspaces_active ON workspaces(active);
 
+            -- Phase 2: App content persistence
+            CREATE TABLE IF NOT EXISTS app_content_state (
+                window_content_type TEXT NOT NULL,
+                content_key TEXT NOT NULL,
+                content_json TEXT NOT NULL,
+                updated_at INTEGER NOT NULL,
+                PRIMARY KEY (window_content_type, content_key)
+            );
+            CREATE INDEX IF NOT EXISTS idx_app_content_type ON app_content_state(window_content_type);
+
             -- Intelligence: User model
             CREATE TABLE IF NOT EXISTS user_model (
                 user_id TEXT PRIMARY KEY,
@@ -1649,5 +1659,39 @@ impl Database {
         let mut results = Vec::new();
         for row in rows { results.push(row?); }
         Ok(results)
+    }
+
+    // ── App content state persistence ──────────────────────────────────────
+
+    pub fn save_app_content(&self, content_type: &str, content_key: &str, content_json: &str) -> Result<(), LunaError> {
+        let ts = chrono::Utc::now().timestamp_millis();
+        self.conn.execute(
+            "INSERT OR REPLACE INTO app_content_state (window_content_type, content_key, content_json, updated_at)
+             VALUES (?1, ?2, ?3, ?4)",
+            params![content_type, content_key, content_json, ts],
+        )?;
+        Ok(())
+    }
+
+    pub fn load_app_content(&self, content_type: &str) -> Result<Vec<(String, String)>, LunaError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT content_key, content_json FROM app_content_state WHERE window_content_type = ?1 ORDER BY updated_at DESC"
+        )?;
+        let rows = stmt.query_map(params![content_type], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })?;
+        let mut results = Vec::new();
+        for row in rows {
+            results.push(row?);
+        }
+        Ok(results)
+    }
+
+    pub fn delete_app_content(&self, content_type: &str, content_key: &str) -> Result<(), LunaError> {
+        self.conn.execute(
+            "DELETE FROM app_content_state WHERE window_content_type = ?1 AND content_key = ?2",
+            params![content_type, content_key],
+        )?;
+        Ok(())
     }
 }

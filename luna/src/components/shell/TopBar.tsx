@@ -3,6 +3,7 @@ import { useWorkspaceStore } from '../../stores/workspaceStore';
 import { useShellStore } from '../../stores/shellStore';
 import { useAgentStore } from '../../stores/agentStore';
 import { PermissionModeSwitcher } from '../trust/PermissionModeSwitcher';
+import { NotificationCenter, getUnreadCount } from '../NotificationCenter';
 
 export function TopBar() {
   const [time, setTime] = useState(formatTime());
@@ -18,6 +19,14 @@ export function TopBar() {
 
   const [wifiOpen, setWifiOpen] = useState(false);
   const [btOpen, setBtOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // Poll unread count
+  useEffect(() => {
+    const interval = setInterval(() => setUnreadCount(getUnreadCount()), 2000);
+    return () => clearInterval(interval);
+  }, []);
 
   const activeWorkspace = workspaces.find((w) => w.id === activeWorkspaceId);
 
@@ -94,6 +103,26 @@ export function TopBar() {
             </svg>
           </button>
 
+          {/* Notification bell */}
+          <button
+            className="topbar__btn"
+            onClick={() => { setNotifOpen(v => !v); setWifiOpen(false); setBtOpen(false); }}
+            title="Notifications"
+            style={{ position: 'relative' }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+            </svg>
+            {unreadCount > 0 && (
+              <span style={{
+                position: 'absolute', top: 2, right: 2,
+                width: 8, height: 8, borderRadius: '50%',
+                background: '#ef4444', border: '1.5px solid var(--surface-primary)',
+              }} />
+            )}
+          </button>
+
           {/* Settings gear */}
           <button
             className="topbar__btn"
@@ -126,6 +155,9 @@ export function TopBar() {
 
       {/* Settings popover */}
       {settingsOpen && <SettingsPopover onClose={closeSettings} />}
+
+      {/* Notification center */}
+      {notifOpen && <NotificationCenter onClose={() => setNotifOpen(false)} />}
     </>
   );
 }

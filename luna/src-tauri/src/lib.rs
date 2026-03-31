@@ -639,6 +639,9 @@ pub fn run() {
             commands::get_undo_history,
             commands::get_permission_mode,
             commands::set_permission_mode,
+            commands::save_app_content,
+            commands::load_app_content,
+            commands::delete_app_content,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

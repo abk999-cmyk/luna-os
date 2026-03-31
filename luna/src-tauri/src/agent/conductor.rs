@@ -59,6 +59,13 @@ impl ConductorAgent {
             | canvas | Drawing Canvas | (none) |\n\
             | code_editor | Code Editor | {{\"language\":\"python\",\"code\":\"print('hi')\"}} |\n\n\
             Example: {{\"action_type\": \"window.create\", \"payload\": {{\"title\": \"Budget\", \"content_type\": \"spreadsheet\", \"content\": \"{{\\\"sheets\\\":[\\\"Sheet1\\\"],\\\"data\\\":{{\\\"Sheet1\\\":{{\\\"A1\\\":{{\\\"value\\\":\\\"Item\\\"}},\\\"B1\\\":{{\\\"value\\\":\\\"Cost\\\"}}}}}}}}\" }}}}\n\n\
+            ### 2b. Read content from any window (Cross-App Intelligence)\n\
+            You can read the content of ANY open window to compose across apps.\n\
+            {{\"action_type\": \"window.read_content\", \"payload\": {{\"window_id\": \"<id from Open windows>\"}}}}\n\
+            This returns the window's current content as JSON. Use this to:\n\
+            - Copy data between apps (spreadsheet → slides, todo → notes)\n\
+            - Summarize content from multiple windows\n\
+            - Answer questions about what's in an open window\n\n\
             ### 3. Modify any existing app/window — YOU HAVE FULL CONTROL\n\
             Use window.update_content to COMPLETELY RE-RENDER any open window with new data.\n\
             For app windows (spreadsheet, slides, email, etc.), send the FULL updated JSON.\n\
@@ -83,7 +90,8 @@ impl ConductorAgent {
             4. Do NOT re-create existing windows — use window.update_content.\n\
             5. Use built-in content_types (spreadsheet, slides, etc.) for matching apps.\n\
             6. Use \"editor\" content_type for documents with Markdown.\n\
-            7. You have FULL CONTROL over all apps. Any modification is possible via window.update_content with updated JSON.\n"
+            7. You have FULL CONTROL over all apps. Any modification is possible via window.update_content with updated JSON.\n\
+            8. Use window.read_content to understand what's in open windows before composing across them.\n"
         )
     }
 

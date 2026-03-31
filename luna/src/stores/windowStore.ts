@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { WindowState } from '../types/window';
 import * as windowIpc from '../ipc/windows';
 import { useAppStore } from './appStore';
+import { saveAppContent, loadAppContent } from '../ipc/persistence';
 
 interface WindowStore {
   windows: WindowState[];
@@ -27,6 +28,7 @@ interface WindowStore {
   // Content management (kept in frontend for Sprint 1)
   windowContent: Map<string, string>;
   setWindowContent: (id: string, content: string) => void;
+  loadPersistedContent: (contentType: string) => Promise<void>;
 
   // Window groups (magnetic layout)
   windowGroups: Map<string, Set<string>>;
@@ -38,6 +40,19 @@ interface WindowStore {
 // Dedup map: title+contentType → timestamp (prevents duplicate window creation)
 const _windowDedupMap = new Map<string, number>();
 const DEDUP_WINDOW_MS = 500;
+
+// Debounced persistence save timers
+const _persistTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const PERSIST_DEBOUNCE_MS = 2000;
+
+function debouncedPersist(windowId: string, contentType: string, content: string) {
+  const existing = _persistTimers.get(windowId);
+  if (existing) clearTimeout(existing);
+  _persistTimers.set(windowId, setTimeout(() => {
+    _persistTimers.delete(windowId);
+    saveAppContent(contentType, windowId, content).catch(() => {});
+  }, PERSIST_DEBOUNCE_MS));
+}
 
 export const useWindowStore = create<WindowStore>((set, get) => ({
   windows: [],
@@ -204,6 +219,26 @@ export const useWindowStore = create<WindowStore>((set, get) => ({
     const newContent = new Map(get().windowContent);
     newContent.set(id, content);
     set({ windowContent: newContent });
+    // Persist content if window has a content_type
+    const win = get().windows.find(w => w.id === id);
+    if (win && win.content_type) {
+      debouncedPersist(id, win.content_type, content);
+    }
+  },
+
+  loadPersistedContent: async (contentType: string) => {
+    try {
+      const entries = await loadAppContent(contentType);
+      if (entries.length > 0) {
+        const newContent = new Map(get().windowContent);
+        for (const [key, json] of entries) {
+          newContent.set(key, json);
+        }
+        set({ windowContent: newContent });
+      }
+    } catch {
+      // Persistence not available yet
+    }
   },
 
   getWindowGroup: (windowId: string): Set<string> | null => {

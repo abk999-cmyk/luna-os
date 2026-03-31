@@ -30,6 +30,11 @@ import './styles/sprint2.css';
 import './styles/magnetic.css';
 import './styles/shell.css';
 
+import { ProactiveSuggestionCard } from './components/ProactiveSuggestion';
+import { addNotification } from './components/NotificationCenter';
+import { startProactiveEngine } from './services/proactiveEngine';
+import { playNotificationSound } from './services/soundManager';
+
 // Initialize component registry for dynamic rendering
 registerBuiltinComponents();
 
@@ -66,6 +71,9 @@ function App() {
   useEffect(() => {
     // Initialize sync manager
     initSyncManager();
+
+    // Start proactive suggestion engine
+    startProactiveEngine();
 
     // Load saved windows from backend
     loadWindows();
@@ -212,13 +220,16 @@ function App() {
       }
     );
 
-    // ── System notifications → Toast ──────────────────────────────────────────
-    const unlistenNotify = listen<{ message?: string; level?: string }>(
+    // ── System notifications → Toast + NotificationCenter + Sound ──────────────
+    const unlistenNotify = listen<{ message?: string; level?: string; title?: string }>(
       'system-notification',
       (event) => {
         const msg = event.payload.message || 'Notification';
+        const title = event.payload.title || 'Luna';
         const level = (event.payload.level || 'info') as 'info' | 'success' | 'warning' | 'error';
         addToast(msg, level);
+        addNotification(title, msg, level);
+        playNotificationSound();
       }
     );
 
@@ -360,6 +371,7 @@ function App() {
       {/* AmbientBadge removed — voice mode via swipe-right on input bar */}
       <CommandPalette />
       <ToastContainer />
+      <ProactiveSuggestionCard />
       {permissionQueue.length > 0 && (
         <PermissionDialog
           request={permissionQueue[0]}

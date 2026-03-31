@@ -576,3 +576,36 @@ pub async fn update_plan(
     }
     Ok(())
 }
+
+// ── App content persistence commands ───────────────────────────────────────
+
+#[tauri::command]
+pub async fn save_app_content(
+    state: State<'_, AppState>,
+    content_type: String,
+    content_key: String,
+    content_json: String,
+) -> Result<(), LunaError> {
+    let db = state.db.lock().await;
+    db.save_app_content(&content_type, &content_key, &content_json)?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn load_app_content(
+    state: State<'_, AppState>,
+    content_type: String,
+) -> Result<Vec<(String, String)>, LunaError> {
+    let db = state.db.lock().await;
+    db.load_app_content(&content_type)
+}
+
+#[tauri::command]
+pub async fn delete_app_content(
+    state: State<'_, AppState>,
+    content_type: String,
+    content_key: String,
+) -> Result<(), LunaError> {
+    let db = state.db.lock().await;
+    db.delete_app_content(&content_type, &content_key)
+}
