@@ -297,6 +297,7 @@ function App() {
       data?: Record<string, any>;
     }>('app-created', (event) => {
       const { app_id, window_id, spec } = event.payload;
+      console.log('[App] app-created event:', { app_id, window_id, specTitle: spec?.title, components: spec?.components?.length, specKeys: Object.keys(spec || {}) });
       useAppStore.getState().registerApp(app_id, spec, window_id);
       // Add the window locally only if backend hasn't already synced it
       const existing = useWindowStore.getState().windows.find((w) => w.id === window_id);

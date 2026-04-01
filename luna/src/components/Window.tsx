@@ -177,7 +177,19 @@ export function Window({ window: win }: WindowProps) {
     .join(' ');
 
   const content = windowContent.get(win.id) || '';
-  const appInfo = useAppStore((s) => s.getAppByWindowId(win.id));
+  // For dynamic apps, subscribe to appStore changes more broadly to avoid stale selector
+  const appWindows = useAppStore((s) => s.appWindows);
+  const appSpecs = useAppStore((s) => s.specs);
+  const appData = useAppStore((s) => s.data);
+  const appInfo = useMemo(() => {
+    for (const [appId, wId] of appWindows.entries()) {
+      if (wId === win.id) {
+        const spec = appSpecs.get(appId);
+        if (spec) return { appId, spec, data: appData.get(appId) || {} };
+      }
+    }
+    return undefined;
+  }, [appWindows, appSpecs, appData, win.id]);
 
   return (
     <div
@@ -261,7 +273,18 @@ function WindowBody({
   }, [content, win.content_type]);
 
   // Dynamic app (app.create)
-  if (win.content_type === 'dynamic_app' && appInfo) {
+  if (win.content_type === 'dynamic_app') {
+    if (!appInfo) {
+      return (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          height: '100%', color: 'var(--text-tertiary)', fontSize: 13,
+          fontFamily: 'var(--font-ui)',
+        }}>
+          Loading app...
+        </div>
+      );
+    }
     return (
       <AppErrorBoundary appName={appInfo.spec?.title || 'Generated App'}>
         <DynamicRenderer
