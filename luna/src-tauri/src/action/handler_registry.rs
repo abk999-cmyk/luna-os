@@ -305,10 +305,10 @@ pub fn register_core_handlers(registry: &ActionHandlerRegistry) {
                 let width = descriptor.width.unwrap_or(600.0);
                 let height = descriptor.height.unwrap_or(400.0);
 
-                // Create window for this app
+                // Create window for this app with DynamicApp content type
                 let window = {
                     let mut wm = state.window_manager.write().await;
-                    wm.create_window(
+                    let mut w = wm.create_window(
                         descriptor.title.clone(),
                         Some(crate::window::types::Bounds {
                             x: 100.0,
@@ -316,7 +316,11 @@ pub fn register_core_handlers(registry: &ActionHandlerRegistry) {
                             width,
                             height,
                         }),
-                    )
+                    );
+                    w.content_type = crate::window::types::WindowContentType::DynamicApp;
+                    // Update the stored copy in the manager
+                    wm.set_content_type(&w.id, crate::window::types::WindowContentType::DynamicApp);
+                    w
                 };
 
                 let window_id = window.id.clone();

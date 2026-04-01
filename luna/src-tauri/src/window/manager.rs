@@ -114,6 +114,12 @@ impl WindowManager {
         self.windows.get(id)
     }
 
+    pub fn set_content_type(&mut self, id: &str, content_type: super::types::WindowContentType) {
+        if let Some(w) = self.windows.get_mut(id) {
+            w.content_type = content_type;
+        }
+    }
+
     pub fn windows_mut(&mut self) -> &mut HashMap<WindowId, WindowState> {
         &mut self.windows
     }
