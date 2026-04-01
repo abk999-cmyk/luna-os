@@ -315,6 +315,13 @@ function App() {
           content_type: 'dynamic_app',
           created_at: new Date().toISOString(),
         });
+      } else if (existing.content_type !== 'dynamic_app') {
+        // Backend may have loaded this window with default content_type; fix it
+        useWindowStore.setState((state) => ({
+          windows: state.windows.map((w) =>
+            w.id === window_id ? { ...w, content_type: 'dynamic_app' } : w
+          ),
+        }));
       }
     });
 

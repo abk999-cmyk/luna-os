@@ -1,4 +1,4 @@
-import { useCallback, useRef, useEffect, useState, lazy, Suspense, useMemo } from 'react';
+import React, { useCallback, useRef, useEffect, useState, lazy, Suspense, useMemo } from 'react';
 import type { WindowState } from '../types/window';
 import { useWindowStore } from '../stores/windowStore';
 import { useAppStore } from '../stores/appStore';
@@ -263,11 +263,13 @@ function WindowBody({
   // Dynamic app (app.create)
   if (win.content_type === 'dynamic_app' && appInfo) {
     return (
-      <DynamicRenderer
-        spec={appInfo.spec}
-        dataContext={appInfo.data}
-        appId={appInfo.appId}
-      />
+      <AppErrorBoundary appName={appInfo.spec?.title || 'Generated App'}>
+        <DynamicRenderer
+          spec={appInfo.spec}
+          dataContext={appInfo.data || {}}
+          appId={appInfo.appId}
+        />
+      </AppErrorBoundary>
     );
   }
 
@@ -572,4 +574,46 @@ function WindowBody({
       {content || 'Empty window'}
     </div>
   );
+}
+
+class AppErrorBoundary extends React.Component<
+  { children: React.ReactNode; appName: string },
+  { hasError: boolean; error: string }
+> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false, error: '' };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error: error.message };
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          height: '100%', gap: 12, padding: 24, color: 'var(--text-secondary)', fontFamily: 'var(--font-ui)',
+        }}>
+          <div style={{ fontSize: 32 }}>⚠️</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>
+            {this.props.appName} encountered an error
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--text-tertiary)', maxWidth: 300, textAlign: 'center', wordBreak: 'break-word' }}>
+            {this.state.error}
+          </div>
+          <button
+            onClick={() => this.setState({ hasError: false, error: '' })}
+            style={{
+              padding: '6px 16px', borderRadius: 8, fontSize: 12,
+              background: 'rgba(126,184,255,0.15)', border: '1px solid rgba(126,184,255,0.3)',
+              color: '#7eb8ff', cursor: 'pointer',
+            }}
+          >
+            Try again
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
 }

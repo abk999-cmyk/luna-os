@@ -75,6 +75,10 @@ interface ComponentNodeProps {
 
 /** Renders a single component from spec, recursing into children. */
 function ComponentNode({ spec, dataContext, appId, updateData }: ComponentNodeProps) {
+  if (!spec || !spec.type) {
+    return null;
+  }
+
   const Component = getComponent(spec.type);
 
   if (!Component) {
@@ -114,8 +118,9 @@ function ComponentNode({ spec, dataContext, appId, updateData }: ComponentNodePr
   };
 
   // If this component has children specs, render them recursively
-  const renderedChildren = spec.children && spec.children.length > 0
-    ? spec.children.map((child) => (
+  const childArray = Array.isArray(spec.children) ? spec.children : [];
+  const renderedChildren = childArray.length > 0
+    ? childArray.map((child) => (
         <ComponentNode
           key={child.id}
           spec={child}
@@ -128,16 +133,24 @@ function ComponentNode({ spec, dataContext, appId, updateData }: ComponentNodePr
 
   const layoutStyle = spec.layout ? layoutToStyle(spec.layout) : {};
 
-  return (
-    <div style={layoutStyle}>
-      <Component
-        id={spec.id}
-        props={resolvedProps}
-        onEvent={onEvent}
-        layout={spec.layout}
-      >
-        {renderedChildren}
-      </Component>
-    </div>
-  );
+  try {
+    return (
+      <div style={layoutStyle}>
+        <Component
+          id={spec.id}
+          props={resolvedProps}
+          onEvent={onEvent}
+          layout={spec.layout}
+        >
+          {renderedChildren}
+        </Component>
+      </div>
+    );
+  } catch (e) {
+    return (
+      <div style={{ padding: 8, color: '#f59e0b', fontSize: '0.85em' }}>
+        Error rendering {spec.type}: {String(e)}
+      </div>
+    );
+  }
 }
