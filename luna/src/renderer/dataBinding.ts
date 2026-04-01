@@ -69,3 +69,48 @@ export function resolveDataBindings(
 
   return resolved;
 }
+
+/**
+ * Write a value to a data binding path, returning a new context object.
+ * Path format: "field.nested.path" (without the "$." prefix)
+ */
+export function writeBinding(
+  path: string,
+  value: any,
+  context: Record<string, any>
+): Record<string, any> {
+  if (!path) return context;
+
+  const parts = path.split('.');
+  const result = { ...context };
+  let current: any = result;
+
+  for (let i = 0; i < parts.length - 1; i++) {
+    const part = parts[i];
+    // Handle array index: "items[0]"
+    const match = part.match(/^(\w+)\[(\d+)\]$/);
+    if (match) {
+      const [, key, indexStr] = match;
+      const index = parseInt(indexStr);
+      current[key] = [...(current[key] || [])];
+      current[key][index] = { ...(current[key][index] || {}) };
+      current = current[key][index];
+    } else {
+      current[part] = { ...(current[part] || {}) };
+      current = current[part];
+    }
+  }
+
+  const lastPart = parts[parts.length - 1];
+  const lastMatch = lastPart.match(/^(\w+)\[(\d+)\]$/);
+  if (lastMatch) {
+    const [, key, indexStr] = lastMatch;
+    const index = parseInt(indexStr);
+    current[key] = [...(current[key] || [])];
+    current[key][index] = value;
+  } else {
+    current[lastPart] = value;
+  }
+
+  return result;
+}

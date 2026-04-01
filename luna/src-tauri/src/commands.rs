@@ -728,6 +728,15 @@ pub async fn list_directory(path: String) -> Result<Vec<serde_json::Value>, Luna
     Ok(results)
 }
 
+/// Load all active (non-destroyed) dynamic apps for reload persistence.
+#[tauri::command]
+pub async fn load_active_apps(
+    state: State<'_, AppState>,
+) -> Result<Vec<serde_json::Value>, LunaError> {
+    let db = state.db.lock().await;
+    db.load_active_apps()
+}
+
 /// Get the user's home directory path.
 #[tauri::command]
 pub async fn get_home_dir() -> Result<String, LunaError> {

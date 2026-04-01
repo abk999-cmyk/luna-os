@@ -17,6 +17,7 @@ import { useShellStore } from './stores/shellStore';
 import { useActivityStore } from './stores/activityStore';
 import { getPermissionMode } from './ipc/permissions';
 import { undoLastAction } from './ipc/undo';
+import { loadActiveApps } from './ipc/apps';
 
 import './styles/theme.css';
 import './styles/dark-theme.css';
@@ -85,6 +86,39 @@ function App() {
 
     // Load workspaces
     useWorkspaceStore.getState().loadWorkspaces();
+
+    // Load persisted dynamic apps
+    loadActiveApps().then((apps) => {
+      for (const app of apps) {
+        try {
+          const spec = JSON.parse(app.descriptor_json);
+          const data = JSON.parse(app.data_context_json || '{}');
+
+          // Register in appStore
+          useAppStore.getState().registerApp(app.app_id, spec, app.window_id);
+          if (data && Object.keys(data).length > 0) {
+            useAppStore.getState().updateAppData(app.app_id, data);
+          }
+
+          // Add window locally if not already present
+          const existing = useWindowStore.getState().windows.find(w => w.id === app.window_id);
+          if (!existing) {
+            useWindowStore.getState().addWindowLocal({
+              id: app.window_id,
+              title: spec.title || 'Generated App',
+              bounds: { x: 100, y: 100, width: spec.width || 600, height: spec.height || 400 },
+              z_order: 0,
+              visibility: 'visible',
+              focused: false,
+              content_type: 'dynamic_app',
+              created_at: new Date(app.created_at).toISOString(),
+            });
+          }
+        } catch (e) {
+          console.warn('[App] Failed to restore dynamic app:', app.app_id, e);
+        }
+      }
+    }).catch(() => {});
 
     // Load permission mode
     getPermissionMode().then((mode) => {

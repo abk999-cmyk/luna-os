@@ -80,9 +80,68 @@ impl ConductorAgent {
             {{\"action_type\": \"window.update_content\", \"payload\": {{\"window_id\": \"<id from Open windows>\", \"content\": \"<full updated JSON or markdown>\"}}}}\n\n\
             IMPORTANT: You can modify ANY aspect of ANY open app this way. There is no feature you cannot add — just update the content JSON.\n\n\
             ### 4. Custom Dynamic Apps (for UIs not covered by built-in apps)\n\
-            {{\"action_type\": \"app.create\", \"payload\": {{\"id\": \"app-id\", \"title\": \"Title\", \"layout\": \"vertical\",\n\
-              \"components\": [{{\"id\": \"c1\", \"type\": \"Type\", \"props\": {{}}}}], \"data\": {{}}\n\
+            Create rich interactive apps using the component system. Every component listed below is available.\n\n\
+            {{\"action_type\": \"app.create\", \"payload\": {{\"id\": \"unique-id\", \"title\": \"Title\", \"version\": \"1.0\", \"type\": \"application\",\n\
+              \"layout\": \"vertical\", \"width\": 500, \"height\": 400,\n\
+              \"components\": [...], \"data\": {{\"key\": \"initial value\"}}\n\
             }}}}\n\n\
+            #### Available Components\n\
+            | Type | Key Props | Events |\n\
+            |---|---|---|\n\
+            | DataTable | headers: string[], rows: any[][], sortable, searchable, pagination: {{pageSize}} | onRowSelect |\n\
+            | Chart | chartType: 'bar'|'line'|'pie', data: [{{label, value}}], title | onElementClick |\n\
+            | Gauge | value, min, max, label | — |\n\
+            | List | items: string[], ordered, clickable | onItemClick |\n\
+            | TextInput | label, placeholder, value: \"$.field\", multiline | onChange |\n\
+            | NumberInput | label, value: \"$.field\", min, max, step | onChange |\n\
+            | Select | options: [{{value, label}}], value: \"$.field\", label | onChange |\n\
+            | Checkbox | label, checked: \"$.field\" | onChange |\n\
+            | Toggle | label, value: \"$.field\" | onChange |\n\
+            | Slider | label, value: \"$.field\", min, max, step | onChange |\n\
+            | Button | label, variant: 'primary'|'secondary'|'danger' | onClick |\n\
+            | Card | title, subtitle, content | onClick |\n\
+            | Panel | title, collapsible, collapsed | onToggle |\n\
+            | Stat | label, value, trend: 'up'|'down', trendValue | — |\n\
+            | Tabs | tabs: [{{id, label}}], defaultTab | onTabChange |\n\
+            | Grid | columns (number), gap | — |\n\
+            | Container | (layout component) | — |\n\
+            | Timeline | items: [{{title, subtitle, time, status}}] | onItemClick |\n\
+            | Breadcrumbs | items: string[], separator | onNavigate |\n\
+            | Modal | open, title, content, actions: [{{label, id}}] | onClose, onAction |\n\
+            | Chat | messages: [{{role, content}}], placeholder | onSendMessage |\n\
+            | CodeEditor | (code display) | — |\n\
+            | Divider | direction: 'vertical' (default horizontal) | — |\n\
+            | Spacer | size (pixels) | — |\n\n\
+            #### Data Binding\n\
+            Use \"$.fieldName\" in props to bind to data context. Components with onChange/onToggle events write back automatically.\n\
+            Example: {{\"type\": \"Toggle\", \"props\": {{\"label\": \"Done\", \"value\": \"$.completed\"}}}} reads AND writes data.completed.\n\n\
+            #### Example: Habit Tracker\n\
+            {{\"action_type\": \"app.create\", \"payload\": {{\"id\": \"habit-tracker\", \"title\": \"Habit Tracker\", \"version\": \"1.0\", \"type\": \"application\",\n\
+              \"layout\": \"vertical\", \"width\": 400, \"height\": 500,\n\
+              \"components\": [\n\
+                {{\"id\": \"title\", \"type\": \"Panel\", \"props\": {{\"title\": \"Today's Habits\"}}, \"children\": [\n\
+                  {{\"id\": \"h1\", \"type\": \"Toggle\", \"props\": {{\"label\": \"Exercise\", \"value\": \"$.exercise\"}}}},\n\
+                  {{\"id\": \"h2\", \"type\": \"Toggle\", \"props\": {{\"label\": \"Read\", \"value\": \"$.read\"}}}},\n\
+                  {{\"id\": \"h3\", \"type\": \"Toggle\", \"props\": {{\"label\": \"Meditate\", \"value\": \"$.meditate\"}}}}\n\
+                ]}},\n\
+                {{\"id\": \"stats\", \"type\": \"Stat\", \"props\": {{\"label\": \"Streak\", \"value\": \"3 days\", \"trend\": \"up\"}}}}\n\
+              ],\n\
+              \"data\": {{\"exercise\": false, \"read\": true, \"meditate\": false}}\n\
+            }}}}\n\n\
+            #### Example: Expense Dashboard\n\
+            {{\"action_type\": \"app.create\", \"payload\": {{\"id\": \"expenses\", \"title\": \"Expenses\", \"version\": \"1.0\", \"type\": \"application\",\n\
+              \"layout\": \"vertical\", \"width\": 600, \"height\": 500,\n\
+              \"components\": [\n\
+                {{\"id\": \"chart\", \"type\": \"Chart\", \"props\": {{\"chartType\": \"bar\", \"title\": \"Monthly Spending\",\n\
+                  \"data\": [{{\"label\": \"Food\", \"value\": 450}}, {{\"label\": \"Transport\", \"value\": 120}}, {{\"label\": \"Entertainment\", \"value\": 200}}]}}}},\n\
+                {{\"id\": \"total\", \"type\": \"Stat\", \"props\": {{\"label\": \"Total\", \"value\": \"$770\"}}}},\n\
+                {{\"id\": \"table\", \"type\": \"DataTable\", \"props\": {{\"headers\": [\"Category\", \"Amount\", \"Date\"],\n\
+                  \"rows\": [[\"Food\", \"$450\", \"Mar 2026\"], [\"Transport\", \"$120\", \"Mar 2026\"]], \"sortable\": true}}}}\n\
+              ], \"data\": {{}}\n\
+            }}}}\n\n\
+            ### 5. Modify a Dynamic App\n\
+            {{\"action_type\": \"app.update\", \"payload\": {{\"app_id\": \"<app id>\", \"data\": {{\"field\": \"new value\"}}}}}}\n\
+            Use app.update to change data in a running dynamic app. To change components, include \"spec\" with the full updated descriptor.\n\n\
             ## Rules\n\
             1. Output ONLY a JSON array. No markdown fences, no extra text.\n\
             2. ALWAYS include agent.response.\n\

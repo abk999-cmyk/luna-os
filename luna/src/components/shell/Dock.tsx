@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useWindowStore } from '../../stores/windowStore';
 import { useActivityStore } from '../../stores/activityStore';
+import { useAppStore } from '../../stores/appStore';
 import { TextInputBar } from '../TextInputBar';
 
 interface DockApp {
@@ -61,6 +62,32 @@ export function Dock() {
   }, [events]);
 
   const minimizedWindows = windows.filter((w) => w.visibility === 'minimized');
+
+  // Generated (dynamic) apps from the app store
+  const appSpecs = useAppStore((s) => s.specs);
+  const appWindows = useAppStore((s) => s.appWindows);
+  const generatedApps = useMemo(() => {
+    const apps: { appId: string; title: string; windowId: string }[] = [];
+    for (const [appId, spec] of appSpecs.entries()) {
+      const windowId = appWindows.get(appId);
+      if (windowId) {
+        // Only show if the window still exists
+        const win = windows.find((w) => w.id === windowId);
+        if (win && win.visibility !== 'hidden') {
+          apps.push({ appId, title: spec.title || 'App', windowId });
+        }
+      }
+    }
+    return apps;
+  }, [appSpecs, appWindows, windows]);
+
+  const handleGeneratedAppClick = useCallback(async (app: { appId: string; windowId: string }) => {
+    const win = windows.find((w) => w.id === app.windowId);
+    if (win?.visibility === 'minimized') {
+      await restoreWindow(app.windowId);
+    }
+    await focusWindow(app.windowId);
+  }, [windows, focusWindow, restoreWindow]);
 
   // Get unique running app types (for "honest dock" — only show what's running)
   const runningAppTypes = useMemo(() => {
@@ -125,6 +152,20 @@ export function Dock() {
               {app.icon}
               <div className="dock__indicator" />
               <span className="dock__tooltip">{app.label}</span>
+            </button>
+          ))}
+
+          {/* Generated (dynamic) apps */}
+          {generatedApps.map((app) => (
+            <button
+              key={app.appId}
+              className="dock__item dock__item--active"
+              onClick={() => handleGeneratedAppClick(app)}
+              title={app.title}
+            >
+              <GeneratedAppIcon />
+              <div className="dock__indicator dock__indicator--generated" />
+              <span className="dock__tooltip">{app.title}</span>
             </button>
           ))}
 
@@ -409,6 +450,14 @@ function PomodoroIcon() {
       <polyline points="12 9 12 13 15 15" />
       <path d="M9 2h6" />
       <path d="M12 2v2" />
+    </svg>
+  );
+}
+
+function GeneratedAppIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 16.8l-6.2 4.5 2.4-7.4L2 9.4h7.6z" />
     </svg>
   );
 }
