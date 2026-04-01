@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { GLASS } from './glassStyles';
 
 // ---------------------------------------------------------------------------
@@ -18,6 +18,7 @@ interface Contact {
 
 export interface ContactsAppProps {
   contacts?: Contact[];
+  onChange?: (contacts: Contact[]) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -91,8 +92,18 @@ const SearchIcon = () => (
 // Component
 // ---------------------------------------------------------------------------
 
-export function ContactsApp({ contacts: initialContacts }: ContactsAppProps) {
+export function ContactsApp({ contacts: initialContacts, onChange }: ContactsAppProps) {
   const [contacts, setContacts] = useState<Contact[]>(() => initialContacts || DEFAULT_CONTACTS);
+  const isInitialMount = useRef(true);
+
+  // Sync state changes back via onChange
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    onChange?.(contacts);
+  }, [contacts, onChange]);
   const [selectedId, setSelectedId] = useState<string | null>(contacts[0]?.id ?? null);
   const [search, setSearch] = useState('');
   const [groupFilter, setGroupFilter] = useState<typeof GROUPS[number]>('All');

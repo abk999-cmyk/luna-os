@@ -108,6 +108,10 @@ function contentTypeToCategory(ct: string): CommandCategory | null {
     file_manager: 'files',
     editor: 'files',
     text_editor: 'files',
+    spreadsheet: 'files',
+    email: 'search',
+    kanban: 'search',
+    music: 'search',
   };
   return map[ct] || null;
 }
@@ -224,6 +228,81 @@ function searchWindowContent(
           subtitle: content.slice(0, 60),
           action: () => useWindowStore.getState().focusWindow(w.id),
         });
+      }
+
+      // Spreadsheet — search cell values
+      if (w.content_type === 'spreadsheet' && data.data) {
+        for (const sheet of Object.keys(data.data)) {
+          const sheetData = data.data[sheet];
+          if (!sheetData || typeof sheetData !== 'object') continue;
+          for (const cellKey of Object.keys(sheetData)) {
+            const cellVal = String(sheetData[cellKey]?.value ?? '');
+            if (cellVal.toLowerCase().includes(lq)) {
+              results.push({
+                id: `search-cell-${w.id}-${sheet}-${cellKey}`,
+                label: `${sheet} ${cellKey}: ${cellVal}`,
+                category: 'files',
+                subtitle: w.title || 'Spreadsheet',
+                action: () => useWindowStore.getState().focusWindow(w.id),
+              });
+              break; // one match per sheet is enough
+            }
+          }
+        }
+      }
+
+      // Email — search subject, from, body
+      if (w.content_type === 'email' && data.emails) {
+        for (const email of data.emails) {
+          if (
+            (email.subject || '').toLowerCase().includes(lq) ||
+            (email.from || '').toLowerCase().includes(lq) ||
+            (email.body || '').toLowerCase().includes(lq)
+          ) {
+            results.push({
+              id: `search-email-${email.id}`,
+              label: email.subject || 'No Subject',
+              category: 'search',
+              subtitle: `From: ${email.from || 'Unknown'}`,
+              action: () => useWindowStore.getState().focusWindow(w.id),
+            });
+          }
+        }
+      }
+
+      // Kanban — search card titles
+      if (w.content_type === 'kanban' && data.columns) {
+        for (const col of data.columns) {
+          for (const card of col.cards || []) {
+            if ((card.title || '').toLowerCase().includes(lq)) {
+              results.push({
+                id: `search-kanban-${card.id}`,
+                label: card.title,
+                category: 'search',
+                subtitle: `${col.title || 'Column'} \u00b7 ${w.title || 'Kanban'}`,
+                action: () => useWindowStore.getState().focusWindow(w.id),
+              });
+            }
+          }
+        }
+      }
+
+      // Music — search song titles, artists
+      if (w.content_type === 'music' && data.playlist) {
+        for (const song of data.playlist) {
+          if (
+            (song.title || '').toLowerCase().includes(lq) ||
+            (song.artist || '').toLowerCase().includes(lq)
+          ) {
+            results.push({
+              id: `search-music-${song.id}`,
+              label: song.title || 'Unknown Track',
+              category: 'search',
+              subtitle: song.artist || 'Unknown Artist',
+              action: () => useWindowStore.getState().focusWindow(w.id),
+            });
+          }
+        }
       }
     } catch {
       // Plain text fallback

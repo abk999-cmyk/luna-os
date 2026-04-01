@@ -609,3 +609,129 @@ pub async fn delete_app_content(
     let db = state.db.lock().await;
     db.delete_app_content(&content_type, &content_key)
 }
+
+// ── System info commands ──────────────────────────────────────────────────
+
+/// Get real system metrics: CPU usage, memory usage, and process list.
+#[tauri::command]
+pub async fn get_system_info() -> Result<serde_json::Value, LunaError> {
+    use sysinfo::System;
+
+    let mut sys = System::new_all();
+    // Brief pause to let CPU usage readings settle (sysinfo needs two samples)
+    std::thread::sleep(std::time::Duration::from_millis(200));
+    sys.refresh_all();
+
+    let cpus = sys.cpus();
+    let cpu_usage: f32 = if cpus.is_empty() {
+        0.0
+    } else {
+        cpus.iter().map(|c| c.cpu_usage()).sum::<f32>() / cpus.len() as f32
+    };
+
+    let total_mem = sys.total_memory();
+    let used_mem = sys.used_memory();
+
+    let mut processes: Vec<serde_json::Value> = sys
+        .processes()
+        .iter()
+        .map(|(pid, proc_)| {
+            serde_json::json!({
+                "pid": pid.as_u32(),
+                "name": proc_.name().to_string_lossy().to_string(),
+                "cpu": proc_.cpu_usage(),
+                "memory": proc_.memory() / 1024 / 1024, // MB
+                "status": format!("{:?}", proc_.status()),
+            })
+        })
+        .collect();
+
+    // Sort by CPU descending, take top 100
+    processes.sort_by(|a, b| {
+        let a_cpu = a.get("cpu").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let b_cpu = b.get("cpu").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        b_cpu.partial_cmp(&a_cpu).unwrap_or(std::cmp::Ordering::Equal)
+    });
+    processes.truncate(100);
+
+    Ok(serde_json::json!({
+        "cpu_usage": cpu_usage,
+        "total_memory": total_mem / 1024 / 1024, // MB
+        "used_memory": used_mem / 1024 / 1024,   // MB
+        "process_count": sys.processes().len(),
+        "processes": processes,
+    }))
+}
+
+// ── Filesystem commands ───────────────────────────────────────────────────
+
+/// List directory contents for the file manager.
+#[tauri::command]
+pub async fn list_directory(path: String) -> Result<Vec<serde_json::Value>, LunaError> {
+    let resolved_path = if path == "~" || path.starts_with("~/") {
+        if let Some(home) = dirs::home_dir() {
+            if path == "~" {
+                home
+            } else {
+                home.join(&path[2..])
+            }
+        } else {
+            std::path::PathBuf::from(&path)
+        }
+    } else {
+        std::path::PathBuf::from(&path)
+    };
+
+    let entries = std::fs::read_dir(&resolved_path)
+        .map_err(|e| LunaError::Io(format!("Failed to read directory {}: {}", resolved_path.display(), e)))?;
+
+    let mut results = Vec::new();
+    for entry in entries {
+        if let Ok(entry) = entry {
+            let metadata = entry.metadata().ok();
+            let name = entry.file_name().to_string_lossy().to_string();
+            // Skip hidden files
+            if name.starts_with('.') {
+                continue;
+            }
+            results.push(serde_json::json!({
+                "name": name,
+                "path": entry.path().to_string_lossy().to_string(),
+                "is_dir": metadata.as_ref().map(|m| m.is_dir()).unwrap_or(false),
+                "size": metadata.as_ref().map(|m| m.len()).unwrap_or(0),
+                "modified": metadata.as_ref()
+                    .and_then(|m| m.modified().ok())
+                    .map(|t| {
+                        let dt: chrono::DateTime<chrono::Utc> = t.into();
+                        dt.to_rfc3339()
+                    })
+                    .unwrap_or_default(),
+            }));
+        }
+    }
+
+    // Sort: directories first, then by name
+    results.sort_by(|a, b| {
+        let a_dir = a.get("is_dir").and_then(|v| v.as_bool()).unwrap_or(false);
+        let b_dir = b.get("is_dir").and_then(|v| v.as_bool()).unwrap_or(false);
+        match (b_dir, a_dir) {
+            (true, false) => std::cmp::Ordering::Greater,
+            (false, true) => std::cmp::Ordering::Less,
+            _ => {
+                let a_name = a.get("name").and_then(|v| v.as_str()).unwrap_or("");
+                let b_name = b.get("name").and_then(|v| v.as_str()).unwrap_or("");
+                a_name.to_lowercase().cmp(&b_name.to_lowercase())
+            }
+        }
+    });
+
+    Ok(results)
+}
+
+/// Get the user's home directory path.
+#[tauri::command]
+pub async fn get_home_dir() -> Result<String, LunaError> {
+    dirs::home_dir()
+        .map(|p| p.to_string_lossy().to_string())
+        .ok_or_else(|| LunaError::Io("Could not determine home directory".into()))
+}

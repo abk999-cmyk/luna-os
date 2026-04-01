@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { GLASS } from './apps/glassStyles';
 
 export interface Notification {
@@ -49,12 +49,13 @@ export function getUnreadCount(): number {
 
 function useNotifications(): Notification[] {
   const [, setTick] = useState(0);
-  // Subscribe on mount
-  useState(() => {
+
+  useEffect(() => {
     const listener = () => setTick(t => t + 1);
     notifListeners.add(listener);
     return () => { notifListeners.delete(listener); };
-  });
+  }, []);
+
   return notifications;
 }
 

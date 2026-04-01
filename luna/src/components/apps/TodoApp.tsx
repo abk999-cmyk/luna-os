@@ -24,6 +24,7 @@ interface TodoList {
 export interface TodoAppProps {
   lists?: TodoList[];
   items?: TodoItem[];
+  onChange?: (data: { lists: TodoList[]; items: TodoItem[] }) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -108,9 +109,19 @@ const ListIcon = () => (
 // Component
 // ---------------------------------------------------------------------------
 
-export function TodoApp({ lists: initLists, items: initItems }: TodoAppProps) {
+export function TodoApp({ lists: initLists, items: initItems, onChange }: TodoAppProps) {
   const [lists, setLists] = useState<TodoList[]>(() => initLists || DEFAULT_LISTS);
   const [items, setItems] = useState<TodoItem[]>(() => initItems || DEFAULT_ITEMS);
+  const isInitialMount = useRef(true);
+
+  // Sync state changes back via onChange
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    onChange?.({ lists, items });
+  }, [lists, items, onChange]);
   const [activeListId, setActiveListId] = useState<string>(lists[0]?.id ?? '');
   const [newItemText, setNewItemText] = useState('');
   const [editingItemId, setEditingItemId] = useState<string | null>(null);

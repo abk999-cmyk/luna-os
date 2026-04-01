@@ -1,5 +1,7 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { GLASS } from './glassStyles';
+import { listDirectory, getHomeDir } from '../../ipc/filesystem';
+import type { FsEntry } from '../../ipc/filesystem';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -38,8 +40,6 @@ const DEFAULT_FILES: FileEntry[] = [
   { id: '9', name: 'playlist.mp3', type: 'file', size: 4500000, path: '/playlist.mp3', modified: '2026-03-19' },
 ];
 
-const SIDEBAR_FOLDERS = ['Home', 'Desktop', 'Documents', 'Downloads', 'Photos', 'Music', 'Trash'];
-
 function iconForFile(entry: FileEntry): string {
   if (entry.icon) return entry.icon;
   if (entry.type === 'folder') return '\ud83d\udcc1';
@@ -49,6 +49,10 @@ function iconForFile(entry: FileEntry): string {
   if (['mp4', 'mov', 'avi', 'mkv'].includes(ext)) return '\ud83c\udfac';
   if (['xlsx', 'csv', 'xls'].includes(ext)) return '\ud83d\udcca';
   if (['pdf'].includes(ext)) return '\ud83d\udcc4';
+  if (['ts', 'tsx', 'js', 'jsx', 'py', 'rs', 'go', 'java', 'c', 'cpp', 'h'].includes(ext)) return '\ud83d\udcdd';
+  if (['json', 'yaml', 'yml', 'toml', 'xml'].includes(ext)) return '\u2699\ufe0f';
+  if (['zip', 'tar', 'gz', 'rar', '7z'].includes(ext)) return '\ud83d\udce6';
+  if (['dmg', 'pkg', 'app'].includes(ext)) return '\ud83d\udcbe';
   return '\ud83d\udcc4';
 }
 
@@ -60,10 +64,32 @@ function formatSize(bytes?: number): string {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 }
 
+function formatDate(dateStr?: string): string {
+  if (!dateStr) return '--';
+  try {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  } catch {
+    return dateStr;
+  }
+}
+
 type SortKey = 'name' | 'date' | 'size' | 'type';
 
 function uid(): string {
   return Math.random().toString(36).slice(2, 10);
+}
+
+/** Convert FsEntry from IPC to our FileEntry */
+function fsToFileEntry(fs: FsEntry): FileEntry {
+  return {
+    id: fs.path, // use path as unique id
+    name: fs.name,
+    type: fs.is_dir ? 'folder' : 'file',
+    size: fs.is_dir ? undefined : fs.size,
+    modified: fs.modified || undefined,
+    path: fs.path,
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -115,6 +141,7 @@ const S: Record<string, React.CSSProperties> = {
     borderBottom: `1px solid ${GLASS.dividerColor}`,
     background: 'transparent',
     flexShrink: 0,
+    overflow: 'hidden',
   },
   crumbLink: {
     background: 'none',
@@ -124,6 +151,7 @@ const S: Record<string, React.CSSProperties> = {
     fontSize: 12,
     fontFamily: 'var(--font-ui)',
     padding: 0,
+    whiteSpace: 'nowrap' as const,
   },
   body: {
     display: 'flex',
@@ -188,7 +216,7 @@ const S: Record<string, React.CSSProperties> = {
   gridName: { fontSize: 11, wordBreak: 'break-word' as const, lineHeight: 1.3 },
   listRow: {
     display: 'grid',
-    gridTemplateColumns: '24px 1fr 90px 90px 70px',
+    gridTemplateColumns: '24px 1fr 120px 90px 70px',
     gap: 8,
     alignItems: 'center',
     padding: '6px 8px',
@@ -204,7 +232,7 @@ const S: Record<string, React.CSSProperties> = {
   },
   listHeader: {
     display: 'grid',
-    gridTemplateColumns: '24px 1fr 90px 90px 70px',
+    gridTemplateColumns: '24px 1fr 120px 90px 70px',
     gap: 8,
     padding: '4px 8px',
     fontSize: 11,
@@ -255,7 +283,35 @@ const S: Record<string, React.CSSProperties> = {
     fontSize: 13,
     fontFamily: 'var(--font-ui)',
   },
+  loadingOverlay: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 40,
+    color: 'var(--text-tertiary)',
+    fontSize: 13,
+  },
 };
+
+/* ------------------------------------------------------------------ */
+/*  Sidebar folders (now mapped to real paths)                         */
+/* ------------------------------------------------------------------ */
+
+interface SidebarEntry {
+  label: string;
+  icon: string;
+  /** Will be resolved after we get homeDir */
+  pathSuffix: string;
+}
+
+const SIDEBAR_ENTRIES: SidebarEntry[] = [
+  { label: 'Home', icon: '\ud83c\udfe0', pathSuffix: '' },
+  { label: 'Desktop', icon: '\ud83d\udcbb', pathSuffix: '/Desktop' },
+  { label: 'Documents', icon: '\ud83d\udcc1', pathSuffix: '/Documents' },
+  { label: 'Downloads', icon: '\u2b07\ufe0f', pathSuffix: '/Downloads' },
+  { label: 'Photos', icon: '\ud83d\uddbc\ufe0f', pathSuffix: '/Pictures' },
+  { label: 'Music', icon: '\ud83c\udfb5', pathSuffix: '/Music' },
+];
 
 /* ------------------------------------------------------------------ */
 /*  Component                                                          */
@@ -263,16 +319,13 @@ const S: Record<string, React.CSSProperties> = {
 
 export function FileManagerApp({
   files: filesProp,
-  currentPath: pathProp = '/',
+  currentPath: pathProp,
   viewMode: modeProp = 'grid',
   onChange,
 }: FileManagerProps) {
-  // External prop sync refs
-  const isInternalEdit = useRef(false);
-  const lastExternalFiles = useRef<string>(JSON.stringify(filesProp));
-
   const [files, setFiles] = useState<FileEntry[]>(filesProp ?? DEFAULT_FILES);
-  const [cwd, setCwd] = useState(pathProp);
+  const [cwd, setCwd] = useState(pathProp ?? '/');
+  const [homeDir, setHomeDir] = useState<string | null>(null);
   const [view, setView] = useState<'grid' | 'list'>(modeProp);
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<string | null>(null);
@@ -281,46 +334,64 @@ export function FileManagerApp({
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; fileId: string } | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [renameVal, setRenameVal] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [isLive, setIsLive] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
-  // Sync external prop changes
+  /* ---- Resolve home directory on mount ---- */
   useEffect(() => {
-    const serialized = JSON.stringify(filesProp);
-    if (serialized === lastExternalFiles.current) return;
-    if (isInternalEdit.current) {
-      isInternalEdit.current = false;
-      return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const home = await getHomeDir();
+        if (cancelled) return;
+        setHomeDir(home);
+        // If no external path was provided, navigate to home
+        if (!pathProp) {
+          setCwd(home);
+          await loadDirectory(home);
+        }
+      } catch {
+        // IPC not available, stay with defaults
+        setIsLive(false);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /* ---- Load a real directory ---- */
+  const loadDirectory = useCallback(async (path: string) => {
+    setLoading(true);
+    try {
+      const entries = await listDirectory(path);
+      const mapped: FileEntry[] = entries.map(fsToFileEntry);
+      setFiles(mapped);
+      setIsLive(true);
+      onChange?.(mapped);
+    } catch {
+      // Fallback: keep current files or use defaults
+      if (!isLive) {
+        setFiles(DEFAULT_FILES);
+      }
+    } finally {
+      setLoading(false);
     }
-    lastExternalFiles.current = serialized;
-    if (filesProp) setFiles(filesProp);
-  }, [filesProp]);
+  }, [isLive, onChange]);
 
-  // Sync currentPath prop
-  useEffect(() => {
-    if (pathProp !== undefined) {
-      setCwd(pathProp);
+  /* ---- Navigate to a directory ---- */
+  const navigateTo = useCallback(async (path: string) => {
+    setCwd(path);
+    setSelected(null);
+    setSearch('');
+    if (isLive || homeDir) {
+      await loadDirectory(path);
     }
-  }, [pathProp]);
+  }, [isLive, homeDir, loadDirectory]);
 
-  // Sync viewMode prop
-  useEffect(() => {
-    if (modeProp !== undefined) {
-      setView(modeProp);
-    }
-  }, [modeProp]);
-
-  const commit = useCallback((next: FileEntry[]) => {
-    isInternalEdit.current = true;
-    setFiles(next);
-    onChange?.(next);
-  }, [onChange]);
-
-  // Derived: visible files
+  // Filtered + sorted visible files
   const visible = useMemo(() => {
-    let list = files.filter(f => {
-      const parent = f.path.substring(0, f.path.lastIndexOf('/')) || '/';
-      return parent === cwd || (cwd === '/' && !f.path.slice(1).includes('/'));
-    });
+    let list = [...files];
     if (search) {
       const q = search.toLowerCase();
       list = list.filter(f => f.name.toLowerCase().includes(q));
@@ -332,19 +403,47 @@ export function FileManagerApp({
       if (sortKey === 'name') cmp = a.name.localeCompare(b.name);
       else if (sortKey === 'date') cmp = (a.modified ?? '').localeCompare(b.modified ?? '');
       else if (sortKey === 'size') cmp = (a.size ?? 0) - (b.size ?? 0);
-      else if (sortKey === 'type') cmp = a.name.split('.').pop()!.localeCompare(b.name.split('.').pop()!);
+      else if (sortKey === 'type') cmp = (a.name.split('.').pop() ?? '').localeCompare(b.name.split('.').pop() ?? '');
       return sortAsc ? cmp : -cmp;
     });
     return list;
-  }, [files, cwd, search, sortKey, sortAsc]);
+  }, [files, search, sortKey, sortAsc]);
 
   // Breadcrumbs
   const crumbs = useMemo(() => {
-    const parts = cwd.split('/').filter(Boolean);
-    const paths: { label: string; path: string }[] = [{ label: 'Home', path: '/' }];
-    parts.forEach((p, i) => paths.push({ label: p, path: '/' + parts.slice(0, i + 1).join('/') }));
-    return paths;
-  }, [cwd]);
+    if (!isLive || !homeDir) {
+      // Fallback breadcrumbs
+      const parts = cwd.split('/').filter(Boolean);
+      const paths: { label: string; path: string }[] = [{ label: 'Home', path: '/' }];
+      parts.forEach((p, i) => paths.push({ label: p, path: '/' + parts.slice(0, i + 1).join('/') }));
+      return paths;
+    }
+
+    // Real filesystem breadcrumbs
+    const result: { label: string; path: string }[] = [];
+    // Show home as root if cwd starts with homeDir
+    if (cwd.startsWith(homeDir)) {
+      result.push({ label: 'Home', path: homeDir });
+      const rel = cwd.slice(homeDir.length);
+      if (rel) {
+        const parts = rel.split('/').filter(Boolean);
+        parts.forEach((p, i) => {
+          result.push({
+            label: p,
+            path: homeDir + '/' + parts.slice(0, i + 1).join('/'),
+          });
+        });
+      }
+    } else {
+      // Outside home — show full path
+      const parts = cwd.split('/').filter(Boolean);
+      result.push({ label: '/', path: '/' });
+      parts.forEach((p, i) => {
+        result.push({ label: p, path: '/' + parts.slice(0, i + 1).join('/') });
+      });
+    }
+    return result;
+  }, [cwd, homeDir, isLive]);
 
   // Selected file details
   const detailFile = useMemo(() => files.find(f => f.id === selected) ?? null, [files, selected]);
@@ -362,10 +461,9 @@ export function FileManagerApp({
     else { setSortKey(key); setSortAsc(true); }
   };
 
-  const handleOpen = (entry: FileEntry) => {
+  const handleOpen = async (entry: FileEntry) => {
     if (entry.type === 'folder') {
-      setCwd(entry.path);
-      setSelected(null);
+      await navigateTo(entry.path);
     } else {
       setSelected(entry.id);
     }
@@ -378,7 +476,9 @@ export function FileManagerApp({
 
   const handleDelete = () => {
     if (!ctxMenu) return;
-    commit(files.filter(f => f.id !== ctxMenu.fileId));
+    const next = files.filter(f => f.id !== ctxMenu.fileId);
+    setFiles(next);
+    onChange?.(next);
     if (selected === ctxMenu.fileId) setSelected(null);
     setCtxMenu(null);
   };
@@ -392,7 +492,9 @@ export function FileManagerApp({
 
   const handleRenameCommit = () => {
     if (!renaming || !renameVal.trim()) { setRenaming(null); return; }
-    commit(files.map(f => f.id === renaming ? { ...f, name: renameVal.trim() } : f));
+    const next = files.map(f => f.id === renaming ? { ...f, name: renameVal.trim() } : f);
+    setFiles(next);
+    onChange?.(next);
     setRenaming(null);
   };
 
@@ -400,7 +502,33 @@ export function FileManagerApp({
     const name = 'New Folder';
     const path = cwd === '/' ? `/${name}` : `${cwd}/${name}`;
     const entry: FileEntry = { id: uid(), name, type: 'folder', path, modified: new Date().toISOString().slice(0, 10) };
-    commit([...files, entry]);
+    const next = [...files, entry];
+    setFiles(next);
+    onChange?.(next);
+  };
+
+  const handleGoUp = async () => {
+    if (!isLive) return;
+    const parent = cwd.substring(0, cwd.lastIndexOf('/')) || '/';
+    await navigateTo(parent);
+  };
+
+  /* ---- Sidebar navigation ---- */
+  const handleSidebarClick = async (entry: SidebarEntry) => {
+    if (homeDir) {
+      const target = homeDir + entry.pathSuffix;
+      await navigateTo(target);
+    } else {
+      // Fallback
+      setCwd(entry.label === 'Home' ? '/' : '/' + entry.label);
+    }
+  };
+
+  const isSidebarActive = (entry: SidebarEntry) => {
+    if (homeDir) {
+      return cwd === homeDir + entry.pathSuffix;
+    }
+    return cwd === '/' + entry.label || (entry.label === 'Home' && cwd === '/');
   };
 
   /* ---- Render ---- */
@@ -457,7 +585,7 @@ export function FileManagerApp({
         ) : (
           <span>{f.name}</span>
         )}
-        <span style={{ color: 'var(--text-tertiary)' }}>{f.modified ?? '--'}</span>
+        <span style={{ color: 'var(--text-tertiary)' }}>{formatDate(f.modified)}</span>
         <span style={{ color: 'var(--text-tertiary)' }}>{formatSize(f.size)}</span>
         <span style={{ color: 'var(--text-tertiary)' }}>{f.type}</span>
       </div>
@@ -468,6 +596,11 @@ export function FileManagerApp({
     <div style={S.root} ref={rootRef}>
       {/* Toolbar */}
       <div style={S.toolbar}>
+        {isLive && (
+          <button style={S.toolBtn} onClick={handleGoUp} title="Go up">
+            \u2191
+          </button>
+        )}
         <input
           style={S.searchInput}
           placeholder="Search files\u2026"
@@ -475,7 +608,6 @@ export function FileManagerApp({
           onChange={e => setSearch(e.target.value)}
         />
         <button style={S.toolBtn} onClick={handleNewFolder}>+ Folder</button>
-        <button style={S.toolBtn} title="Upload">Upload</button>
         <button
           style={{ ...S.toolBtn, color: view === 'grid' ? 'var(--accent-primary)' : undefined }}
           onClick={() => setView('grid')}
@@ -488,6 +620,15 @@ export function FileManagerApp({
         >
           List
         </button>
+        {isLive && (
+          <button
+            style={S.toolBtn}
+            onClick={() => loadDirectory(cwd)}
+            title="Refresh"
+          >
+            \u21bb
+          </button>
+        )}
       </div>
 
       {/* Breadcrumbs */}
@@ -495,7 +636,7 @@ export function FileManagerApp({
         {crumbs.map((c, i) => (
           <React.Fragment key={c.path}>
             {i > 0 && <span style={{ margin: '0 2px' }}>/</span>}
-            <button style={S.crumbLink} onClick={() => { setCwd(c.path); setSelected(null); }}>{c.label}</button>
+            <button style={S.crumbLink} onClick={() => navigateTo(c.path)}>{c.label}</button>
           </React.Fragment>
         ))}
       </div>
@@ -504,20 +645,24 @@ export function FileManagerApp({
       <div style={S.body}>
         {/* Sidebar */}
         <div style={S.sidebar}>
-          {SIDEBAR_FOLDERS.map(f => (
+          {SIDEBAR_ENTRIES.map(entry => (
             <button
-              key={f}
-              style={{ ...S.sideItem, ...(cwd === '/' + f || (f === 'Home' && cwd === '/') ? S.sideItemActive : {}) }}
-              onClick={() => { setCwd(f === 'Home' ? '/' : '/' + f); setSelected(null); }}
+              key={entry.label}
+              style={{ ...S.sideItem, ...(isSidebarActive(entry) ? S.sideItemActive : {}) }}
+              onClick={() => handleSidebarClick(entry)}
             >
-              {f === 'Trash' ? '\ud83d\uddd1\ufe0f' : '\ud83d\udcc1'} {f}
+              {entry.icon} {entry.label}
             </button>
           ))}
         </div>
 
         {/* Main */}
         <div style={S.main}>
-          {view === 'list' && (
+          {loading && (
+            <div style={S.loadingOverlay}>Loading...</div>
+          )}
+
+          {!loading && view === 'list' && (
             <div style={S.listHeader}>
               <span />
               <button style={S.sortBtn} onClick={() => handleSort('name')}>Name {sortKey === 'name' ? (sortAsc ? '\u25b2' : '\u25bc') : ''}</button>
@@ -526,16 +671,16 @@ export function FileManagerApp({
               <button style={S.sortBtn} onClick={() => handleSort('type')}>Type {sortKey === 'type' ? (sortAsc ? '\u25b2' : '\u25bc') : ''}</button>
             </div>
           )}
-          {visible.length === 0 && (
+          {!loading && visible.length === 0 && (
             <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>
               {search ? 'No matching files' : 'This folder is empty'}
             </div>
           )}
-          {view === 'grid' ? (
+          {!loading && view === 'grid' ? (
             <div style={S.grid}>{visible.map(renderGridItem)}</div>
-          ) : (
+          ) : !loading ? (
             <div>{visible.map(renderListItem)}</div>
-          )}
+          ) : null}
         </div>
 
         {/* Detail Panel */}
@@ -545,8 +690,8 @@ export function FileManagerApp({
             <div style={S.detailTitle}>{detailFile.name}</div>
             <div style={S.detailRow}><span style={S.detailLabel}>Type</span>{detailFile.type}</div>
             <div style={S.detailRow}><span style={S.detailLabel}>Size</span>{formatSize(detailFile.size)}</div>
-            <div style={S.detailRow}><span style={S.detailLabel}>Modified</span>{detailFile.modified ?? '--'}</div>
-            <div style={S.detailRow}><span style={S.detailLabel}>Path</span>{detailFile.path}</div>
+            <div style={S.detailRow}><span style={S.detailLabel}>Modified</span>{formatDate(detailFile.modified)}</div>
+            <div style={S.detailRow}><span style={S.detailLabel}>Path</span><span style={{ wordBreak: 'break-all', fontSize: 11 }}>{detailFile.path}</span></div>
           </div>
         )}
       </div>

@@ -473,7 +473,12 @@ function WindowBody({
   if (win.content_type === 'contacts') {
     return (
       <Suspense fallback={<AppLoader />}>
-        <ContactsApp />
+        <ContactsApp
+          contacts={parsedData?.contacts}
+          onChange={(contacts) => {
+            setWindowContent(win.id, JSON.stringify({ contacts }));
+          }}
+        />
       </Suspense>
     );
   }
@@ -482,7 +487,13 @@ function WindowBody({
   if (win.content_type === 'todo') {
     return (
       <Suspense fallback={<AppLoader />}>
-        <TodoApp />
+        <TodoApp
+          lists={parsedData?.lists}
+          items={parsedData?.items}
+          onChange={({ lists, items }) => {
+            setWindowContent(win.id, JSON.stringify({ lists, items }));
+          }}
+        />
       </Suspense>
     );
   }

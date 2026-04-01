@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { GLASS } from './glassStyles';
+import { getSystemInfo } from '../../ipc/system';
+import type { SystemInfo, ProcessInfo } from '../../ipc/system';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -17,39 +19,19 @@ type SortKey = 'name' | 'pid' | 'cpu' | 'memory' | 'status';
 type SortDir = 'asc' | 'desc';
 
 /* ------------------------------------------------------------------ */
-/*  Initial data                                                       */
+/*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
-
-const PROCESS_NAMES = [
-  'luna-conductor',
-  'webkit-renderer',
-  'node',
-  'system-daemon',
-  'glass-compositor',
-  'audio-server',
-  'file-indexer',
-  'bluetooth-mgr',
-  'wifi-daemon',
-  'gpu-driver',
-  'input-handler',
-  'notification-svc',
-  'update-checker',
-  'cloud-sync',
-  'security-agent',
-];
-
-function makeProcesses(): Process[] {
-  return PROCESS_NAMES.map((name, i) => ({
-    name,
-    pid: 1000 + i * 37,
-    cpu: Math.round(Math.random() * 30 * 10) / 10,
-    memory: Math.round((20 + Math.random() * 400) * 10) / 10,
-    status: Math.random() > 0.3 ? 'Running' : Math.random() > 0.5 ? 'Sleeping' : 'Idle',
-  }));
-}
 
 function clamp(v: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, v));
+}
+
+/** Map sysinfo status strings to our UI status type */
+function mapStatus(status: string): Process['status'] {
+  const s = status.toLowerCase();
+  if (s.includes('run')) return 'Running';
+  if (s.includes('sleep') || s.includes('idle') || s.includes('stop')) return 'Sleeping';
+  return 'Running';
 }
 
 /* ------------------------------------------------------------------ */
@@ -146,6 +128,20 @@ const S: Record<string, React.CSSProperties> = {
     marginLeft: 4,
     fontSize: 10,
   },
+  liveIndicator: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    fontSize: 11,
+    color: 'var(--text-tertiary)',
+  },
+  liveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: '50%',
+    background: '#a8cc8c',
+    animation: 'pulse 2s infinite',
+  },
 };
 
 /* ------------------------------------------------------------------ */
@@ -154,37 +150,76 @@ const S: Record<string, React.CSSProperties> = {
 
 export function SystemMonitorApp() {
   const [cpuHistory, setCpuHistory] = useState<number[]>(() =>
-    Array.from({ length: 60 }, () => 20 + Math.random() * 40)
+    Array.from({ length: 60 }, () => 0)
   );
-  const [memUsed, setMemUsed] = useState(8.2);
-  const [processes, setProcesses] = useState<Process[]>(makeProcesses);
+  const [memUsed, setMemUsed] = useState(0);
+  const [memTotal, setMemTotal] = useState(16 * 1024); // default 16GB in MB
+  const [processes, setProcesses] = useState<Process[]>([]);
+  const [processCount, setProcessCount] = useState(0);
   const [sortKey, setSortKey] = useState<SortKey>('cpu');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const [isLive, setIsLive] = useState(false);
   const killedRef = useRef<Map<string, number>>(new Map());
 
-  /* Tick every second */
+  /* Fetch real system info every 2 seconds */
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCpuHistory((prev) => {
-        const last = prev[prev.length - 1];
-        const next = clamp(last + (Math.random() - 0.45) * 15, 5, 95);
-        return [...prev.slice(1), next];
-      });
+    let cancelled = false;
 
-      setMemUsed((prev) => clamp(prev + (Math.random() - 0.5) * 0.3, 4, 15.5));
+    async function fetchData() {
+      try {
+        const info: SystemInfo = await getSystemInfo();
+        if (cancelled) return;
 
-      setProcesses((prev) =>
-        prev.map((p) => ({
-          ...p,
-          cpu: Math.round(clamp(p.cpu + (Math.random() - 0.48) * 5, 0, 100) * 10) / 10,
-          memory: Math.round(clamp(p.memory + (Math.random() - 0.5) * 20, 10, 800) * 10) / 10,
-        }))
-      );
-    }, 1000);
-    return () => clearInterval(timer);
+        setIsLive(true);
+
+        // Update CPU history
+        setCpuHistory((prev) => {
+          const next = [...prev.slice(1), info.cpu_usage];
+          return next;
+        });
+
+        // Update memory
+        setMemUsed(info.used_memory);
+        setMemTotal(info.total_memory);
+
+        // Update processes
+        setProcessCount(info.process_count);
+        const mapped: Process[] = info.processes.map((p: ProcessInfo) => ({
+          name: p.name,
+          pid: p.pid,
+          cpu: Math.round(p.cpu * 10) / 10,
+          memory: p.memory,
+          status: mapStatus(p.status),
+        }));
+        setProcesses(mapped);
+      } catch {
+        // IPC not available — fall back to simulated data
+        if (cancelled) return;
+        setIsLive(false);
+
+        setCpuHistory((prev) => {
+          const last = prev[prev.length - 1];
+          const next = clamp(last + (Math.random() - 0.45) * 15, 5, 95);
+          return [...prev.slice(1), next];
+        });
+
+        setMemUsed((prev) => {
+          const total = 16 * 1024;
+          return clamp(prev || total * 0.5 + (Math.random() - 0.5) * 300, total * 0.25, total * 0.95);
+        });
+        setMemTotal(16 * 1024);
+      }
+    }
+
+    fetchData();
+    const timer = setInterval(fetchData, 2000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
   }, []);
 
-  /* Kill process */
+  /* Kill process (cosmetic — removes from list, re-adds after 5s) */
   const killProcess = useCallback((name: string) => {
     setProcesses((prev) => prev.filter((p) => p.name !== name));
     const timeout = window.setTimeout(() => {
@@ -239,8 +274,9 @@ export function SystemMonitorApp() {
     .join(' ');
 
   /* Memory gauge */
-  const memTotal = 16;
-  const memPct = (memUsed / memTotal) * 100;
+  const memUsedGB = memUsed / 1024;
+  const memTotalGB = memTotal / 1024;
+  const memPct = memTotal > 0 ? (memUsed / memTotal) * 100 : 0;
   const memColor = memPct > 90 ? '#ff6b6b' : memPct > 70 ? '#d4a574' : 'var(--accent-primary)';
   const circumference = 2 * Math.PI * 70;
   const dashOffset = circumference - (memPct / 100) * circumference;
@@ -256,7 +292,15 @@ export function SystemMonitorApp() {
       <div style={S.grid}>
         {/* CPU */}
         <div style={S.card}>
-          <span style={S.cardTitle}>CPU</span>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={S.cardTitle}>CPU</span>
+            {isLive && (
+              <span style={S.liveIndicator}>
+                <span style={S.liveDot} />
+                LIVE
+              </span>
+            )}
+          </div>
           <span style={S.bigValue}>{cpuCurrent}%</span>
           <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={S.chartSvg}>
             {/* Grid lines */}
@@ -326,7 +370,7 @@ export function SystemMonitorApp() {
               fontWeight={700}
               fontFamily="var(--font-mono, monospace)"
             >
-              {memUsed.toFixed(1)} GB
+              {memUsedGB.toFixed(1)} GB
             </text>
             <text
               x={80}
@@ -335,7 +379,7 @@ export function SystemMonitorApp() {
               fill="var(--text-secondary)"
               fontSize={11}
             >
-              of {memTotal} GB
+              of {memTotalGB.toFixed(0)} GB
             </text>
           </svg>
         </div>
@@ -344,7 +388,12 @@ export function SystemMonitorApp() {
       {/* Process table */}
       <div style={S.tableCard}>
         <div style={S.tableHeader}>
-          <span style={S.cardTitle}>Processes ({processes.length})</span>
+          <span style={S.cardTitle}>
+            Processes ({isLive ? processCount : processes.length})
+          </span>
+          {!isLive && (
+            <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Simulated</span>
+          )}
         </div>
         <div style={{ flex: 1, overflowY: 'auto', overflowX: 'auto' }}>
           <table style={S.table}>
@@ -368,7 +417,7 @@ export function SystemMonitorApp() {
             <tbody>
               {sorted.map((p, i) => (
                 <tr
-                  key={p.name}
+                  key={`${p.name}-${p.pid}`}
                   style={{
                     background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)',
                   }}

@@ -170,6 +170,47 @@ pub fn register_core_handlers(registry: &ActionHandlerRegistry) {
         }),
     );
 
+    // window.read_content → read content from a window (cross-app intelligence)
+    registry.register(
+        "window.read_content",
+        Arc::new(|action, handle, state| {
+            Box::pin(async move {
+                let window_id = action.payload.get("window_id")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+
+                if window_id.is_empty() {
+                    tracing::warn!("window.read_content: missing window_id");
+                    return Ok(());
+                }
+
+                // Read window metadata from window manager
+                let wm = state.window_manager.read().await;
+                let window = wm.get_window(window_id);
+
+                let window_info = if let Some(w) = window {
+                    serde_json::json!({
+                        "window_id": window_id,
+                        "title": w.title,
+                        "content_type": format!("{:?}", w.content_type),
+                    })
+                } else {
+                    serde_json::json!({
+                        "window_id": window_id,
+                        "error": "Window not found",
+                    })
+                };
+                drop(wm);
+
+                // Emit to frontend to read content
+                if let Err(e) = handle.emit("window-content-read", &window_info) {
+                    tracing::debug!(error = %e, "Failed to emit window-content-read");
+                }
+                Ok(())
+            })
+        }),
+    );
+
     // system.notify → emit to frontend
     registry.register(
         "system.notify",

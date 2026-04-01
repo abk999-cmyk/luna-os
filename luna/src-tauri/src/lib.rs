@@ -642,6 +642,9 @@ pub fn run() {
             commands::save_app_content,
             commands::load_app_content,
             commands::delete_app_content,
+            commands::get_system_info,
+            commands::list_directory,
+            commands::get_home_dir,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

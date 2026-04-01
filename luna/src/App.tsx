@@ -220,6 +220,28 @@ function App() {
       }
     );
 
+    // ── Window content read (cross-app intelligence) ────────────────────────
+    const unlistenContentRead = listen<{ window_id?: string; title?: string; content_type?: string }>(
+      'window-content-read',
+      (event) => {
+        const { window_id } = event.payload;
+        if (!window_id) return;
+        const content = useWindowStore.getState().windowContent.get(window_id);
+        const windows = useWindowStore.getState().windows;
+        const win = windows.find(w => w.id === window_id);
+
+        // Feed content back to the chat as context
+        const contentPreview = content
+          ? (content.length > 2000 ? content.slice(0, 2000) + '...(truncated)' : content)
+          : '(no content)';
+        const title = win?.title || event.payload.title || 'Unknown';
+
+        useAgentStore.getState().addChatMessage('assistant',
+          `Read content from "${title}":\n\`\`\`\n${contentPreview}\n\`\`\``
+        );
+      }
+    );
+
     // ── System notifications → Toast + NotificationCenter + Sound ──────────────
     const unlistenNotify = listen<{ message?: string; level?: string; title?: string }>(
       'system-notification',
@@ -353,6 +375,7 @@ function App() {
       unlistenWindowClose.then((fn) => fn());
       unlistenWindowFocus.then((fn) => fn());
       unlistenContentUpdate.then((fn) => fn());
+      unlistenContentRead.then((fn) => fn());
       unlistenNotify.then((fn) => fn());
       unlistenPermission.then((fn) => fn());
       unlistenAppCreated.then((fn) => fn());

@@ -31,6 +31,9 @@ pub enum LunaError {
 
     #[error("Migration error: {0}")]
     Migration(String),
+
+    #[error("IO error: {0}")]
+    Io(String),
 }
 
 impl From<serde_json::Error> for LunaError {
