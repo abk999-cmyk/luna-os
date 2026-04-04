@@ -265,17 +265,20 @@ export function CalculatorApp({ mode: modeProp = 'standard', history: histProp }
     setDisplay(`${fn}(${display})`);
   }, [display]);
 
-  // Keyboard
+  // Keyboard support (only when calculator window is focused)
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      const el = document.getElementById('calculator-app');
+      if (!el || !el.closest('.window--focused')) return;
+
       if (e.key >= '0' && e.key <= '9') appendDigit(e.key);
       else if (e.key === '.') appendDigit('.');
       else if (e.key === '+') appendOp('+');
       else if (e.key === '-') appendOp('-');
       else if (e.key === '*') appendOp('\u00d7');
       else if (e.key === '/') { e.preventDefault(); appendOp('\u00f7'); }
-      else if (e.key === 'Enter' || e.key === '=') calculate();
-      else if (e.key === 'Escape') clear();
+      else if (e.key === 'Enter' || e.key === '=') { e.preventDefault(); calculate(); }
+      else if (e.key === 'Escape' || e.key === 'c' || e.key === 'C') clear();
       else if (e.key === 'Backspace') backspace();
       else if (e.key === '%') percent();
     };
@@ -324,7 +327,7 @@ export function CalculatorApp({ mode: modeProp = 'standard', history: histProp }
   const cols = mode === 'scientific' ? 5 : 4;
 
   return (
-    <div style={S.root}>
+    <div id="calculator-app" style={S.root}>
       {/* Header */}
       <div style={S.header}>
         <span style={{ fontWeight: 600 }}>Calculator</span>

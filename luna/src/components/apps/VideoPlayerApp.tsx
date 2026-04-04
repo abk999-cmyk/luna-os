@@ -292,11 +292,43 @@ export function VideoPlayerApp() {
     setCurrentTime((t) => Math.max(0, Math.min(duration, t + sec)));
   };
 
+  const toggleMute = () => setMuted((m) => !m);
+
+  const toggleFullscreen = () => {
+    const el = document.getElementById('video-player-app');
+    if (!el) return;
+    if (document.fullscreenElement) {
+      document.exitFullscreen();
+    } else {
+      el.requestFullscreen();
+    }
+  };
+
+  // Keyboard shortcuts (only when video player window is focused)
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      const el = document.getElementById('video-player-app');
+      if (!el || !el.closest('.window--focused')) return;
+
+      switch (e.key) {
+        case ' ': e.preventDefault(); togglePlay(); break;
+        case 'f': case 'F': toggleFullscreen(); break;
+        case 'ArrowRight': skip(10); break;
+        case 'ArrowLeft': skip(-10); break;
+        case 'ArrowUp': e.preventDefault(); setVolume((v) => Math.min(1, v + 0.1)); break;
+        case 'ArrowDown': e.preventDefault(); setVolume((v) => Math.max(0, v - 0.1)); break;
+        case 'm': case 'M': toggleMute(); break;
+      }
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  });
+
   const seekPct = duration > 0 ? (currentTime / duration) * 100 : 0;
   const volPct = muted ? 0 : volume * 100;
 
   return (
-    <div style={S.root}>
+    <div id="video-player-app" style={S.root}>
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative', minHeight: 0 }}>
         {/* Player */}
         <div
@@ -470,8 +502,8 @@ export function VideoPlayerApp() {
                 </svg>
               </button>
 
-              {/* Fullscreen (visual only) */}
-              <button style={S.ctrlBtn} title="Fullscreen">
+              {/* Fullscreen */}
+              <button style={S.ctrlBtn} title="Fullscreen (F)" onClick={toggleFullscreen}>
                 <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                   <path d="M8 3H5a2 2 0 00-2 2v3M21 8V5a2 2 0 00-2-2h-3M3 16v3a2 2 0 002 2h3M16 21h3a2 2 0 002-2v-3" />
                 </svg>

@@ -158,6 +158,7 @@ export function SystemMonitorApp() {
   const [processCount, setProcessCount] = useState(0);
   const [sortKey, setSortKey] = useState<SortKey>('cpu');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const [processFilter, setProcessFilter] = useState('');
   const [isLive, setIsLive] = useState(false);
   const killedRef = useRef<Map<string, number>>(new Map());
 
@@ -256,7 +257,11 @@ export function SystemMonitorApp() {
     }
   };
 
-  const sorted = [...processes].sort((a, b) => {
+  const filteredProcesses = processes.filter(p =>
+    processFilter === '' || p.name.toLowerCase().includes(processFilter.toLowerCase())
+  );
+
+  const sorted = [...filteredProcesses].sort((a, b) => {
     const av = a[sortKey];
     const bv = b[sortKey];
     const cmp = typeof av === 'string' ? av.localeCompare(bv as string) : (av as number) - (bv as number);
@@ -391,9 +396,18 @@ export function SystemMonitorApp() {
           <span style={S.cardTitle}>
             Processes ({isLive ? processCount : processes.length})
           </span>
-          {!isLive && (
-            <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Simulated</span>
-          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input
+              type="text"
+              placeholder="Search processes..."
+              value={processFilter}
+              onChange={e => setProcessFilter(e.target.value)}
+              style={{ ...GLASS.inset, width: 160, padding: '4px 10px', fontSize: 11, borderRadius: 6, boxSizing: 'border-box' as const }}
+            />
+            {!isLive && (
+              <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Simulated</span>
+            )}
+          </div>
         </div>
         <div style={{ flex: 1, overflowY: 'auto', overflowX: 'auto' }}>
           <table style={S.table}>

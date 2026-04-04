@@ -120,20 +120,24 @@ pub struct LlmResponse {
 
 impl LlmClient {
     pub fn new_anthropic(api_key: String) -> Self {
+        let model = std::env::var("LUNA_LLM_MODEL")
+            .unwrap_or_else(|_| "claude-sonnet-4-20250514".to_string());
         Self {
             client: Client::new(),
             api_key,
-            model: "claude-sonnet-4-20250514".to_string(),
+            model,
             provider: LlmProvider::Anthropic,
             health: Arc::new(Mutex::new(HealthState::default())),
         }
     }
 
     pub fn new_openai(api_key: String) -> Self {
+        let model = std::env::var("LUNA_LLM_MODEL")
+            .unwrap_or_else(|_| "gpt-5.4".to_string());
         Self {
             client: Client::new(),
             api_key,
-            model: "gpt-5.4".to_string(),
+            model,
             provider: LlmProvider::OpenAI,
             health: Arc::new(Mutex::new(HealthState::default())),
         }

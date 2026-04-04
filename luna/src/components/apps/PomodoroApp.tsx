@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { GLASS } from './glassStyles';
+import { playNotificationSound } from '../../services/soundManager';
+import { addNotification } from '../NotificationCenter';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -262,6 +264,14 @@ export function PomodoroApp() {
   /* Timer completed -> show "Time's up!" for 2s then advance */
   const handleTimerDone = useCallback(() => {
     setRunning(false);
+    if (soundOn) {
+      playNotificationSound();
+    }
+    addNotification(
+      'Pomodoro',
+      phase === 'focus' ? 'Focus session complete! Take a break.' : 'Break is over! Time to focus.',
+      'success'
+    );
     const prevPhase = phase;
     setPhase('times_up');
     timesUpRef.current = window.setTimeout(() => {
@@ -270,7 +280,7 @@ export function PomodoroApp() {
       // Use a micro-delay so the state is committed
       setTimeout(() => advancePhase(), 0);
     }, 2000);
-  }, [phase, advancePhase]);
+  }, [phase, soundOn, advancePhase]);
 
   /* Tick */
   useEffect(() => {

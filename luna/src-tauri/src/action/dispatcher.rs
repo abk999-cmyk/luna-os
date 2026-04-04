@@ -49,6 +49,15 @@ impl ActionDispatcher {
     }
 
     pub async fn dispatch(&self, mut action: Action) -> Result<ActionId, LunaError> {
+        // Evict stale pending actions (older than 5 min) when map grows large
+        {
+            let cutoff = chrono::Utc::now() - chrono::Duration::minutes(5);
+            let mut pending = self.pending_actions.write().await;
+            if pending.len() > 10 {
+                pending.retain(|_, a| a.timestamp > cutoff);
+            }
+        }
+
         // Check payload size (max 1MB)
         let payload_size = serde_json::to_string(&action.payload).map(|s| s.len()).unwrap_or(0);
         if payload_size > 1_048_576 {

@@ -276,10 +276,16 @@ impl ConductorAgent {
                 content: text.clone(),
             });
 
-            // Keep history bounded (last 20 messages)
-            if history.len() > 20 {
-                let drain = history.len() - 20;
+            // Keep history bounded (last 12 messages, trim long ones)
+            if history.len() > 12 {
+                let drain = history.len() - 12;
                 history.drain(..drain);
+            }
+            // Trim excessively long messages (>2000 chars -> truncate with note)
+            for msg in history.iter_mut() {
+                if msg.content.len() > 2000 {
+                    msg.content = format!("{}...(truncated)", &msg.content[..1997]);
+                }
             }
 
             info!(
@@ -424,10 +430,16 @@ impl ConductorAgent {
                 content: text.clone(),
             });
 
-            // Keep history bounded
-            if history.len() > 20 {
-                let drain = history.len() - 20;
+            // Keep history bounded (last 12 messages, trim long ones)
+            if history.len() > 12 {
+                let drain = history.len() - 12;
                 history.drain(..drain);
+            }
+            // Trim excessively long messages (>2000 chars -> truncate with note)
+            for msg in history.iter_mut() {
+                if msg.content.len() > 2000 {
+                    msg.content = format!("{}...(truncated)", &msg.content[..1997]);
+                }
             }
 
             info!(history_len = history.len(), "Conductor streaming user input");
