@@ -229,13 +229,26 @@ const S: Record<string, React.CSSProperties> = {
 /* ------------------------------------------------------------------ */
 
 export function WeatherApp({ initialCity }: { initialCity?: string }) {
-  const [cityIdx, setCityIdx] = useState(() => {
-    const idx = CITIES.findIndex(c => c.name === initialCity);
-    return idx >= 0 ? idx : 0;
-  });
+  const [customCities, setCustomCities] = useState<string[]>([]);
+  const [newCity, setNewCity] = useState('');
+  const [selectedCityName, setSelectedCityName] = useState(initialCity || CITIES[0].name);
   const [useFahrenheit, setUseFahrenheit] = useState(false);
 
-  const city = CITIES[cityIdx];
+  const allCities = useMemo(() => {
+    const custom: CityWeather[] = customCities.map((name, i) => ({
+      name,
+      baseTempC: 10 + ((name.charCodeAt(0) * 7 + i * 3) % 25),
+      amplitude: 4 + ((name.length * 3) % 8),
+      humidity: 40 + ((name.charCodeAt(0) * 11) % 45),
+      windKph: 8 + ((name.length * 5) % 20),
+      uvIndex: 1 + ((name.charCodeAt(0) * 2) % 9),
+      condition: 'Clear',
+      icon: '\u2600\uFE0F',
+    }));
+    return [...CITIES, ...custom];
+  }, [customCities]);
+
+  const city = allCities.find(c => c.name === selectedCityName) || allCities[0];
   const now = new Date();
   const currentHour = now.getHours();
 
@@ -292,15 +305,29 @@ export function WeatherApp({ initialCity }: { initialCity?: string }) {
     <div style={S.root}>
       {/* Header */}
       <div style={S.header}>
-        <select
-          style={S.citySelect}
-          value={cityIdx}
-          onChange={(e) => setCityIdx(Number(e.target.value))}
-        >
-          {CITIES.map((c, i) => (
-            <option key={c.name} value={i}>{c.name}</option>
-          ))}
-        </select>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flex: 1, minWidth: 0 }}>
+          <select
+            style={S.citySelect}
+            value={selectedCityName}
+            onChange={(e) => setSelectedCityName(e.target.value)}
+          >
+            {allCities.map(c => (
+              <option key={c.name} value={c.name}>{c.name}</option>
+            ))}
+          </select>
+          {customCities.includes(city.name) && (
+            <button
+              onClick={() => {
+                setCustomCities(prev => prev.filter(n => n !== city.name));
+                setSelectedCityName(CITIES[0].name);
+              }}
+              style={{ ...GLASS.ghostBtn, padding: '2px 6px', fontSize: 12, color: '#e05252', flexShrink: 0 }}
+              title="Remove city"
+            >
+              x
+            </button>
+          )}
+        </div>
         <button
           style={{
             ...S.unitBtn,
@@ -308,8 +335,29 @@ export function WeatherApp({ initialCity }: { initialCity?: string }) {
           }}
           onClick={() => setUseFahrenheit(f => !f)}
         >
-          {useFahrenheit ? '°F' : '°C'}
+          {useFahrenheit ? '\u00B0F' : '\u00B0C'}
         </button>
+      </div>
+
+      {/* Add city */}
+      <div style={{ display: 'flex', gap: 4, padding: '6px 16px', borderBottom: `1px solid ${GLASS.dividerColor}` }}>
+        <input
+          type="text"
+          placeholder="Add city..."
+          value={newCity}
+          onChange={e => setNewCity(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter' && newCity.trim()) {
+              const name = newCity.trim();
+              if (!allCities.some(c => c.name.toLowerCase() === name.toLowerCase())) {
+                setCustomCities(prev => [...prev, name]);
+                setSelectedCityName(name);
+              }
+              setNewCity('');
+            }
+          }}
+          style={{ ...GLASS.inset, flex: 1, padding: '4px 8px', fontSize: 12, fontFamily: 'var(--font-ui)' }}
+        />
       </div>
 
       {/* Body */}

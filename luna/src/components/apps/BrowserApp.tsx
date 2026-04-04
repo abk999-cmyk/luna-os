@@ -42,6 +42,7 @@ export function BrowserApp({ url: urlProp }: BrowserProps) {
   const [blocked, setBlocked] = useState(false);
   const [historyStack, setHistoryStack] = useState<string[]>([]);
   const [forwardStack, setForwardStack] = useState<string[]>([]);
+  const [bookmarks, setBookmarks] = useState<{url: string; title: string}[]>([]);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const loadTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -153,7 +154,42 @@ export function BrowserApp({ url: urlProp }: BrowserProps) {
             }}
           />
         </form>
+        {(() => {
+          const isBookmarked = bookmarks.some(b => b.url === currentUrl);
+          return (
+            <button
+              onClick={() => {
+                if (isBookmarked) {
+                  setBookmarks(prev => prev.filter(b => b.url !== currentUrl));
+                } else {
+                  setBookmarks(prev => [...prev, { url: currentUrl, title: currentUrl }]);
+                }
+              }}
+              style={{...GLASS.ghostBtn, padding: '4px 6px', color: isBookmarked ? '#f59e0b' : 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0}}
+              title={isBookmarked ? 'Remove bookmark' : 'Bookmark this page'}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill={isBookmarked ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
+                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+              </svg>
+            </button>
+          );
+        })()}
       </div>
+
+      {/* Bookmarks bar */}
+      {bookmarks.length > 0 && (
+        <div style={{ display: 'flex', gap: 4, padding: '4px 8px', borderBottom: `1px solid ${GLASS.dividerColor}`, flexWrap: 'wrap', flexShrink: 0 }}>
+          {bookmarks.map((b, i) => {
+            let label = b.url;
+            try { label = new URL(b.url).hostname.replace('www.', ''); } catch {}
+            return (
+              <button key={i} onClick={() => navigate(b.url)} style={{...GLASS.ghostBtn, padding: '2px 8px', fontSize: 11}}>
+                {label}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Loading bar */}
       {loading && (

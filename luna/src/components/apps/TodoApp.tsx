@@ -131,6 +131,8 @@ export function TodoApp({ lists: initLists, items: initItems, onChange }: TodoAp
   const [renamingListId, setRenamingListId] = useState<string | null>(null);
   const [renameText, setRenameText] = useState('');
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
+  const [dragItem, setDragItem] = useState<string | null>(null);
+  const [dragOverItem, setDragOverItem] = useState<string | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const renameRef = useRef<HTMLInputElement>(null);
@@ -239,22 +241,61 @@ export function TodoApp({ lists: initLists, items: initItems, onChange }: TodoAp
     setContextPos(null);
   }, [contextListId, activeListId, lists]);
 
+  const reorderItems = useCallback((fromId: string, toId: string) => {
+    setItems(prev => {
+      const fromIdx = prev.findIndex(i => i.id === fromId);
+      const toIdx = prev.findIndex(i => i.id === toId);
+      if (fromIdx < 0 || toIdx < 0) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(fromIdx, 1);
+      next.splice(toIdx, 0, moved);
+      return next;
+    });
+  }, []);
+
   const renderItem = (item: TodoItem) => {
     const isEditing = editingItemId === item.id;
     const isHovered = hoveredItem === item.id;
+    const isDragging = dragItem === item.id;
+    const isDragOver = dragOverItem === item.id;
     const due = formatDue(item.dueDate);
     const overdue = item.dueDate && !item.completed && new Date(item.dueDate) < new Date();
 
     return (
       <div
         key={item.id}
+        draggable={!isEditing}
+        onDragStart={(e) => {
+          setDragItem(item.id);
+          e.dataTransfer.effectAllowed = 'move';
+        }}
+        onDragOver={(e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          setDragOverItem(item.id);
+        }}
+        onDragLeave={() => {
+          if (dragOverItem === item.id) setDragOverItem(null);
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          if (dragItem && dragItem !== item.id) {
+            reorderItems(dragItem, item.id);
+          }
+          setDragItem(null);
+          setDragOverItem(null);
+        }}
+        onDragEnd={() => { setDragItem(null); setDragOverItem(null); }}
         onMouseEnter={() => setHoveredItem(item.id)}
         onMouseLeave={() => setHoveredItem(null)}
         style={{
           display: 'flex', alignItems: 'center', gap: 10,
           padding: '8px 12px',
-          background: isHovered ? GLASS.hoverBg : 'transparent',
+          background: isDragOver && dragItem !== item.id ? GLASS.selectedBg : isHovered ? GLASS.hoverBg : 'transparent',
           borderRadius: 8, transition: 'background 0.1s ease',
+          opacity: isDragging ? 0.5 : 1,
+          cursor: isEditing ? 'default' : 'grab',
+          borderTop: isDragOver && dragItem !== item.id ? `2px solid ${GLASS.accentColor}` : '2px solid transparent',
         }}
       >
         {/* Checkbox */}

@@ -505,6 +505,9 @@ export function NotesApp({ notes: notesProp, onChange }: NotesProps) {
             <span style={{ width: 1, height: 16, background: GLASS.dividerColor, margin: '0 4px' }} />
             <button style={S.fmtBtn} onMouseDown={e => { e.preventDefault(); execCmd('insertUnorderedList'); }}>List</button>
             <button style={S.fmtBtn} onMouseDown={e => { e.preventDefault(); execCmd('insertOrderedList'); }}>Num</button>
+            <span style={{ width: 1, height: 16, background: GLASS.dividerColor, margin: '0 4px' }} />
+            <button style={S.fmtBtn} onMouseDown={e => { e.preventDefault(); execCmd('formatBlock', 'h2'); }}>H</button>
+            <button style={{ ...S.fmtBtn, fontFamily: 'monospace', fontSize: 12 }} onMouseDown={e => { e.preventDefault(); execCmd('formatBlock', 'pre'); }}>&lt;/&gt;</button>
           </div>
 
           {/* Content editable area */}

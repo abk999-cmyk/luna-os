@@ -664,6 +664,7 @@ export function SlidesApp({ slides: controlledSlides, currentSlide: controlledCu
   const [canvasTransition, setCanvasTransition] = useState(1);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [shapeMenuOpen, setShapeMenuOpen] = useState(false);
+  const [showNotes, setShowNotes] = useState(false);
 
   const canvasRef = useRef<HTMLDivElement>(null);
   const addMenuRef = useRef<HTMLDivElement>(null);
@@ -1191,6 +1192,16 @@ export function SlidesApp({ slides: controlledSlides, currentSlide: controlledCu
 
         <div style={{ flex: 1 }} />
 
+        {/* Notes toggle */}
+        <ToolbarButton
+          label={showNotes ? 'Hide Notes' : 'Notes'}
+          title="Toggle speaker notes"
+          active={showNotes}
+          onClick={() => setShowNotes(v => !v)}
+        />
+
+        <div style={styles.toolbarDivider} />
+
         {/* Present button */}
         <ToolbarButton
           label="Present"
@@ -1235,15 +1246,17 @@ export function SlidesApp({ slides: controlledSlides, currentSlide: controlledCu
           </div>
 
           {/* ── Speaker notes ─────────────────────────────────────────────── */}
-          <div style={styles.notesArea}>
-            <div style={styles.notesLabel}>Speaker Notes</div>
-            <textarea
-              style={styles.notesInput}
-              placeholder="Add notes for this slide..."
-              value={currentSlideData?.notes || ''}
-              onChange={(e) => updateNotes(e.target.value)}
-            />
-          </div>
+          {showNotes && (
+            <div style={styles.notesArea}>
+              <div style={styles.notesLabel}>Speaker Notes</div>
+              <textarea
+                style={styles.notesInput}
+                placeholder="Add notes for this slide..."
+                value={currentSlideData?.notes || ''}
+                onChange={(e) => updateNotes(e.target.value)}
+              />
+            </div>
+          )}
         </div>
       </div>
 
