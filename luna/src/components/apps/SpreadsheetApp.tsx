@@ -368,6 +368,19 @@ export const SpreadsheetApp: React.FC<SpreadsheetAppProps> = ({
   const editInputRef = useRef<HTMLInputElement>(null);
   const formulaInputRef = useRef<HTMLInputElement>(null);
 
+  // ---- Column sort ----
+  const [sortCol, setSortCol] = useState<number | null>(null);
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+
+  const handleSort = useCallback((col: number) => {
+    if (sortCol === col) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortCol(col);
+      setSortDir('asc');
+    }
+  }, [sortCol]);
+
   // ---- Column resize ----
   const [resizingCol, setResizingCol] = useState<number | null>(null);
   const resizeStartX = useRef(0);
@@ -755,12 +768,30 @@ export const SpreadsheetApp: React.FC<SpreadsheetAppProps> = ({
       el.scrollLeft = cellRight - viewportW + ROW_HEADER_WIDTH;
   }, [cursor, colOffsets, viewportH, viewportW]);
 
+  // ---- Sorted row mapping ----
+  const sortedRowMap = useMemo(() => {
+    if (sortCol === null) return null;
+    const rowIndices = Array.from({ length: numRows }, (_, i) => i);
+    rowIndices.sort((a, b) => {
+      const aRef = cellRef(a, sortCol);
+      const bRef = cellRef(b, sortCol);
+      const aVal = computeDisplay(data[aRef], data);
+      const bVal = computeDisplay(data[bRef], data);
+      const aNum = parseFloat(aVal);
+      const bNum = parseFloat(bVal);
+      const cmp = !isNaN(aNum) && !isNaN(bNum) ? aNum - bNum : String(aVal).localeCompare(String(bVal));
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+    return rowIndices;
+  }, [sortCol, sortDir, data, numRows]);
+
   // ---- Render ----
   const rows: React.ReactNode[] = [];
   for (let r = visibleRows.first; r <= visibleRows.last; r++) {
+    const dataRow = sortedRowMap ? sortedRowMap[r] : r;
     const cells: React.ReactNode[] = [];
     for (let c = visibleCols.first; c <= visibleCols.last; c++) {
-      const ref = cellRef(r, c);
+      const ref = cellRef(dataRow, c);
       const cell = data[ref];
       const display = computeDisplay(cell, data);
       const isCursor = cursor.row === r && cursor.col === c;
@@ -856,9 +887,11 @@ export const SpreadsheetApp: React.FC<SpreadsheetAppProps> = ({
   // ---- Column headers ----
   const colHeaders: React.ReactNode[] = [];
   for (let c = visibleCols.first; c <= visibleCols.last; c++) {
+    const isSortedCol = sortCol === c;
     colHeaders.push(
       <div
         key={`ch-${c}`}
+        onClick={() => handleSort(c)}
         style={{
           position: 'absolute',
           left: colOffsets[c] + ROW_HEADER_WIDTH,
@@ -870,15 +903,16 @@ export const SpreadsheetApp: React.FC<SpreadsheetAppProps> = ({
           justifyContent: 'center',
           fontSize: 11,
           fontWeight: 600,
-          color: T.textSecondary,
-          backgroundColor: 'rgba(255,255,255,0.04)',
+          color: isSortedCol ? T.textPrimary : T.textSecondary,
+          backgroundColor: isSortedCol ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.04)',
           borderRight: '1px solid rgba(255,255,255,0.04)',
           borderBottom: '1px solid rgba(255,255,255,0.04)',
           boxSizing: 'border-box',
           userSelect: 'none',
+          cursor: 'pointer',
         }}
       >
-        {colIndexToLetter(c)}
+        {colIndexToLetter(c)}{isSortedCol ? (sortDir === 'asc' ? ' \u2191' : ' \u2193') : ''}
         {/* Resize handle */}
         <div
           style={{

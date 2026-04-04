@@ -48,15 +48,26 @@ function nextPriority(p: Priority): Priority {
   return PRIORITY_CYCLE[(i + 1) % PRIORITY_CYCLE.length];
 }
 
+function getDueDateStyle(dueDate?: string): React.CSSProperties | null {
+  if (!dueDate) return null;
+  const due = new Date(dueDate);
+  const now = new Date();
+  const diff = (due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+  if (diff < 0) return { color: '#ef4444', fontWeight: 600 }; // overdue
+  if (diff < 1) return { color: '#f59e0b', fontWeight: 500 }; // today
+  return { color: 'var(--text-secondary)' }; // future
+}
+
 function formatDue(d: string): string {
   if (!d) return '';
   const date = new Date(d);
   const now = new Date();
-  const diff = Math.floor((date.getTime() - now.getTime()) / 86400000);
-  if (diff < 0) return 'Overdue';
+  const diff = Math.ceil((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  if (diff < 0) return `${Math.abs(diff)}d overdue`;
   if (diff === 0) return 'Today';
   if (diff === 1) return 'Tomorrow';
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  if (diff <= 7) return `${diff}d`;
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
 const DEFAULT_LISTS: TodoList[] = [
@@ -259,7 +270,7 @@ export function TodoApp({ lists: initLists, items: initItems, onChange }: TodoAp
     const isDragging = dragItem === item.id;
     const isDragOver = dragOverItem === item.id;
     const due = formatDue(item.dueDate);
-    const overdue = item.dueDate && !item.completed && new Date(item.dueDate) < new Date();
+    const dueDateStyle = !item.completed ? getDueDateStyle(item.dueDate) : null;
 
     return (
       <div
@@ -340,14 +351,23 @@ export function TodoApp({ lists: initLists, items: initItems, onChange }: TodoAp
             }}
           >
             {item.title}
-            {due && (
+            {due && dueDateStyle && (
               <span style={{
                 marginLeft: 8, fontSize: 11,
-                color: overdue ? '#ef4444' : 'var(--text-secondary)',
+                ...dueDateStyle,
               }}>{due}</span>
             )}
           </div>
         )}
+
+        {/* Due date input */}
+        <input
+          type="date"
+          value={item.dueDate || ''}
+          onChange={e => setItems(prev => prev.map(i => i.id === item.id ? { ...i, dueDate: e.target.value } : i))}
+          style={{ background: 'transparent', border: 'none', color: 'inherit', fontSize: 11, cursor: 'pointer', padding: 0, width: item.dueDate ? 'auto' : 20, opacity: item.dueDate ? 0.7 : 0.3 }}
+          title="Set due date"
+        />
 
         {/* Priority dot */}
         {item.priority !== 'none' && (

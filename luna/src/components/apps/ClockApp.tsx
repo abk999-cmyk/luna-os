@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { GLASS } from './glassStyles';
+import { playAlertSound } from '../../services/soundManager';
+import { addNotification } from '../NotificationCenter';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -468,6 +470,53 @@ function AlarmsTab() {
   const [newMin, setNewMin] = useState('00');
   const [newLabel, setNewLabel] = useState('');
   const [adding, setAdding] = useState(false);
+  const [firingAlarmId, setFiringAlarmId] = useState<string | null>(null);
+  const firedRef = useRef<Set<string>>(new Set());
+
+  // Check alarms every second
+  useEffect(() => {
+    const id = setInterval(() => {
+      const now = new Date();
+      const h = now.getHours();
+      const m = now.getMinutes();
+      for (const alarm of alarms) {
+        if (!alarm.enabled) continue;
+        const key = `${alarm.id}-${h}-${m}`;
+        if (alarm.hour === h && alarm.minute === m && !firedRef.current.has(key)) {
+          firedRef.current.add(key);
+          playAlertSound();
+          addNotification('Alarm', `${alarm.label || 'Alarm'} - ${pad2(alarm.hour)}:${pad2(alarm.minute)}`, 'warning');
+          setFiringAlarmId(alarm.id);
+        }
+      }
+      // Clean old fired keys (from previous minutes)
+      for (const key of firedRef.current) {
+        const parts = key.split('-');
+        const km = parseInt(parts[parts.length - 1]);
+        const kh = parseInt(parts[parts.length - 2]);
+        if (kh !== h || km !== m) {
+          firedRef.current.delete(key);
+        }
+      }
+    }, 1000);
+    return () => clearInterval(id);
+  }, [alarms]);
+
+  const snoozeAlarm = (alarmId: string) => {
+    // Postpone by 5 minutes
+    setAlarms(prev => prev.map(a => {
+      if (a.id !== alarmId) return a;
+      let newMin = a.minute + 5;
+      let newHour = a.hour;
+      if (newMin >= 60) { newMin -= 60; newHour = (newHour + 1) % 24; }
+      return { ...a, hour: newHour, minute: newMin };
+    }));
+    setFiringAlarmId(null);
+  };
+
+  const dismissAlarm = () => {
+    setFiringAlarmId(null);
+  };
 
   const toggleAlarm = (id: string) => {
     setAlarms(prev => prev.map(a => a.id === id ? { ...a, enabled: !a.enabled } : a));
@@ -493,8 +542,49 @@ function AlarmsTab() {
     setAdding(false);
   };
 
+  const firingAlarm = alarms.find(a => a.id === firingAlarmId);
+
   return (
     <div>
+      {/* Alarm firing banner */}
+      {firingAlarm && (
+        <div style={{
+          ...GLASS.elevated,
+          background: 'rgba(224, 82, 82, 0.15)',
+          border: '1px solid rgba(224, 82, 82, 0.4)',
+          borderRadius: 8,
+          padding: '12px 16px',
+          marginBottom: 12,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 12,
+        }}>
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 600, color: '#e05252' }}>
+              {firingAlarm.label || 'Alarm'}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+              {pad2(firingAlarm.hour)}:{pad2(firingAlarm.minute)}
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              style={{ ...GLASS.ghostBtn, padding: '6px 14px', fontSize: 12 }}
+              onClick={() => snoozeAlarm(firingAlarm.id)}
+            >
+              Snooze 5m
+            </button>
+            <button
+              style={{ ...GLASS.accentBtn, padding: '6px 14px', fontSize: 12 }}
+              onClick={dismissAlarm}
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
+
       {alarms.map(a => (
         <div key={a.id} style={S.alarmRow}>
           <div>

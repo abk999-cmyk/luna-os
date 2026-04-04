@@ -268,6 +268,7 @@ export function KanbanApp({ columns: colsProp, onChange }: KanbanProps) {
 
   const [columns, setColumns] = useState<KanbanColumn[]>(colsProp ?? DEFAULT_COLUMNS);
   const [dragCard, setDragCard] = useState<{ cardId: string; fromCol: string } | null>(null);
+  const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [editCard, setEditCard] = useState<{ colId: string; card: KanbanCard } | null>(null);
   const [editForm, setEditForm] = useState<KanbanCard>({ id: '', title: '' });
 
@@ -294,13 +295,19 @@ export function KanbanApp({ columns: colsProp, onChange }: KanbanProps) {
     setDragCard({ cardId, fromCol: colId });
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
+  const handleDragOver = (e: React.DragEvent, colId: string) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
+    setDropTarget(colId);
+  };
+
+  const handleDragLeave = () => {
+    setDropTarget(null);
   };
 
   const handleDrop = (targetColId: string) => {
     if (!dragCard) return;
+    setDropTarget(null);
     if (dragCard.fromCol === targetColId) { setDragCard(null); return; }
     const next = columns.map(col => ({ ...col, cards: [...col.cards] }));
     const srcCol = next.find(c => c.id === dragCard.fromCol);
@@ -360,7 +367,7 @@ export function KanbanApp({ columns: colsProp, onChange }: KanbanProps) {
       key={card.id}
       draggable
       onDragStart={() => handleDragStart(card.id, colId)}
-      onDragEnd={() => setDragCard(null)}
+      onDragEnd={() => { setDragCard(null); setDropTarget(null); }}
       style={{
         ...S.card,
         ...(dragCard?.cardId === card.id ? S.cardDragging : {}),
@@ -417,8 +424,12 @@ export function KanbanApp({ columns: colsProp, onChange }: KanbanProps) {
               <span style={S.colCount}>{col.cards.length}</span>
             </div>
             <div
-              style={S.colBody}
-              onDragOver={handleDragOver}
+              style={{
+                ...S.colBody,
+                ...(dropTarget === col.id ? { background: GLASS.selectedBg, transition: 'background 0.15s' } : {}),
+              }}
+              onDragOver={(e) => handleDragOver(e, col.id)}
+              onDragLeave={handleDragLeave}
               onDrop={() => handleDrop(col.id)}
             >
               {col.cards.map(card => renderCard(card, col.id))}
