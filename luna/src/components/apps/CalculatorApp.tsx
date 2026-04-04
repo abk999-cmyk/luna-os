@@ -286,27 +286,27 @@ export function CalculatorApp({ mode: modeProp = 'standard', history: histProp }
     return () => window.removeEventListener('keydown', handler);
   }, [appendDigit, appendOp, calculate, clear, backspace, percent]);
 
-  const stdButtons: { label: string; action: () => void; style?: React.CSSProperties }[] = [
-    { label: 'C', action: clear, style: S.btnDark },
-    { label: 'CE', action: clearEntry, style: S.btnDark },
-    { label: '%', action: percent, style: S.btnDark },
-    { label: '\u00f7', action: () => appendOp('\u00f7'), style: S.btnOp },
-    { label: '7', action: () => appendDigit('7') },
-    { label: '8', action: () => appendDigit('8') },
-    { label: '9', action: () => appendDigit('9') },
-    { label: '\u00d7', action: () => appendOp('\u00d7'), style: S.btnOp },
-    { label: '4', action: () => appendDigit('4') },
-    { label: '5', action: () => appendDigit('5') },
-    { label: '6', action: () => appendDigit('6') },
-    { label: '\u2212', action: () => appendOp('-'), style: S.btnOp },
-    { label: '1', action: () => appendDigit('1') },
-    { label: '2', action: () => appendDigit('2') },
-    { label: '3', action: () => appendDigit('3') },
-    { label: '+', action: () => appendOp('+'), style: S.btnOp },
-    { label: '+/\u2212', action: toggleSign },
-    { label: '0', action: () => appendDigit('0') },
-    { label: '.', action: () => appendDigit('.') },
-    { label: '=', action: calculate, style: S.btnAccent },
+  const stdButtons: { label: string; ariaLabel: string; action: () => void; style?: React.CSSProperties }[] = [
+    { label: 'C', ariaLabel: 'Clear', action: clear, style: S.btnDark },
+    { label: 'CE', ariaLabel: 'Clear entry', action: clearEntry, style: S.btnDark },
+    { label: '%', ariaLabel: 'Percent', action: percent, style: S.btnDark },
+    { label: '\u00f7', ariaLabel: 'Divide', action: () => appendOp('\u00f7'), style: S.btnOp },
+    { label: '7', ariaLabel: '7', action: () => appendDigit('7') },
+    { label: '8', ariaLabel: '8', action: () => appendDigit('8') },
+    { label: '9', ariaLabel: '9', action: () => appendDigit('9') },
+    { label: '\u00d7', ariaLabel: 'Multiply', action: () => appendOp('\u00d7'), style: S.btnOp },
+    { label: '4', ariaLabel: '4', action: () => appendDigit('4') },
+    { label: '5', ariaLabel: '5', action: () => appendDigit('5') },
+    { label: '6', ariaLabel: '6', action: () => appendDigit('6') },
+    { label: '\u2212', ariaLabel: 'Subtract', action: () => appendOp('-'), style: S.btnOp },
+    { label: '1', ariaLabel: '1', action: () => appendDigit('1') },
+    { label: '2', ariaLabel: '2', action: () => appendDigit('2') },
+    { label: '3', ariaLabel: '3', action: () => appendDigit('3') },
+    { label: '+', ariaLabel: 'Add', action: () => appendOp('+'), style: S.btnOp },
+    { label: '+/\u2212', ariaLabel: 'Toggle sign', action: toggleSign },
+    { label: '0', ariaLabel: '0', action: () => appendDigit('0') },
+    { label: '.', ariaLabel: 'Decimal point', action: () => appendDigit('.') },
+    { label: '=', ariaLabel: 'Equals', action: calculate, style: S.btnAccent },
   ];
 
   const sciButtons: { label: string; action: () => void }[] = [
@@ -327,7 +327,7 @@ export function CalculatorApp({ mode: modeProp = 'standard', history: histProp }
   const cols = mode === 'scientific' ? 5 : 4;
 
   return (
-    <div id="calculator-app" style={S.root}>
+    <div id="calculator-app" style={S.root} role="application" aria-label="Calculator">
       {/* Header */}
       <div style={S.header}>
         <span style={{ fontWeight: 600 }}>Calculator</span>
@@ -403,6 +403,7 @@ export function CalculatorApp({ mode: modeProp = 'standard', history: histProp }
                 key={b.label}
                 style={{ ...S.btn, ...S.btnDark, fontSize: 13 }}
                 onClick={b.action}
+                aria-label={b.label}
                 onMouseDown={e => { e.currentTarget.style.background = GLASS.activeBg; }}
                 onMouseUp={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
                 onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
@@ -420,6 +421,7 @@ export function CalculatorApp({ mode: modeProp = 'standard', history: histProp }
                 key={b.label}
                 style={{ ...S.btn, ...(b.style ?? {}) }}
                 onClick={b.action}
+                aria-label={b.ariaLabel}
                 onMouseDown={e => {
                   e.currentTarget.style.background = b.style === S.btnAccent
                     ? 'var(--accent-primary)'
@@ -449,6 +451,7 @@ export function CalculatorApp({ mode: modeProp = 'standard', history: histProp }
                 key={b.label}
                 style={{ ...S.btn, ...(b.style ?? {}) }}
                 onClick={b.action}
+                aria-label={b.ariaLabel}
                 onMouseDown={e => {
                   e.currentTarget.style.background = b.style === S.btnAccent
                     ? 'var(--accent-primary)'

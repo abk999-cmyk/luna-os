@@ -418,7 +418,7 @@ export function PomodoroApp() {
 
       {/* Controls */}
       <div style={S.controls}>
-        <button style={S.secondaryBtn} onClick={handleReset}>
+        <button style={S.secondaryBtn} onClick={handleReset} aria-label="Reset timer">
           Reset
         </button>
         <button
@@ -427,10 +427,11 @@ export function PomodoroApp() {
             opacity: phase === 'times_up' ? 0.5 : 1,
           }}
           onClick={handleStartPause}
+          aria-label={running ? 'Pause timer' : 'Start timer'}
         >
           {running ? 'Pause' : 'Start'}
         </button>
-        <button style={S.secondaryBtn} onClick={handleSkip}>
+        <button style={S.secondaryBtn} onClick={handleSkip} aria-label="Skip to next phase">
           Skip
         </button>
       </div>

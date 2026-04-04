@@ -217,14 +217,17 @@ export function Window({ window: win }: WindowProps) {
           <button
             className="window__control window__control--close"
             onClick={(e) => { e.stopPropagation(); removeWindow(win.id); }}
+            aria-label="Close window"
           />
           <button
             className="window__control window__control--minimize"
             onClick={(e) => { e.stopPropagation(); minimizeWindow(win.id); }}
+            aria-label="Minimize window"
           />
           <button
             className="window__control window__control--maximize"
             onClick={(e) => { e.stopPropagation(); handleMaximize(); }}
+            aria-label="Maximize window"
           />
         </div>
         <div className="window__title">{win.title}</div>

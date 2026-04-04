@@ -463,6 +463,7 @@ export function SystemMonitorApp() {
                   <td style={S.td}>
                     <button
                       style={S.killBtn}
+                      aria-label="Kill process"
                       onClick={() => killProcess(p.name)}
                       onMouseEnter={(e) => {
                         (e.currentTarget as HTMLElement).style.background = 'rgba(255,107,107,0.12)';

@@ -80,6 +80,13 @@ function uid(): string {
   return Math.random().toString(36).slice(2, 10);
 }
 
+const isTextFile = (name: string) => /\.(txt|md|json|js|ts|tsx|jsx|css|html|py|rs|toml|yaml|yml|xml|csv|log|sh|env)$/i.test(name);
+const formatFileSize = (bytes: number) => {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+};
+
 /** Convert FsEntry from IPC to our FileEntry */
 function fsToFileEntry(fs: FsEntry): FileEntry {
   return {
@@ -336,6 +343,7 @@ export function FileManagerApp({
   const [renameVal, setRenameVal] = useState('');
   const [loading, setLoading] = useState(false);
   const [isLive, setIsLive] = useState(false);
+  const [previewFile, setPreviewFile] = useState<FileEntry | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
 
   /* ---- Resolve home directory on mount ---- */
@@ -445,9 +453,6 @@ export function FileManagerApp({
     return result;
   }, [cwd, homeDir, isLive]);
 
-  // Selected file details
-  const detailFile = useMemo(() => files.find(f => f.id === selected) ?? null, [files, selected]);
-
   // Context menu close
   useEffect(() => {
     if (!ctxMenu) return;
@@ -540,7 +545,7 @@ export function FileManagerApp({
       <div
         key={f.id}
         style={{ ...S.gridItem, ...(isSelected ? S.gridItemSelected : {}) }}
-        onClick={() => setSelected(f.id)}
+        onClick={() => { setSelected(f.id); setPreviewFile(f); }}
         onDoubleClick={() => handleOpen(f)}
         onContextMenu={e => handleContextMenu(e, f.id)}
       >
@@ -568,7 +573,7 @@ export function FileManagerApp({
       <div
         key={f.id}
         style={{ ...S.listRow, ...(isSelected ? S.listRowSelected : {}) }}
-        onClick={() => setSelected(f.id)}
+        onClick={() => { setSelected(f.id); setPreviewFile(f); }}
         onDoubleClick={() => handleOpen(f)}
         onContextMenu={e => handleContextMenu(e, f.id)}
       >
@@ -683,15 +688,35 @@ export function FileManagerApp({
           ) : null}
         </div>
 
-        {/* Detail Panel */}
-        {detailFile && (
-          <div style={S.detailPanel}>
-            <div style={{ textAlign: 'center', fontSize: 48, marginBottom: 12 }}>{iconForFile(detailFile)}</div>
-            <div style={S.detailTitle}>{detailFile.name}</div>
-            <div style={S.detailRow}><span style={S.detailLabel}>Type</span>{detailFile.type}</div>
-            <div style={S.detailRow}><span style={S.detailLabel}>Size</span>{formatSize(detailFile.size)}</div>
-            <div style={S.detailRow}><span style={S.detailLabel}>Modified</span>{formatDate(detailFile.modified)}</div>
-            <div style={S.detailRow}><span style={S.detailLabel}>Path</span><span style={{ wordBreak: 'break-all', fontSize: 11 }}>{detailFile.path}</span></div>
+        {/* Preview Panel */}
+        {previewFile && (
+          <div style={{
+            width: 240, borderLeft: `1px solid ${GLASS.dividerColor}`, padding: 12,
+            display: 'flex', flexDirection: 'column', gap: 8, overflow: 'auto', flexShrink: 0,
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{previewFile.name}</span>
+              <button onClick={() => setPreviewFile(null)} style={{...GLASS.ghostBtn, padding: '2px 6px', fontSize: 12}} aria-label="Close preview">&#x2715;</button>
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+              {previewFile.type === 'folder' ? 'Folder' : formatFileSize(previewFile.size || 0)}
+            </div>
+            {previewFile.modified && (
+              <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
+                Modified: {new Date(previewFile.modified).toLocaleDateString()}
+              </div>
+            )}
+            {previewFile.type !== 'folder' && isTextFile(previewFile.name) && (
+              <div style={{...GLASS.inset, padding: 8, borderRadius: 6, fontSize: 11, fontFamily: 'var(--font-mono)', whiteSpace: 'pre-wrap', maxHeight: 200, overflow: 'auto' }}>
+                (Preview not available - file content requires filesystem read)
+              </div>
+            )}
+            {previewFile.type !== 'folder' && !isTextFile(previewFile.name) && (
+              <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
+                <div style={S.detailRow}><span style={S.detailLabel}>Type</span>{previewFile.type}</div>
+                <div style={S.detailRow}><span style={S.detailLabel}>Path</span><span style={{ wordBreak: 'break-all', fontSize: 11 }}>{previewFile.path}</span></div>
+              </div>
+            )}
           </div>
         )}
       </div>

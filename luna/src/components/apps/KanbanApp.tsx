@@ -269,6 +269,7 @@ export function KanbanApp({ columns: colsProp, onChange }: KanbanProps) {
   const [columns, setColumns] = useState<KanbanColumn[]>(colsProp ?? DEFAULT_COLUMNS);
   const [dragCard, setDragCard] = useState<{ cardId: string; fromCol: string } | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
+  const [selectedCard, setSelectedCard] = useState<KanbanCard | null>(null);
   const [editCard, setEditCard] = useState<{ colId: string; card: KanbanCard } | null>(null);
   const [editForm, setEditForm] = useState<KanbanCard>({ id: '', title: '' });
 
@@ -372,7 +373,7 @@ export function KanbanApp({ columns: colsProp, onChange }: KanbanProps) {
         ...S.card,
         ...(dragCard?.cardId === card.id ? S.cardDragging : {}),
       }}
-      onClick={() => openEdit(colId, card)}
+      onClick={() => { if (!dragCard) setSelectedCard(card); }}
       onMouseEnter={e => { e.currentTarget.style.borderColor = GLASS.selectedBorder; }}
       onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--glass-edge-light)'; }}
     >
@@ -441,6 +442,35 @@ export function KanbanApp({ columns: colsProp, onChange }: KanbanProps) {
           </div>
         ))}
       </div>
+
+      {/* Card Detail Modal */}
+      {selectedCard && (
+        <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}
+          onClick={() => setSelectedCard(null)}>
+          <div style={{ ...GLASS.elevated, borderRadius: 12, width: 400, maxHeight: '80%', overflow: 'auto', padding: 20 }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>{selectedCard.title}</h3>
+              <button onClick={() => setSelectedCard(null)} style={{ ...GLASS.ghostBtn, padding: '2px 8px', fontSize: 14 }}>&#x2715;</button>
+            </div>
+            {selectedCard.description && <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 12px' }}>{selectedCard.description}</p>}
+            {selectedCard.labels && selectedCard.labels.length > 0 && (
+              <div style={{ display: 'flex', gap: 4, marginBottom: 12, flexWrap: 'wrap' }}>
+                {selectedCard.labels.map((l, i) => (
+                  <span key={i} style={{ padding: '2px 8px', borderRadius: 10, fontSize: 11, background: 'rgba(126,184,255,0.15)', color: '#7eb8ff' }}>{l}</span>
+                ))}
+              </div>
+            )}
+            {selectedCard.priority && <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 }}>Priority: {selectedCard.priority}</div>}
+            {selectedCard.assignee && <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Assignee: {selectedCard.assignee}</div>}
+            <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
+              <button style={S.btnPrimary} onClick={() => {
+                const col = columns.find(c => c.cards.some(card => card.id === selectedCard.id));
+                if (col) { openEdit(col.id, selectedCard); setSelectedCard(null); }
+              }}>Edit</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Edit Modal */}
       {editCard && (

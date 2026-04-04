@@ -44,6 +44,7 @@ export function TopBar() {
             className="topbar__btn"
             onClick={toggleSidebar}
             title={sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}
+            aria-label="Toggle sidebar"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <rect x="3" y="3" width="18" height="18" rx="2" />
@@ -55,6 +56,7 @@ export function TopBar() {
             className="topbar__btn"
             onClick={() => setWorkspaceBrowserOpen(true)}
             title={activeWorkspace?.name || 'Workspaces'}
+            aria-label="Workspaces"
             style={{ fontSize: 11, gap: 4, display: 'flex', alignItems: 'center' }}
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -89,6 +91,7 @@ export function TopBar() {
             className="topbar__btn"
             onClick={() => { setWifiOpen((v) => !v); setBtOpen(false); }}
             title="WiFi"
+            aria-label="WiFi"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M5 12.55a11 11 0 0 1 14.08 0" />
@@ -103,6 +106,7 @@ export function TopBar() {
             className="topbar__btn"
             onClick={() => { setBtOpen((v) => !v); setWifiOpen(false); }}
             title="Bluetooth"
+            aria-label="Bluetooth"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="6.5 6.5 17.5 17.5 12 23 12 1 17.5 6.5 6.5 17.5" />
@@ -114,6 +118,7 @@ export function TopBar() {
             className="topbar__btn"
             onClick={() => { setNotifOpen(v => !v); setWifiOpen(false); setBtOpen(false); }}
             title="Notifications"
+            aria-label="Notifications"
             style={{ position: 'relative' }}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -134,6 +139,7 @@ export function TopBar() {
             className="topbar__btn"
             onClick={toggleSettings}
             title="Settings"
+            aria-label="Settings"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="3" />

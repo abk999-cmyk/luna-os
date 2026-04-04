@@ -148,6 +148,7 @@ export function Dock() {
               className={`dock__item dock__item--active ${bouncingId === app.id ? 'animate-dock-bounce' : ''} ${agentWorkingTypes.has(app.contentType) ? 'dock__item--agent-working' : ''}`}
               onClick={() => handleAppClick(app)}
               title={app.label}
+              aria-label={app.label}
             >
               {app.icon}
               <div className="dock__indicator" />
@@ -162,6 +163,7 @@ export function Dock() {
               className="dock__item dock__item--active"
               onClick={() => handleGeneratedAppClick(app)}
               title={app.title}
+              aria-label={app.title}
             >
               <GeneratedAppIcon />
               <div className="dock__indicator dock__indicator--generated" />
@@ -174,6 +176,7 @@ export function Dock() {
             className={`dock__item dock__launcher-btn ${launcherOpen ? 'dock__item--active' : ''}`}
             onClick={() => setLauncherOpen(!launcherOpen)}
             title="Open app"
+            aria-label="Open app"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="12" y1="5" x2="12" y2="19" />
@@ -194,6 +197,7 @@ export function Dock() {
                   className="dock__item"
                   onClick={() => handleMinimizedClick(w.id)}
                   title={w.title}
+                  aria-label={w.title}
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <rect x="2" y="3" width="20" height="14" rx="2" />

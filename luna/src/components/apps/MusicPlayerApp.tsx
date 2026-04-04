@@ -409,10 +409,28 @@ export function MusicPlayerApp({
     setVolume(Math.round(ratio));
   }, []);
 
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      const el = document.getElementById('music-player-app');
+      if (!el || !el.closest('.window--focused')) return;
+
+      switch (e.key) {
+        case ' ': e.preventDefault(); togglePlay(); break;
+        case 'ArrowRight': handleNext(); break;
+        case 'ArrowLeft': handlePrev(); break;
+        case 's': case 'S': setShuffle(s => !s); break;
+        case 'r': case 'R': cycleRepeat(); break;
+      }
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [togglePlay, handleNext, handlePrev, cycleRepeat]);
+
   const repeatLabel = repeat === 'off' ? '\u{1F501}' : repeat === 'all' ? '\u{1F501}' : '\u{1F502}';
 
   return (
-    <div style={S.root}>
+    <div id="music-player-app" style={S.root}>
       <div style={S.body}>
         {/* Now Playing */}
         <div style={S.nowPlaying}>
