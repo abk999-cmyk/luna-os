@@ -401,6 +401,22 @@ export function NotesApp({ notes: notesProp, onChange }: NotesProps) {
     commit(notes.map(n => n.id === active.id ? { ...n, pinned: !n.pinned, modified: now() } : n));
   };
 
+  const addTag = (noteId: string, tag: string) => {
+    commit(notes.map(n =>
+      n.id === noteId
+        ? { ...n, tags: [...(n.tags ?? []).filter(t => t !== tag), tag], modified: now() }
+        : n,
+    ));
+  };
+
+  const removeTag = (noteId: string, tag: string) => {
+    commit(notes.map(n =>
+      n.id === noteId
+        ? { ...n, tags: (n.tags ?? []).filter(t => t !== tag), modified: now() }
+        : n,
+    ));
+  };
+
   const execCmd = (cmd: string, val?: string) => {
     document.execCommand(cmd, false, val);
     editorRef.current?.focus();
@@ -520,37 +536,23 @@ export function NotesApp({ notes: notesProp, onChange }: NotesProps) {
             dangerouslySetInnerHTML={{ __html: sanitizeHtml(active.content) }}
           />
 
+          {/* Tag chips */}
+          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', padding: '6px 16px', borderBottom: `1px solid ${GLASS.dividerColor}` }}>
+            {active.tags?.map((tag) => (
+              <span key={tag} style={{ padding: '2px 8px', borderRadius: 10, fontSize: 11, background: 'rgba(126,184,255,0.15)', color: '#7eb8ff', display: 'flex', alignItems: 'center', gap: 4 }}>
+                {tag}
+                <button onClick={() => removeTag(active.id, tag)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontSize: 10, padding: 0 }}>{'\u2715'}</button>
+              </span>
+            ))}
+            <input placeholder="Add tag..." onKeyDown={e => {
+              if (e.key === 'Enter' && e.currentTarget.value.trim()) {
+                addTag(active.id, e.currentTarget.value.trim());
+                e.currentTarget.value = '';
+              }
+            }} style={{ background: 'transparent', border: 'none', color: 'inherit', fontSize: 11, width: 60, outline: 'none', fontFamily: 'var(--font-ui)' }} />
+          </div>
+
           <div style={S.editorFooter}>
-            <div style={S.tagsRow}>
-              Tags:&nbsp;
-              {active.tags?.map((t, i) => (
-                <span
-                  key={t}
-                  style={{
-                    ...S.miniTag,
-                    background: `${TAG_COLORS[i % TAG_COLORS.length]}22`,
-                    color: TAG_COLORS[i % TAG_COLORS.length],
-                  }}
-                >
-                  {t}
-                </span>
-              ))}
-              <button
-                style={S.iconBtn}
-                onClick={() => {
-                  const tag = prompt('Add tag:');
-                  if (tag?.trim()) {
-                    commit(notes.map(n =>
-                      n.id === active.id
-                        ? { ...n, tags: [...(n.tags ?? []).filter(t => t !== tag.trim()), tag.trim()], modified: now() }
-                        : n,
-                    ));
-                  }
-                }}
-              >
-                +
-              </button>
-            </div>
             <span style={S.saveIndicator}>
               {saveStatus === 'saving' ? 'Saving\u2026' : saveStatus === 'saved' ? 'Saved' : `Modified ${fmtDate(active.modified)}`}
             </span>

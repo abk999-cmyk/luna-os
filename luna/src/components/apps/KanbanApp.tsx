@@ -349,6 +349,16 @@ export function KanbanApp({ columns: colsProp, onChange }: KanbanProps) {
     setEditCard(null);
   };
 
+  const updateCard = useCallback((cardId: string, updates: Partial<KanbanCard>) => {
+    const next = columns.map(col => ({
+      ...col,
+      cards: col.cards.map(card => card.id === cardId ? { ...card, ...updates } : card),
+    }));
+    commit(next);
+    // Also update selectedCard if it matches
+    setSelectedCard(prev => prev && prev.id === cardId ? { ...prev, ...updates } : prev);
+  }, [columns, commit]);
+
   const deleteCard = () => {
     if (!editCard) return;
     commit(
@@ -448,11 +458,20 @@ export function KanbanApp({ columns: colsProp, onChange }: KanbanProps) {
         <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}
           onClick={() => setSelectedCard(null)}>
           <div style={{ ...GLASS.elevated, borderRadius: 12, width: 400, maxHeight: '80%', overflow: 'auto', padding: 20 }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>{selectedCard.title}</h3>
-              <button onClick={() => setSelectedCard(null)} style={{ ...GLASS.ghostBtn, padding: '2px 8px', fontSize: 14 }}>&#x2715;</button>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+              <input
+                value={selectedCard.title}
+                onChange={e => updateCard(selectedCard.id, { title: e.target.value })}
+                style={{ ...GLASS.inset, width: '100%', padding: '6px 10px', fontSize: 16, fontWeight: 600, fontFamily: 'var(--font-ui)', boxSizing: 'border-box' as const, marginRight: 8 }}
+              />
+              <button onClick={() => setSelectedCard(null)} style={{ ...GLASS.ghostBtn, padding: '2px 8px', fontSize: 14, flexShrink: 0 }}>&#x2715;</button>
             </div>
-            {selectedCard.description && <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 12px' }}>{selectedCard.description}</p>}
+            <textarea
+              value={selectedCard.description || ''}
+              onChange={e => updateCard(selectedCard.id, { description: e.target.value })}
+              placeholder="Add description..."
+              style={{ ...GLASS.inset, width: '100%', padding: '6px 10px', fontSize: 13, fontFamily: 'var(--font-ui)', minHeight: 80, resize: 'vertical' as const, boxSizing: 'border-box' as const, marginBottom: 12 }}
+            />
             {selectedCard.labels && selectedCard.labels.length > 0 && (
               <div style={{ display: 'flex', gap: 4, marginBottom: 12, flexWrap: 'wrap' }}>
                 {selectedCard.labels.map((l, i) => (
@@ -466,7 +485,7 @@ export function KanbanApp({ columns: colsProp, onChange }: KanbanProps) {
               <button style={S.btnPrimary} onClick={() => {
                 const col = columns.find(c => c.cards.some(card => card.id === selectedCard.id));
                 if (col) { openEdit(col.id, selectedCard); setSelectedCard(null); }
-              }}>Edit</button>
+              }}>Full Edit</button>
             </div>
           </div>
         </div>

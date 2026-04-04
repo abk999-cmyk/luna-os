@@ -665,6 +665,7 @@ export function EmailApp({ emails: initialEmails, folders: initialFolders, onSen
   const [composeMode, setComposeMode] = useState<'new' | 'reply' | 'forward'>('new');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showCc, setShowCc] = useState(false);
+  const [threadView, setThreadView] = useState(false);
 
   // Compose fields
   const [draftTo, setDraftTo] = useState('');
@@ -715,6 +716,19 @@ export function EmailApp({ emails: initialEmails, folders: initialFolders, onSen
     }));
   }, [initialFolders, emails]);
 
+  const normalizeSubject = (s: string) => s.replace(/^(re:|fwd:|fw:)\s*/gi, '').trim().toLowerCase();
+
+  const groupEmails = (list: EmailMessage[]) => {
+    const groups = new Map<string, EmailMessage[]>();
+    for (const email of list) {
+      const key = normalizeSubject(email.subject);
+      const group = groups.get(key) || [];
+      group.push(email);
+      groups.set(key, group);
+    }
+    return groups;
+  };
+
   const filteredEmails = useMemo(() => {
     let list = emails.filter((e) => {
       if (activeFolder === 'Starred') return e.starred;
@@ -733,6 +747,24 @@ export function EmailApp({ emails: initialEmails, folders: initialFolders, onSen
 
     return list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [emails, activeFolder, searchQuery]);
+
+  const threadedEmails = useMemo(() => {
+    if (!threadView) return null;
+    const groups = groupEmails(filteredEmails);
+    // Return list of { threadSubject, emails[], latestDate } sorted by latest date
+    const threads = Array.from(groups.entries()).map(([key, msgs]) => ({
+      key,
+      subject: msgs[0].subject.replace(/^(re:|fwd:|fw:)\s*/gi, ''),
+      emails: msgs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
+      latestDate: msgs.reduce((max, m) => {
+        const d = new Date(m.date).getTime();
+        return d > max ? d : max;
+      }, 0),
+      unreadCount: msgs.filter(m => !m.read).length,
+    }));
+    threads.sort((a, b) => b.latestDate - a.latestDate);
+    return threads;
+  }, [threadView, filteredEmails]);
 
   const selectedEmail = useMemo(
     () => emails.find((e) => e.id === selectedEmailId) ?? null,
@@ -986,12 +1018,28 @@ export function EmailApp({ emails: initialEmails, folders: initialFolders, onSen
       <div style={styles.emailListPanel}>
         <div style={styles.listHeader}>
           <div style={styles.listTitle}>
-            {activeFolder}
-            {filteredEmails.length > 0 && (
-              <span style={{ fontSize: 11, opacity: 0.5, fontWeight: 400 }}>
-                ({filteredEmails.length})
-              </span>
-            )}
+            <span style={{ flex: 1 }}>
+              {activeFolder}
+              {filteredEmails.length > 0 && (
+                <span style={{ fontSize: 11, opacity: 0.5, fontWeight: 400, marginLeft: 6 }}>
+                  ({filteredEmails.length})
+                </span>
+              )}
+            </span>
+            <button
+              onClick={() => setThreadView(v => !v)}
+              title={threadView ? 'Show flat list' : 'Group by thread'}
+              style={{
+                ...GLASS.ghostBtn,
+                padding: '3px 8px',
+                fontSize: 11,
+                fontFamily: 'inherit',
+                color: threadView ? cssVars.colorAccent : 'var(--text-secondary)',
+                fontWeight: threadView ? 600 : 400,
+              }}
+            >
+              {threadView ? '🧵 Threaded' : '🧵 Thread'}
+            </button>
           </div>
           <div style={styles.searchBox}>
             <span style={{ opacity: 0.5, fontSize: 13 }}>🔍</span>
@@ -1026,6 +1074,71 @@ export function EmailApp({ emails: initialEmails, folders: initialFolders, onSen
             <div style={styles.emptyList}>
               {searchQuery ? 'No emails match your search.' : 'No emails in this folder.'}
             </div>
+          ) : threadView && threadedEmails ? (
+            threadedEmails.map((thread) => {
+              const latest = thread.emails[0];
+              const isSelected = thread.emails.some(e => e.id === selectedEmailId);
+              return (
+                <div
+                  key={thread.key}
+                  style={{
+                    ...styles.emailRow,
+                    ...(isSelected ? styles.emailRowSelected : {}),
+                    ...(thread.unreadCount > 0 ? styles.emailRowUnread : {}),
+                  }}
+                  onClick={() => selectEmail(latest.id)}
+                  onMouseEnter={(e) => {
+                    if (!isSelected) {
+                      (e.currentTarget as HTMLDivElement).style.background = GLASS.hoverBg;
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isSelected) {
+                      (e.currentTarget as HTMLDivElement).style.background = 'transparent';
+                    }
+                  }}
+                >
+                  {thread.unreadCount > 0 ? <div style={styles.unreadDot} /> : <div style={styles.readDotPlaceholder} />}
+                  <button
+                    style={{
+                      ...styles.starBtn,
+                      ...(latest.starred ? styles.starBtnActive : {}),
+                    }}
+                    onClick={(e) => toggleStar(latest.id, e)}
+                    title={latest.starred ? 'Unstar' : 'Star'}
+                  >
+                    {latest.starred ? '★' : '☆'}
+                  </button>
+                  <div style={styles.emailMeta}>
+                    <div style={styles.emailMetaTop}>
+                      <span
+                        style={{
+                          ...styles.emailFrom,
+                          opacity: thread.unreadCount > 0 ? 1 : 0.75,
+                        }}
+                      >
+                        {latest.from}
+                        {thread.emails.length > 1 && (
+                          <span style={{ fontSize: 11, opacity: 0.6, marginLeft: 4 }}>
+                            ({thread.emails.length})
+                          </span>
+                        )}
+                      </span>
+                      <span style={styles.emailDate}>{formatDate(latest.date)}</span>
+                    </div>
+                    <div
+                      style={{
+                        ...styles.emailSubject,
+                        opacity: thread.unreadCount > 0 ? 1 : 0.75,
+                      }}
+                    >
+                      {thread.subject}
+                    </div>
+                    <div style={styles.emailPreview}>{truncate(latest.body, 80)}</div>
+                  </div>
+                </div>
+              );
+            })
           ) : (
             filteredEmails.map((email) => (
               <div
