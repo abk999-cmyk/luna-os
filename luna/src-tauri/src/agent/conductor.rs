@@ -57,7 +57,17 @@ impl ConductorAgent {
             | music | Music Player | {{\"playlist\":[{{\"id\":\"1\",\"title\":\"Song\",\"artist\":\"Artist\",\"album\":\"Album\",\"duration\":240}}]}} |\n\
             | terminal | Terminal | plain text |\n\
             | canvas | Drawing Canvas | (none) |\n\
-            | code_editor | Code Editor | {{\"language\":\"python\",\"code\":\"print('hi')\"}} |\n\n\
+            | code_editor | Code Editor | {{\"language\":\"python\",\"code\":\"print('hi')\"}} |\n\
+            | weather | Weather | {{\"city\":\"New York\"}} |\n\
+            | clock | Clock | {{\"tab\":\"worldClock\"}} |\n\
+            | photos | Photos | (none) |\n\
+            | settings | Settings | (none) |\n\
+            | system_monitor | System Monitor | (none) |\n\
+            | contacts | Contacts | {{\"contacts\":[{{\"id\":\"1\",\"firstName\":\"Alice\",\"lastName\":\"Smith\",\"email\":\"alice@example.com\",\"phone\":\"555-0100\"}}]}} |\n\
+            | todo | Todo List | {{\"lists\":[{{\"id\":\"1\",\"name\":\"Tasks\",\"items\":[{{\"id\":\"t1\",\"title\":\"Buy groceries\",\"done\":false}}]}}]}} |\n\
+            | text_editor | Text Editor | {{\"files\":[{{\"id\":\"f1\",\"name\":\"notes.txt\",\"content\":\"Hello\"}}]}} |\n\
+            | video_player | Video Player | (none) |\n\
+            | pomodoro | Pomodoro Timer | (none) |\n\n\
             Example: {{\"action_type\": \"window.create\", \"payload\": {{\"title\": \"Budget\", \"content_type\": \"spreadsheet\", \"content\": \"{{\\\"sheets\\\":[\\\"Sheet1\\\"],\\\"data\\\":{{\\\"Sheet1\\\":{{\\\"A1\\\":{{\\\"value\\\":\\\"Item\\\"}},\\\"B1\\\":{{\\\"value\\\":\\\"Cost\\\"}}}}}}}}\" }}}}\n\n\
             ### 2b. Read content from any window (Cross-App Intelligence)\n\
             You can read the content of ANY open window to compose across apps.\n\
@@ -139,9 +149,62 @@ impl ConductorAgent {
                   \"rows\": [[\"Food\", \"$450\", \"Mar 2026\"], [\"Transport\", \"$120\", \"Mar 2026\"]], \"sortable\": true}}}}\n\
               ], \"data\": {{}}\n\
             }}}}\n\n\
+            #### Example: Todo List\n\
+            {{\"action_type\": \"app.create\", \"payload\": {{\"id\": \"todo-app\", \"title\": \"Quick Todos\", \"version\": \"1.0\", \"type\": \"application\",\n\
+              \"layout\": \"vertical\", \"width\": 400, \"height\": 500,\n\
+              \"components\": [\n\
+                {{\"id\": \"input\", \"type\": \"TextInput\", \"props\": {{\"placeholder\": \"Add a task...\", \"value\": \"$.newTask\"}}}},\n\
+                {{\"id\": \"add\", \"type\": \"Button\", \"props\": {{\"label\": \"Add\", \"variant\": \"primary\"}}, \"events\": {{\"onClick\": \"addTask\"}}}},\n\
+                {{\"id\": \"tasks\", \"type\": \"List\", \"props\": {{\"items\": \"$.tasks\", \"clickable\": true}}}}\n\
+              ],\n\
+              \"data\": {{\"newTask\": \"\", \"tasks\": [\"Buy groceries\", \"Call dentist\"]}}\n\
+            }}}}\n\n\
+            #### Example: Sales Dashboard\n\
+            {{\"action_type\": \"app.create\", \"payload\": {{\"id\": \"dashboard\", \"title\": \"Sales Dashboard\", \"version\": \"1.0\", \"type\": \"application\",\n\
+              \"layout\": \"vertical\", \"width\": 700, \"height\": 600,\n\
+              \"components\": [\n\
+                {{\"id\": \"stats-grid\", \"type\": \"Grid\", \"props\": {{\"columns\": 3, \"gap\": 12}}, \"children\": [\n\
+                  {{\"id\": \"s1\", \"type\": \"Stat\", \"props\": {{\"label\": \"Revenue\", \"value\": \"$12,400\", \"trend\": \"up\", \"trendValue\": \"+12%\"}}}},\n\
+                  {{\"id\": \"s2\", \"type\": \"Stat\", \"props\": {{\"label\": \"Users\", \"value\": \"1,234\", \"trend\": \"up\", \"trendValue\": \"+5%\"}}}},\n\
+                  {{\"id\": \"s3\", \"type\": \"Stat\", \"props\": {{\"label\": \"Churn\", \"value\": \"2.1%\", \"trend\": \"down\", \"trendValue\": \"-0.3%\"}}}}\n\
+                ]}},\n\
+                {{\"id\": \"chart\", \"type\": \"Chart\", \"props\": {{\"chartType\": \"bar\", \"title\": \"Monthly Revenue\",\n\
+                  \"data\": [{{\"label\": \"Jan\", \"value\": 9800}}, {{\"label\": \"Feb\", \"value\": 11200}}, {{\"label\": \"Mar\", \"value\": 12400}}]}}}},\n\
+                {{\"id\": \"table\", \"type\": \"DataTable\", \"props\": {{\"headers\": [\"Name\", \"Amount\", \"Status\"],\n\
+                  \"rows\": [[\"Acme Corp\", \"$5,200\", \"Paid\"], [\"Globex\", \"$3,100\", \"Pending\"]], \"sortable\": true}}}}\n\
+              ], \"data\": {{}}\n\
+            }}}}\n\n\
+            #### Example: Focus Timer\n\
+            {{\"action_type\": \"app.create\", \"payload\": {{\"id\": \"timer\", \"title\": \"Focus Timer\", \"version\": \"1.0\", \"type\": \"application\",\n\
+              \"layout\": \"vertical\", \"width\": 350, \"height\": 300,\n\
+              \"components\": [\n\
+                {{\"id\": \"display\", \"type\": \"Stat\", \"props\": {{\"label\": \"Time Left\", \"value\": \"$.timeDisplay\"}}}},\n\
+                {{\"id\": \"controls\", \"type\": \"Grid\", \"props\": {{\"columns\": 2, \"gap\": 8}}, \"children\": [\n\
+                  {{\"id\": \"start\", \"type\": \"Button\", \"props\": {{\"label\": \"Start\", \"variant\": \"primary\"}}}},\n\
+                  {{\"id\": \"reset\", \"type\": \"Button\", \"props\": {{\"label\": \"Reset\", \"variant\": \"secondary\"}}}}\n\
+                ]}}\n\
+              ],\n\
+              \"data\": {{\"timeDisplay\": \"25:00\", \"seconds\": 1500, \"running\": false}}\n\
+            }}}}\n\n\
+            #### Component Best Practices\n\
+            - For on/off choices: Toggle (not Checkbox, which is for multi-option forms)\n\
+            - For numeric ranges: Slider with min/max/step\n\
+            - For data tables: DataTable with headers and rows (not List)\n\
+            - For metrics: Stat with trend arrows\n\
+            - For layouts: Grid with columns:2 or 3 for dashboards\n\
+            - For navigation between views: Tabs with tab definitions\n\
+            - Always wrap app content in a Panel with a title\n\
+            - Use Grid for multi-column layouts, not nested Containers\n\
+            - Maximum 3 levels of nesting (Panel > Grid > Component)\n\
+            - Always initialize data for all bound fields in the \"data\" object\n\n\
             ### 5. Modify a Dynamic App\n\
-            {{\"action_type\": \"app.update\", \"payload\": {{\"app_id\": \"<app id>\", \"data\": {{\"field\": \"new value\"}}}}}}\n\
-            Use app.update to change data in a running dynamic app. To change components, include \"spec\" with the full updated descriptor.\n\n\
+            Use app.update to change data or components in a running dynamic app.\n\
+            - Update data only: {{\"action_type\": \"app.update\", \"payload\": {{\"app_id\": \"<app id>\", \"data\": {{\"key\": \"newValue\"}}}}}}\n\
+            - Replace components: {{\"action_type\": \"app.update\", \"payload\": {{\"app_id\": \"<app id>\", \"spec\": {{...full updated descriptor...}}}}}}\n\n\
+            When user asks to change an existing dynamic app:\n\
+            1. Use window.read_content to get the current app state\n\
+            2. Generate app.update with the changes\n\
+            3. Ask user to confirm the changes look right\n\n\
             ## Rules\n\
             1. Output ONLY a JSON array. No markdown fences, no extra text.\n\
             2. ALWAYS include agent.response.\n\
@@ -150,7 +213,9 @@ impl ConductorAgent {
             5. Use built-in content_types (spreadsheet, slides, etc.) for matching apps.\n\
             6. Use \"editor\" content_type for documents with Markdown.\n\
             7. You have FULL CONTROL over all apps. Any modification is possible via window.update_content with updated JSON.\n\
-            8. Use window.read_content to understand what's in open windows before composing across them.\n"
+            8. After creating a dynamic app with app.create, ALWAYS include an agent.response asking the user if the app matches their expectations and suggesting improvements.\n\
+            9. Use window.read_content before modifying any existing app with app.update to understand its current state.\n\
+            10. Use window.read_content to understand what's in open windows before composing across them.\n"
         )
     }
 
@@ -183,10 +248,20 @@ impl ConductorAgent {
         };
 
         let system_prompt = if let Some(space) = action_space {
-            let window_list = if open_windows.is_empty() {
+            let sanitized_windows: Vec<String> = open_windows.iter()
+                .map(|w| {
+                    // Strip potential injection chars and truncate
+                    let clean: String = w.chars()
+                        .filter(|c| !matches!(c, '"' | '\\' | '{' | '}' | '[' | ']'))
+                        .take(100)
+                        .collect();
+                    clean
+                })
+                .collect();
+            let window_list = if sanitized_windows.is_empty() {
                 "None".to_string()
             } else {
-                open_windows.join(", ")
+                sanitized_windows.join(", ")
             };
             Self::build_system_prompt(&window_list, &recent_memory, &space)
         } else {
@@ -321,10 +396,20 @@ impl ConductorAgent {
         };
 
         let system_prompt = if let Some(space) = action_space {
-            let window_list = if open_windows.is_empty() {
+            let sanitized_windows: Vec<String> = open_windows.iter()
+                .map(|w| {
+                    // Strip potential injection chars and truncate
+                    let clean: String = w.chars()
+                        .filter(|c| !matches!(c, '"' | '\\' | '{' | '}' | '[' | ']'))
+                        .take(100)
+                        .collect();
+                    clean
+                })
+                .collect();
+            let window_list = if sanitized_windows.is_empty() {
                 "None".to_string()
             } else {
-                open_windows.join(", ")
+                sanitized_windows.join(", ")
             };
             Self::build_system_prompt(&window_list, &recent_memory, &space)
         } else {

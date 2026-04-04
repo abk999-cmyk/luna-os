@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { GLASS } from './glassStyles';
+import { sanitizeHtml } from '../../utils/sanitize';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -1154,7 +1155,7 @@ export function EmailApp({ emails: initialEmails, folders: initialFolders, onSen
             </div>
             <div
               style={styles.readerBody}
-              dangerouslySetInnerHTML={{ __html: selectedEmail.body }}
+              dangerouslySetInnerHTML={{ __html: sanitizeHtml(selectedEmail.body) }}
             />
             {selectedEmail.attachments && selectedEmail.attachments.length > 0 && (
               <div style={styles.attachmentList}>

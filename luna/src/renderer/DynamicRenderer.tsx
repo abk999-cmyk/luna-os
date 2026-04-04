@@ -47,9 +47,12 @@ export function DynamicRenderer({ spec, dataContext: initialData, appId }: Dynam
     <div
       className="luna-dynamic-app"
       style={{
+        background: 'rgba(255,255,255,0.02)',
+        backdropFilter: 'blur(20px)',
         ...layoutToStyle(rootLayout),
         height: '100%',
         overflow: 'auto',
+        padding: 12,
         ...(spec.styles || {}),
       }}
     >

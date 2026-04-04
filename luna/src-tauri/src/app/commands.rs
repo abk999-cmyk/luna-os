@@ -27,6 +27,15 @@ pub async fn dispatch_app_event(
         "App event dispatched"
     );
 
+    // Handle __data_sync events: update the app's data context and persist
+    if handler_name == "__data_sync" {
+        let data: serde_json::Value = serde_json::from_str(&event_data)
+            .map_err(|e| LunaError::Dispatch(format!("Invalid event_data JSON: {}", e)))?;
+        state.app_manager.update_data(&app_id, data).await?;
+        info!(app_id = %app_id, "Data sync persisted");
+        return Ok(());
+    }
+
     // Route the event back through the action system
     let event_payload = serde_json::json!({
         "app_id": app_id,

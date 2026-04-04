@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { GLASS } from './glassStyles';
+import { sanitizeHtml } from '../../utils/sanitize';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -591,7 +592,7 @@ export function TextEditorApp() {
           <pre
             ref={highlightRef}
             style={{ ...S.highlight, fontSize, ...wrapStyle } as React.CSSProperties}
-            dangerouslySetInnerHTML={{ __html: highlightedHTML + '\n' }}
+            dangerouslySetInnerHTML={{ __html: sanitizeHtml(highlightedHTML + '\n') }}
             aria-hidden
           />
           <textarea

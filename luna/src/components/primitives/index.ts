@@ -20,6 +20,10 @@ export { Breadcrumbs } from './Breadcrumbs';
 export { CodeEditor } from './CodeEditor';
 export { Terminal } from './Terminal';
 export { Button } from './Button';
+export { Progress } from './Progress';
+export { Badge } from './Badge';
+export { Avatar } from './Avatar';
+export { Tag } from './Tag';
 
 export type { PrimitiveProps, ComponentSpec, LayoutSpec } from './types';
 export { layoutToStyle } from './types';

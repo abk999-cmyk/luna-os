@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { GLASS } from './glassStyles';
+import { sanitizeHtml } from '../../utils/sanitize';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -513,7 +514,7 @@ export function NotesApp({ notes: notesProp, onChange }: NotesProps) {
             suppressContentEditableWarning
             style={S.editorBody}
             onInput={handleContentChange}
-            dangerouslySetInnerHTML={{ __html: active.content }}
+            dangerouslySetInnerHTML={{ __html: sanitizeHtml(active.content) }}
           />
 
           <div style={S.editorFooter}>

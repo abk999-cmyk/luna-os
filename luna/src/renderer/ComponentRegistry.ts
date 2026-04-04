@@ -7,7 +7,7 @@ import {
   Stat, Timeline, Tabs, Modal,
   Chat, Chart, Gauge, Breadcrumbs,
   CodeEditor, Terminal,
-  Button,
+  Button, Progress, Badge, Avatar, Tag,
 } from '../components/primitives';
 
 type PrimitiveComponent = ComponentType<PrimitiveProps>;
@@ -56,4 +56,8 @@ export function registerBuiltinComponents() {
   registerComponent('CodeEditor', CodeEditor);
   registerComponent('Terminal', Terminal);
   registerComponent('Button', Button);
+  registerComponent('Progress', Progress);
+  registerComponent('Badge', Badge);
+  registerComponent('Avatar', Avatar);
+  registerComponent('Tag', Tag);
 }

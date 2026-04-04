@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { marked } from 'marked';
+import { sanitizeHtml } from '../utils/sanitize';
 
 interface ResponseDisplayProps {
   text: string;
@@ -22,7 +23,7 @@ export function ResponseDisplay({ text }: ResponseDisplayProps) {
         color: 'var(--text-primary)',
         wordBreak: 'break-word',
       }}
-      dangerouslySetInnerHTML={{ __html: html }}
+      dangerouslySetInnerHTML={{ __html: sanitizeHtml(html) }}
     />
   );
 }
