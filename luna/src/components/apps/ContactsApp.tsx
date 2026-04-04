@@ -88,6 +88,14 @@ const SearchIcon = () => (
   </svg>
 );
 
+const ExportIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+    <polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+  </svg>
+);
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -110,6 +118,7 @@ export function ContactsApp({ contacts: initialContacts, onChange }: ContactsApp
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<Contact | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [exportFeedback, setExportFeedback] = useState(false);
 
   const filtered = useMemo(() => {
     let list = contacts;
@@ -179,6 +188,24 @@ export function ContactsApp({ contacts: initialContacts, onChange }: ContactsApp
     setDraft(null);
     setShowDeleteConfirm(false);
   }, [selectedId, filtered]);
+
+  const exportVCard = useCallback((contact: Contact) => {
+    const vcard = [
+      'BEGIN:VCARD',
+      'VERSION:3.0',
+      `FN:${contact.firstName} ${contact.lastName}`,
+      `N:${contact.lastName};${contact.firstName}`,
+      ...contact.email.filter(Boolean).map(e => `EMAIL:${e}`),
+      ...contact.phone.filter(Boolean).map(p => `TEL:${p}`),
+      contact.address ? `ADR:;;${contact.address}` : '',
+      'END:VCARD',
+    ].filter(Boolean).join('\n');
+
+    navigator.clipboard.writeText(vcard).then(() => {
+      setExportFeedback(true);
+      setTimeout(() => setExportFeedback(false), 2000);
+    });
+  }, []);
 
   const updateDraftField = useCallback((field: keyof Contact, value: any) => {
     setDraft(prev => prev ? { ...prev, [field]: value } : null);
@@ -311,6 +338,15 @@ export function ContactsApp({ contacts: initialContacts, onChange }: ContactsApp
                 </>
               ) : (
                 <>
+                  {exportFeedback && (
+                    <span style={{ fontSize: 11, color: 'var(--accent-primary)', fontWeight: 500 }}>
+                      vCard copied!
+                    </span>
+                  )}
+                  <button onClick={() => selected && exportVCard(selected)} title="Export vCard" style={{
+                    ...GLASS.ghostBtn, width: 30, height: 30, borderRadius: 8,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,
+                  }}><ExportIcon /></button>
                   <button onClick={startEdit} style={{
                     ...GLASS.ghostBtn, width: 30, height: 30, borderRadius: 8,
                     display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,

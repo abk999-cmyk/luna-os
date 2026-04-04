@@ -100,6 +100,29 @@ export function PhotosApp({ photos: initialPhotos }: PhotosAppProps) {
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
   const [showInfo, setShowInfo] = useState(false);
   const [hoveredId, setHoveredId] = useState<number | null>(null);
+  const [selectedPhotos, setSelectedPhotos] = useState<Set<number>>(new Set());
+  const [selectMode, setSelectMode] = useState(false);
+
+  const toggleSelect = useCallback((id: number) => {
+    setSelectedPhotos(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const bulkFavorite = useCallback(() => {
+    setPhotos(prev => prev.map(p => selectedPhotos.has(p.id) ? { ...p, favorited: true } : p));
+    setSelectedPhotos(new Set());
+    setSelectMode(false);
+  }, [selectedPhotos]);
+
+  const bulkDelete = useCallback(() => {
+    setPhotos(prev => prev.filter(p => !selectedPhotos.has(p.id)));
+    setSelectedPhotos(new Set());
+    setSelectMode(false);
+  }, [selectedPhotos]);
 
   const filtered = useMemo(() => {
     if (filter === 'favorites') return photos.filter(p => p.favorited);
@@ -153,9 +176,47 @@ export function PhotosApp({ photos: initialPhotos }: PhotosAppProps) {
             style={{ ...(filter === 'favorites' ? GLASS.tabActive : GLASS.tab), padding: '5px 14px' }}
           >Favorites</button>
         </div>
-        <span style={{ color: 'var(--text-secondary)', fontSize: 12 }}>
-          {filtered.length} photo{filtered.length !== 1 ? 's' : ''}
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {selectMode && selectedPhotos.size > 0 && (
+            <>
+              <span style={{ color: 'var(--text-primary)', fontSize: 12, fontWeight: 500 }}>
+                {selectedPhotos.size} selected
+              </span>
+              <button
+                onClick={bulkFavorite}
+                style={{
+                  ...GLASS.ghostBtn, padding: '4px 10px', fontSize: 11, borderRadius: 6,
+                  display: 'flex', alignItems: 'center', gap: 4,
+                }}
+              >
+                <HeartIcon filled={false} /> Favorite
+              </button>
+              <button
+                onClick={bulkDelete}
+                style={{
+                  ...GLASS.ghostBtn, padding: '4px 10px', fontSize: 11, borderRadius: 6,
+                  color: '#ef4444',
+                }}
+              >
+                Delete
+              </button>
+            </>
+          )}
+          {!selectMode && (
+            <span style={{ color: 'var(--text-secondary)', fontSize: 12 }}>
+              {filtered.length} photo{filtered.length !== 1 ? 's' : ''}
+            </span>
+          )}
+          <button
+            onClick={() => { setSelectMode(m => !m); setSelectedPhotos(new Set()); }}
+            style={{
+              ...(selectMode ? GLASS.tabActive : GLASS.tab),
+              padding: '4px 10px', fontSize: 11, borderRadius: 6,
+            }}
+          >
+            {selectMode ? 'Done' : 'Select'}
+          </button>
+        </div>
       </div>
 
       {/* Grid */}
@@ -170,7 +231,7 @@ export function PhotosApp({ photos: initialPhotos }: PhotosAppProps) {
             return (
               <div
                 key={photo.id}
-                onClick={() => openLightbox(idx)}
+                onClick={() => selectMode ? toggleSelect(photo.id) : openLightbox(idx)}
                 onMouseEnter={() => setHoveredId(photo.id)}
                 onMouseLeave={() => setHoveredId(null)}
                 style={{
@@ -180,13 +241,34 @@ export function PhotosApp({ photos: initialPhotos }: PhotosAppProps) {
                   overflow: 'hidden',
                   cursor: 'pointer',
                   background: photoGradient(photo.hue),
-                  border: hovered ? '1px solid rgba(255,255,255,0.15)' : '1px solid rgba(255,255,255,0.04)',
+                  border: selectedPhotos.has(photo.id)
+                    ? '2px solid var(--accent-primary)'
+                    : hovered ? '1px solid rgba(255,255,255,0.15)' : '1px solid rgba(255,255,255,0.04)',
                   transition: 'border 0.15s ease, transform 0.15s ease',
                   transform: hovered ? 'scale(1.02)' : 'scale(1)',
                 }}
               >
+                {/* Selection checkbox overlay */}
+                {selectMode && (
+                  <div
+                    style={{
+                      position: 'absolute', top: 8, left: 8,
+                      width: 22, height: 22, borderRadius: 6,
+                      background: selectedPhotos.has(photo.id) ? 'var(--accent-primary)' : 'rgba(0,0,0,0.4)',
+                      border: selectedPhotos.has(photo.id) ? 'none' : '2px solid rgba(255,255,255,0.5)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      zIndex: 2,
+                    }}
+                  >
+                    {selectedPhotos.has(photo.id) && (
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    )}
+                  </div>
+                )}
                 {/* Favorite overlay */}
-                {(hovered || photo.favorited) && (
+                {!selectMode && (hovered || photo.favorited) && (
                   <div
                     onClick={(e) => toggleFav(photo.id, e)}
                     style={{

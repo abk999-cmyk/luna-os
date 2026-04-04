@@ -195,6 +195,29 @@ function evaluateFormula(
     return vals.length ? Math.max(...vals) : 0;
   }
 
+  // =IF(condition, trueValue, falseValue)
+  const ifMatch = f.match(/^IF\((.+)\)$/i);
+  if (ifMatch) {
+    // Split args respecting nested parens
+    const args = splitFormulaArgs(ifMatch[1]);
+    if (args.length >= 2) {
+      const condStr = args[0].trim();
+      // Evaluate condition: try as formula/ref first
+      let condVal: number;
+      const condRef = parseRef(condStr);
+      if (condRef) {
+        condVal = resolveValue(cellRef(condRef.row, condRef.col), data, new Set(visited));
+      } else {
+        const parsed = parseFloat(condStr);
+        condVal = isNaN(parsed) ? (condStr === 'true' || condStr === 'TRUE' ? 1 : 0) : parsed;
+      }
+      const isTruthy = condVal !== 0 && !isNaN(condVal);
+      const result = isTruthy ? (args[1] || '').trim() : (args[2] || '').trim();
+      const num = parseFloat(result);
+      return isNaN(num) ? NaN : num;
+    }
+  }
+
   // Arithmetic expression – replace cell refs with values then eval safely
   try {
     const expr = f.replace(/[A-Z]+\d+/g, (match) => {
@@ -210,9 +233,42 @@ function evaluateFormula(
   return NaN;
 }
 
+/** Split formula arguments respecting nested parentheses */
+function splitFormulaArgs(s: string): string[] {
+  const args: string[] = [];
+  let depth = 0;
+  let current = '';
+  for (const ch of s) {
+    if (ch === '(') { depth++; current += ch; }
+    else if (ch === ')') { depth--; current += ch; }
+    else if (ch === ',' && depth === 0) { args.push(current); current = ''; }
+    else { current += ch; }
+  }
+  if (current) args.push(current);
+  return args;
+}
+
 function computeDisplay(cell: CellData | undefined, data: SheetDataMap): string {
   if (!cell) return '';
   if (cell.formula) {
+    // Special handling for IF which can return text
+    const ifMatch = cell.formula.trim().match(/^IF\((.+)\)$/i);
+    if (ifMatch) {
+      const args = splitFormulaArgs(ifMatch[1]);
+      if (args.length >= 2) {
+        const condStr = args[0].trim();
+        let condVal: number;
+        const condRef = parseRef(condStr);
+        if (condRef) {
+          condVal = resolveValue(cellRef(condRef.row, condRef.col), data, new Set());
+        } else {
+          const parsed = parseFloat(condStr);
+          condVal = isNaN(parsed) ? (condStr === 'true' || condStr === 'TRUE' ? 1 : 0) : parsed;
+        }
+        const isTruthy = condVal !== 0 && !isNaN(condVal);
+        return (isTruthy ? (args[1] || '') : (args[2] || '')).trim();
+      }
+    }
     const v = evaluateFormula(cell.formula, data, new Set());
     return isNaN(v) ? '#ERR' : String(v);
   }

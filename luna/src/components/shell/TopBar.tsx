@@ -55,13 +55,19 @@ export function TopBar() {
             className="topbar__btn"
             onClick={() => setWorkspaceBrowserOpen(true)}
             title={activeWorkspace?.name || 'Workspaces'}
+            style={{ fontSize: 11, gap: 4, display: 'flex', alignItems: 'center' }}
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <rect x="3" y="3" width="7" height="7" rx="1" />
               <rect x="14" y="3" width="7" height="7" rx="1" />
               <rect x="3" y="14" width="7" height="7" rx="1" />
               <rect x="14" y="14" width="7" height="7" rx="1" />
             </svg>
+            {activeWorkspace?.name && (
+              <span style={{ maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {activeWorkspace.name}
+              </span>
+            )}
           </button>
 
           {/* Agent status indicator */}

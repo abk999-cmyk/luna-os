@@ -79,6 +79,9 @@ function App() {
     // Load saved windows from backend
     loadWindows();
 
+    // Load persisted settings (theme, permissionMode, sidebarCollapsed)
+    useShellStore.getState().loadSettings();
+
     // Check agent status
     getAgentStatus().then((status) => {
       setHasConductor(status.has_conductor);

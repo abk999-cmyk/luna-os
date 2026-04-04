@@ -1,4 +1,14 @@
 import { create } from 'zustand';
+import { saveAppContent, loadAppContent } from '../ipc/persistence';
+
+let _settingsSaveTimer: ReturnType<typeof setTimeout> | null = null;
+
+function persistSettings(settings: { theme: string; permissionMode: string; sidebarCollapsed: boolean }) {
+  if (_settingsSaveTimer) clearTimeout(_settingsSaveTimer);
+  _settingsSaveTimer = setTimeout(() => {
+    saveAppContent('__settings', 'global', JSON.stringify(settings)).catch(() => {});
+  }, 500);
+}
 
 export interface ContextItem {
   id: string;
@@ -49,6 +59,8 @@ interface ShellStore {
 
   theme: 'light' | 'dark' | 'system';
   setTheme: (theme: 'light' | 'dark' | 'system') => void;
+
+  loadSettings: () => Promise<void>;
 }
 
 export const useShellStore = create<ShellStore>((set) => ({
@@ -70,12 +82,20 @@ export const useShellStore = create<ShellStore>((set) => ({
   clearContextItems: () => set({ contextTrayItems: [] }),
 
   permissionMode: 'supervised',
-  setPermissionMode: (mode) => set({ permissionMode: mode }),
+  setPermissionMode: (mode) => {
+    set({ permissionMode: mode });
+    const s = useShellStore.getState();
+    persistSettings({ theme: s.theme, permissionMode: mode, sidebarCollapsed: s.sidebarCollapsed });
+  },
 
   sidebarTab: 'chat',
   setSidebarTab: (tab) => set({ sidebarTab: tab }),
   sidebarCollapsed: false,
-  toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
+  toggleSidebar: () => set((s) => {
+    const newCollapsed = !s.sidebarCollapsed;
+    persistSettings({ theme: s.theme, permissionMode: s.permissionMode, sidebarCollapsed: newCollapsed });
+    return { sidebarCollapsed: newCollapsed };
+  }),
 
   undoTimelineOpen: false,
   toggleUndoTimeline: () => set((s) => ({ undoTimelineOpen: !s.undoTimelineOpen })),
@@ -91,5 +111,21 @@ export const useShellStore = create<ShellStore>((set) => ({
   closeSettings: () => set({ settingsOpen: false }),
 
   theme: 'system',
-  setTheme: (theme) => set({ theme }),
+  setTheme: (theme) => {
+    set({ theme });
+    const s = useShellStore.getState();
+    persistSettings({ theme, permissionMode: s.permissionMode, sidebarCollapsed: s.sidebarCollapsed });
+  },
+
+  loadSettings: async () => {
+    try {
+      const entries = await loadAppContent('__settings');
+      if (entries.length > 0) {
+        const settings = JSON.parse(entries[0][1]);
+        if (settings.theme) set({ theme: settings.theme });
+        if (settings.permissionMode) set({ permissionMode: settings.permissionMode });
+        if (settings.sidebarCollapsed !== undefined) set({ sidebarCollapsed: settings.sidebarCollapsed });
+      }
+    } catch {}
+  },
 }));
