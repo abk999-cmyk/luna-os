@@ -18,6 +18,9 @@ import { useActivityStore } from './stores/activityStore';
 import { getPermissionMode } from './ipc/permissions';
 import { undoLastAction } from './ipc/undo';
 import { loadActiveApps } from './ipc/apps';
+import { useUndoStore } from './stores/undoStore';
+import { WelcomeOverlay } from './components/WelcomeOverlay';
+import { ContextMenuProvider } from './components/ContextMenu';
 
 import './styles/theme.css';
 import './styles/dark-theme.css';
@@ -62,9 +65,28 @@ function App() {
     'meta+shift+k': getTogglePalette(),
     'f3': () => useShellStore.getState().toggleMissionControl(),
     'meta+z': () => {
+      // Try frontend undo first (faster, handles UI state)
+      const undone = useUndoStore.getState().undoLast();
+      if (undone) {
+        addToast('Action undone', 'success');
+        return;
+      }
+      // Fall back to backend undo
       undoLastAction().then((r: { undone: boolean }) => {
         if (r.undone) addToast('Action undone', 'success');
       }).catch(() => {});
+    },
+    'ctrl+arrowleft': () => {
+      const focusedId = useWindowStore.getState().focusedWindowId;
+      if (focusedId) useWindowStore.getState().snapWindow(focusedId, 'left');
+    },
+    'ctrl+arrowright': () => {
+      const focusedId = useWindowStore.getState().focusedWindowId;
+      if (focusedId) useWindowStore.getState().snapWindow(focusedId, 'right');
+    },
+    'ctrl+arrowup': () => {
+      const focusedId = useWindowStore.getState().focusedWindowId;
+      if (focusedId) useWindowStore.getState().snapWindow(focusedId, 'full');
     },
   }), []);
   useKeyboardShortcuts(shortcuts);
@@ -446,6 +468,8 @@ function App() {
           onResolved={() => setPermissionQueue((prev) => prev.slice(1))}
         />
       )}
+      <WelcomeOverlay />
+      <ContextMenuProvider />
     </>
   );
 }

@@ -22,6 +22,9 @@ interface WindowStore {
   focusWindow: (id: string) => Promise<void>;
   unfocusAll: () => void;
 
+  // Snap window to a screen position
+  snapWindow: (id: string, position: 'left' | 'right' | 'top' | 'full') => void;
+
   // Add a window locally (no IPC — used when backend already created the window)
   addWindowLocal: (window: WindowState) => void;
 
@@ -217,6 +220,25 @@ export const useWindowStore = create<WindowStore>((set, get) => ({
     set((state) => ({
       windows: state.windows.map((w) => ({ ...w, focused: false })),
       focusedWindowId: null,
+    }));
+  },
+
+  snapWindow: (id: string, position: 'left' | 'right' | 'top' | 'full') => {
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const topBarH = 32;
+    const dockH = 56;
+    const usableH = vh - topBarH - dockH;
+
+    const bounds = position === 'left' ? { x: 0, y: topBarH, width: vw / 2, height: usableH }
+      : position === 'right' ? { x: vw / 2, y: topBarH, width: vw / 2, height: usableH }
+      : position === 'top' ? { x: 0, y: topBarH, width: vw, height: usableH / 2 }
+      : { x: 0, y: topBarH, width: vw, height: usableH }; // full
+
+    set((state) => ({
+      windows: state.windows.map((w) =>
+        w.id === id ? { ...w, bounds: { ...w.bounds, ...bounds } } : w
+      ),
     }));
   },
 

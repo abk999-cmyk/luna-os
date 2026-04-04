@@ -5,6 +5,7 @@ import { useAppStore } from '../stores/appStore';
 import { useMagneticDrag } from '../hooks/useMagneticDrag';
 import { useDropContext } from '../hooks/useDropContext';
 import { useWindowAgentPresence } from '../hooks/useWindowAgentPresence';
+import { triggerContextMenu } from './ContextMenu';
 import { ResponseDisplay } from './ResponseDisplay';
 import { DynamicRenderer } from '../renderer/DynamicRenderer';
 import { RichTextEditor } from './RichTextEditor';
@@ -74,6 +75,7 @@ export function Window({ window: win }: WindowProps) {
   const focusWindow = useWindowStore((s) => s.focusWindow);
   const updateWindowSize = useWindowStore((s) => s.updateWindowSize);
   const syncWindowSize = useWindowStore((s) => s.syncWindowSize);
+  const snapWindow = useWindowStore((s) => s.snapWindow);
   const windowContent = useWindowStore((s) => s.windowContent);
   const setWindowContent = useWindowStore((s) => s.setWindowContent);
 
@@ -212,7 +214,14 @@ export function Window({ window: win }: WindowProps) {
         <div className="window__group-badge">{groupSize}</div>
       )}
       {/* Title Bar */}
-      <div className="window__chrome" onMouseDown={onDragStart}>
+      <div className="window__chrome" onMouseDown={onDragStart} onContextMenu={(e) => triggerContextMenu(e, [
+        { label: 'Minimize', action: () => minimizeWindow(win.id) },
+        { label: 'Maximize', action: () => handleMaximize() },
+        { label: 'Snap Left', action: () => snapWindow(win.id, 'left') },
+        { label: 'Snap Right', action: () => snapWindow(win.id, 'right') },
+        { divider: true, label: '', action: () => {} },
+        { label: 'Close', action: () => removeWindow(win.id), danger: true },
+      ])}>
         <div className="window__controls window__chrome-controls">
           <button
             className="window__control window__control--close"
