@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { GLASS } from './glassStyles';
 import { sanitizeHtml } from '../../utils/sanitize';
+import { useUndoStore } from '../../stores/undoStore';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -438,9 +439,14 @@ export function TextEditorApp() {
   /* Update file content */
   const updateContent = useCallback(
     (content: string) => {
+      const prevContent = activeTab?.content ?? '';
+      const tabId = activeTabId;
+      useUndoStore.getState().push(`Edit ${activeTab?.name ?? 'file'}`, () => {
+        setTabs((prev) => prev.map((t) => (t.id === tabId ? { ...t, content: prevContent } : t)));
+      });
       setTabs((prev) => prev.map((t) => (t.id === activeTabId ? { ...t, content } : t)));
     },
-    [activeTabId]
+    [activeTabId, activeTab]
   );
 
   /* Add new tab */

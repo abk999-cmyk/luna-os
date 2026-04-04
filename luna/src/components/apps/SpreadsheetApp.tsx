@@ -575,6 +575,28 @@ export const SpreadsheetApp: React.FC<SpreadsheetAppProps> = ({
         setSelection(null);
       };
 
+      // Copy: Cmd/Ctrl+C
+      if ((e.metaKey || e.ctrlKey) && e.key === 'c') {
+        e.preventDefault();
+        const ref = cellRef(cursor.row, cursor.col);
+        const val = computeDisplay(data[ref], data);
+        navigator.clipboard.writeText(val);
+        return;
+      }
+      // Paste: Cmd/Ctrl+V
+      if ((e.metaKey || e.ctrlKey) && e.key === 'v') {
+        e.preventDefault();
+        navigator.clipboard.readText().then((text) => {
+          const ref = cellRef(cursor.row, cursor.col);
+          setData((prev) => ({
+            ...prev,
+            [ref]: { ...(prev[ref] ?? { value: '' }), value: text, formula: undefined },
+          }));
+          onChange?.(activeSheet, ref, text);
+        });
+        return;
+      }
+
       if (e.key === 'ArrowUp') move(-1, 0);
       else if (e.key === 'ArrowDown') move(1, 0);
       else if (e.key === 'ArrowLeft') move(0, -1);
@@ -614,7 +636,7 @@ export const SpreadsheetApp: React.FC<SpreadsheetAppProps> = ({
         startEditing(e.key);
       }
     },
-    [editing, commitEdit, startEditing, numRows, numCols, cursor, selection, setData],
+    [editing, commitEdit, startEditing, numRows, numCols, cursor, selection, setData, data, activeSheet, onChange],
   );
 
   // ---- Column resize handlers ----

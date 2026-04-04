@@ -81,6 +81,7 @@ function uid(): string {
 }
 
 const isTextFile = (name: string) => /\.(txt|md|json|js|ts|tsx|jsx|css|html|py|rs|toml|yaml|yml|xml|csv|log|sh|env)$/i.test(name);
+const isImageFile = (name: string) => /\.(png|jpg|jpeg|gif|svg|webp|bmp|ico)$/i.test(name);
 const formatFileSize = (bytes: number) => {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -704,6 +705,16 @@ export function FileManagerApp({
             {previewFile.modified && (
               <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
                 Modified: {new Date(previewFile.modified).toLocaleDateString()}
+              </div>
+            )}
+            {previewFile.type !== 'folder' && isImageFile(previewFile.name) && (
+              <div style={{
+                width: '100%', height: 120, borderRadius: 8,
+                background: `linear-gradient(135deg, hsl(${previewFile.name.length * 37 % 360}, 50%, 30%), hsl(${previewFile.name.length * 71 % 360}, 50%, 20%))`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 11, color: 'rgba(255,255,255,0.6)',
+              }}>
+                {previewFile.name.split('.').pop()?.toUpperCase()}
               </div>
             )}
             {previewFile.type !== 'folder' && isTextFile(previewFile.name) && (
