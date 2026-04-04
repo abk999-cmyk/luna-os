@@ -14,10 +14,11 @@ impl AuditLog {
         Self { db }
     }
 
-    pub async fn log(&self, agent_id: &str, action_type: &str, decision: &str) -> Result<(), LunaError> {
+    pub async fn log(&self, agent_id: &str, action_type: &str, decision: &str) {
         let db = self.db.lock().await;
-        db.permission_log_insert(agent_id, action_type, decision)?;
-        Ok(())
+        if let Err(e) = db.permission_log_insert(agent_id, action_type, decision) {
+            tracing::warn!(error = %e, "Failed to write audit log entry");
+        }
     }
 
     pub async fn query(&self, agent_id: Option<&str>, limit: usize) -> Result<Vec<serde_json::Value>, LunaError> {

@@ -49,6 +49,12 @@ impl ActionDispatcher {
     }
 
     pub async fn dispatch(&self, mut action: Action) -> Result<ActionId, LunaError> {
+        // Check payload size (max 1MB)
+        let payload_size = serde_json::to_string(&action.payload).map(|s| s.len()).unwrap_or(0);
+        if payload_size > 1_048_576 {
+            return Err(LunaError::Dispatch(format!("Action payload too large: {} bytes (max 1MB)", payload_size)));
+        }
+
         let agent_id = match &action.source {
             crate::action::types::ActionSource::Agent(id) => id.clone(),
             crate::action::types::ActionSource::User => "user".to_string(),
@@ -65,7 +71,7 @@ impl ActionDispatcher {
                         action_type = %action.action_type,
                         "Action denied by permission matrix"
                     );
-                    self.audit.log(&agent_id, &action.action_type, "denied").await.ok();
+                    self.audit.log(&agent_id, &action.action_type, "denied").await;
                     return Err(LunaError::Dispatch(format!(
                         "Permission denied: agent '{}' cannot perform '{}'",
                         agent_id, action.action_type
@@ -84,7 +90,7 @@ impl ActionDispatcher {
                                 action_type = %action.action_type,
                                 "Action requires user approval — parking"
                             );
-                            self.audit.log(&agent_id, &action.action_type, "pending_approval").await.ok();
+                            self.audit.log(&agent_id, &action.action_type, "pending_approval").await;
                             let action_id = action.id.to_string();
                             {
                                 let mut pending = self.pending_actions.write().await;
@@ -200,7 +206,7 @@ impl ActionDispatcher {
         };
 
         info!(action_id = %action_id, action_type = %action.action_type, agent_id = %agent_id, "Pending action approved — dispatching directly");
-        self.audit.log(&agent_id, &action.action_type, "approved_by_user").await.ok();
+        self.audit.log(&agent_id, &action.action_type, "approved_by_user").await;
 
         // Dispatch directly to queue, bypassing permission check (user already approved)
         let aid = action.id;
@@ -242,7 +248,7 @@ impl ActionDispatcher {
             LunaError::Dispatch(format!("No pending action with id: {}", action_id))
         })?;
         warn!(action_id = %action_id, action_type = %action.action_type, "Pending action denied");
-        self.audit.log("user", &action.action_type, "denied_by_user").await.ok();
+        self.audit.log("user", &action.action_type, "denied_by_user").await;
         Ok(())
     }
 

@@ -24,6 +24,7 @@ impl Database {
 
         // Enable WAL mode for better concurrent read performance
         conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;")?;
+        conn.execute_batch("PRAGMA journal_size_limit=10000000; PRAGMA wal_autocheckpoint=1000; PRAGMA foreign_keys=ON;")?;
 
         let db = Self { conn };
         db.run_migrations()?;
@@ -314,14 +315,20 @@ impl Database {
         )?;
 
         // Add new columns if they don't exist (safe migration)
-        let _ = self.conn.execute_batch("
+        if let Err(e) = self.conn.execute_batch("
             ALTER TABLE episodic_memory ADD COLUMN category TEXT NOT NULL DEFAULT 'action';
             ALTER TABLE episodic_memory ADD COLUMN duration_ms INTEGER;
-        ");
+        ") {
+            // Column may already exist, that's fine
+            tracing::debug!("Migration note (likely already applied): {}", e);
+        }
 
-        let _ = self.conn.execute_batch("
+        if let Err(e) = self.conn.execute_batch("
             ALTER TABLE window_states ADD COLUMN created_at TEXT;
-        ");
+        ") {
+            // Column may already exist, that's fine
+            tracing::debug!("Migration note (likely already applied): {}", e);
+        }
 
         Ok(())
     }

@@ -1,3 +1,4 @@
+import type React from 'react';
 import type { CSSProperties } from 'react';
 
 /**
@@ -107,4 +108,88 @@ export const GLASS = {
     overflowY: 'auto' as const,
     overflowX: 'hidden' as const,
   } as CSSProperties,
+
+  // Type scale
+  text: {
+    xs: 11,
+    sm: 12,
+    base: 13,
+    md: 14,
+    lg: 16,
+    xl: 20,
+    xxl: 28,
+  } as const,
+
+  // Spacing scale
+  space: {
+    xs: 4,
+    sm: 8,
+    md: 12,
+    lg: 16,
+    xl: 24,
+    xxl: 32,
+  } as const,
+
+  // Border radius tokens
+  radius: {
+    sm: 6,
+    md: 8,
+    lg: 12,
+    xl: 16,
+  } as const,
+
+  // Transition tokens
+  transition: {
+    fast: '0.15s ease',
+    normal: '0.25s ease',
+    slow: '0.4s ease',
+  } as const,
+
+  // Focus ring (for keyboard navigation)
+  focusRing: {
+    outline: '2px solid rgba(126, 184, 255, 0.6)',
+    outlineOffset: '2px',
+  } as Record<string, string>,
+
+  // Disabled state
+  disabled: {
+    opacity: 0.4,
+    pointerEvents: 'none' as const,
+    cursor: 'not-allowed',
+  } as React.CSSProperties,
+
+  // Section header pattern
+  sectionHeader: {
+    fontSize: 11,
+    fontWeight: 600,
+    color: 'var(--text-secondary)',
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.05em',
+    marginBottom: 8,
+  } as React.CSSProperties,
+
+  // Loading state
+  loadingState: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: '100%',
+    color: 'var(--text-tertiary)',
+    fontSize: 13,
+    fontFamily: 'var(--font-ui)',
+  } as React.CSSProperties,
+
+  // Empty state
+  emptyState: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: '100%',
+    gap: 8,
+    color: 'var(--text-tertiary)',
+    fontSize: 13,
+    fontFamily: 'var(--font-ui)',
+    padding: 24,
+  } as React.CSSProperties,
 } as const;

@@ -186,6 +186,10 @@ impl AppManager {
             }
         }
 
+        // TODO: Deregister ephemeral action handlers for this app.
+        // AppManager does not currently have access to the ActionTypeRegistry / handler registry.
+        // This needs wiring so that app-specific action handlers are cleaned up on destroy.
+
         Ok(app)
     }
 

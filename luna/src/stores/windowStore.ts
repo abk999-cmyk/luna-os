@@ -62,7 +62,20 @@ export const useWindowStore = create<WindowStore>((set, get) => ({
 
   loadWindows: async () => {
     const windows = await windowIpc.getWindows();
-    set({ windows });
+    // Clamp window bounds to viewport
+    const vw = window.innerWidth || 1920;
+    const vh = window.innerHeight || 1080;
+    const clamped = windows.map(w => ({
+      ...w,
+      bounds: {
+        ...w.bounds,
+        x: Math.max(0, Math.min(w.bounds.x, vw - 100)),
+        y: Math.max(0, Math.min(w.bounds.y, vh - 100)),
+        width: Math.max(320, Math.min(w.bounds.width, vw)),
+        height: Math.max(240, Math.min(w.bounds.height, vh)),
+      },
+    }));
+    set({ windows: clamped });
   },
 
   addWindow: async (title: string, contentType?: string, content?: string, x?: number, y?: number, width?: number, height?: number) => {

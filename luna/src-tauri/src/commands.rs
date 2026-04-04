@@ -39,6 +39,9 @@ pub async fn send_message(
     state: State<'_, AppState>,
     text: String,
 ) -> Result<(), LunaError> {
+    if text.len() > 10_000 {
+        return Err(LunaError::Dispatch("Message too long (max 10KB)".into()));
+    }
     info!(text = %text, "User message received");
 
     // Dispatch as user.text_input action
@@ -157,7 +160,7 @@ pub async fn grant_permission(
         perms.grant(&agent_id, &action_type, permanent)?;
     }
 
-    state.audit.log(&agent_id, &action_type, "granted").await.ok();
+    state.audit.log(&agent_id, &action_type, "granted").await;
 
     if permanent {
         // Persist to agent_state so it survives restart
@@ -185,7 +188,7 @@ pub async fn deny_permission(
         let mut perms = state.permissions.write().await;
         perms.deny(&agent_id, &action_type)?;
     }
-    state.audit.log(&agent_id, &action_type, "denied").await.ok();
+    state.audit.log(&agent_id, &action_type, "denied").await;
     info!(agent_id = %agent_id, action_type = %action_type, "Permission denied");
     Ok(())
 }
@@ -216,6 +219,9 @@ pub async fn send_message_streaming(
     state: State<'_, AppState>,
     text: String,
 ) -> Result<(), LunaError> {
+    if text.len() > 10_000 {
+        return Err(LunaError::Dispatch("Message too long (max 10KB)".into()));
+    }
     info!(text = %text, "User message received (streaming)");
 
     // Dispatch as user.text_input action

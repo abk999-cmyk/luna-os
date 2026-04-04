@@ -20,8 +20,8 @@ impl WindowManager {
 
         // Offset new windows so they don't stack exactly
         let offset_bounds = bounds.map(|mut b| {
-            b.x += (self.windows.len() as f64) * 30.0;
-            b.y += (self.windows.len() as f64) * 30.0;
+            b.x += ((self.windows.len() % 10) as f64) * 30.0;
+            b.y += ((self.windows.len() % 10) as f64) * 30.0;
             b
         });
 
@@ -96,8 +96,9 @@ impl WindowManager {
             w.focused = false;
         }
 
-        // Focus the target
-        let window = self.windows.get_mut(id).unwrap();
+        // Focus the target — safe because we checked contains_key above
+        let window = self.windows.get_mut(id)
+            .ok_or_else(|| LunaError::Window(format!("Window not found: {}", id)))?;
         window.focused = true;
         window.z_order = self.z_counter;
         window.visibility = Visibility::Visible;
